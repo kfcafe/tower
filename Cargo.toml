@@ -1,0 +1,49 @@
+[workspace]
+resolver = "2"
+members = [
+    "mana",
+    "mana/crates/mana-core",
+    "imp/crates/imp-llm",
+    "imp/crates/imp-core",
+    "imp/crates/imp-lua",
+    "imp/crates/imp-tui",
+    "imp/crates/imp-cli",
+    "wizard/crates/wizard-proto",
+    "wizard/crates/wizard-store",
+    "wizard/crates/wizard-terminal",
+    "wizard/crates/wizard-browser",
+    "wizard/crates/wizard-orch",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+async-trait = "0.1"
+thiserror = "2"
+tokio = { version = "1", features = ["full"] }
+futures-core = "0.3"
+futures = "0.3"
+uuid = { version = "1", features = ["v4"] }
+reqwest = { version = "0.12", features = ["stream", "json"] }
+toml = "0.8"
+similar = "2"
+walkdir = "2"
+clap = { version = "4", features = ["derive"] }
+ratatui = "0.29"
+crossterm = "0.28"
+mlua = { version = "0.10", features = ["lua54", "vendored", "async", "send"] }
+
+mana-core = { path = "mana/crates/mana-core" }
+imp-llm = { path = "imp/crates/imp-llm" }
+imp-core = { path = "imp/crates/imp-core" }
+imp-lua = { path = "imp/crates/imp-lua" }
+imp-tui = { path = "imp/crates/imp-tui" }
+wizard-proto = { path = "wizard/crates/wizard-proto" }
+wizard-store = { path = "wizard/crates/wizard-store" }
+wizard-terminal = { path = "wizard/crates/wizard-terminal" }
+wizard-browser = { path = "wizard/crates/wizard-browser" }

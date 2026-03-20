@@ -1,0 +1,10 @@
+[package]
+name = "wizard-terminal"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Terminal session wrapper and future libghostty bridge for Wizard"
+
+[dependencies]
+serde.workspace = true
+thiserror.workspace = true

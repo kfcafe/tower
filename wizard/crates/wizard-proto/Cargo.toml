@@ -1,0 +1,10 @@
+[package]
+name = "wizard-proto"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Shared commands, events, and snapshot types for Wizard"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true

@@ -1,0 +1,152 @@
+use std::path::{Path, PathBuf};
+
+use anyhow::{anyhow, Context, Result};
+use chrono::Utc;
+
+use crate::unit::{validate_priority, Unit};
+use crate::discovery::find_unit_file;
+use crate::index::Index;
+use crate::util::parse_status;
+
+/// Parameters for updating a unit.
+pub struct UpdateParams {
+    pub title: Option<String>,
+    pub description: Option<String>,
+    pub acceptance: Option<String>,
+    pub notes: Option<String>,
+    pub design: Option<String>,
+    pub status: Option<String>,
+    pub priority: Option<u8>,
+    pub assignee: Option<String>,
+    pub add_label: Option<String>,
+    pub remove_label: Option<String>,
+}
+
+/// Result of updating a unit.
+pub struct UpdateResult {
+    pub unit: Unit,
+    pub path: PathBuf,
+}
+
+/// Update a unit's fields and persist changes.
+pub fn update(mana_dir: &Path, id: &str, params: UpdateParams) -> Result<UpdateResult> {
+    if let Some(p) = params.priority {
+        validate_priority(p)?;
+    }
+
+    let bean_path = find_unit_file(mana_dir, id)
+        .with_context(|| format!("Unit not found: {}", id))?;
+    let mut unit = Unit::from_file(&bean_path)
+        .with_context(|| format!("Failed to load unit: {}", id))?;
+
+    if let Some(v) = params.title { unit.title = v; }
+    if let Some(v) = params.description { unit.description = Some(v); }
+    if let Some(v) = params.acceptance { unit.acceptance = Some(v); }
+
+    if let Some(new_notes) = params.notes {
+        let timestamp = Utc::now().to_rfc3339();
+        unit.notes = Some(match unit.notes {
+            Some(existing) => format!("{}\n\n***\n{}\n{}", existing, timestamp, new_notes),
+            None => format!("***\n{}\n{}", timestamp, new_notes),
+        });
+    }
+
+    if let Some(v) = params.design { unit.design = Some(v); }
+
+    if let Some(new_status) = params.status {
+        unit.status = parse_status(&new_status)
+            .ok_or_else(|| anyhow!("Invalid status: {}", new_status))?;
+    }
+
+    if let Some(v) = params.priority { unit.priority = v; }
+    if let Some(v) = params.assignee { unit.assignee = Some(v); }
+
+    if let Some(label) = params.add_label {
+        if !unit.labels.contains(&label) { unit.labels.push(label); }
+    }
+    if let Some(label) = params.remove_label {
+        unit.labels.retain(|l| l != &label);
+    }
+
+    unit.updated_at = Utc::now();
+    unit.to_file(&bean_path).with_context(|| format!("Failed to save unit: {}", id))?;
+
+    let index = Index::build(mana_dir)?;
+    index.save(mana_dir)?;
+
+    Ok(UpdateResult { unit, path: bean_path })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::unit::Status;
+    use crate::ops::create::{self, tests::minimal_params};
+    use std::fs;
+    use tempfile::TempDir;
+
+    fn setup() -> (TempDir, PathBuf) {
+        let dir = TempDir::new().unwrap();
+        let bd = dir.path().join(".mana");
+        fs::create_dir(&bd).unwrap();
+        crate::config::Config {
+            project: "test".to_string(), next_id: 1, auto_close_parent: true,
+            run: None, plan: None, max_loops: 10, max_concurrent: 4,
+            poll_interval: 30, extends: vec![], rules_file: None,
+            file_locking: false, worktree: false, on_close: None,
+            on_fail: None, post_plan: None, verify_timeout: None,
+            review: None, user: None, user_email: None, auto_commit: false,
+        }.save(&bd).unwrap();
+        (dir, bd)
+    }
+
+    fn empty_params() -> UpdateParams {
+        UpdateParams {
+            title: None, description: None, acceptance: None, notes: None,
+            design: None, status: None, priority: None, assignee: None,
+            add_label: None, remove_label: None,
+        }
+    }
+
+    #[test]
+    fn update_title() {
+        let (_dir, bd) = setup();
+        create::create(&bd, minimal_params("Old")).unwrap();
+        let r = update(&bd, "1", UpdateParams { title: Some("New".into()), ..empty_params() }).unwrap();
+        assert_eq!(r.unit.title, "New");
+    }
+
+    #[test]
+    fn update_status() {
+        let (_dir, bd) = setup();
+        create::create(&bd, minimal_params("Task")).unwrap();
+        let r = update(&bd, "1", UpdateParams { status: Some("in_progress".into()), ..empty_params() }).unwrap();
+        assert_eq!(r.unit.status, Status::InProgress);
+    }
+
+    #[test]
+    fn update_appends_notes() {
+        let (_dir, bd) = setup();
+        create::create(&bd, minimal_params("Task")).unwrap();
+        update(&bd, "1", UpdateParams { notes: Some("First".into()), ..empty_params() }).unwrap();
+        let r = update(&bd, "1", UpdateParams { notes: Some("Second".into()), ..empty_params() }).unwrap();
+        let notes = r.unit.notes.unwrap();
+        assert!(notes.contains("First"));
+        assert!(notes.contains("Second"));
+    }
+
+    #[test]
+    fn update_nonexistent() {
+        let (_dir, bd) = setup();
+        assert!(update(&bd, "99", UpdateParams { title: Some("x".into()), ..empty_params() }).is_err());
+    }
+
+    #[test]
+    fn update_rebuilds_index() {
+        let (_dir, bd) = setup();
+        create::create(&bd, minimal_params("Task")).unwrap();
+        update(&bd, "1", UpdateParams { title: Some("Updated".into()), ..empty_params() }).unwrap();
+        let index = Index::load(&bd).unwrap();
+        assert_eq!(index.units[0].title, "Updated");
+    }
+}

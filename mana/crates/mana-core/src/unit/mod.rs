@@ -1,0 +1,1440 @@
+use std::path::Path;
+
+use anyhow::Result;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+
+use crate::util::{atomic_write, validate_bean_id};
+
+pub mod types;
+pub use types::*;
+
+// ---------------------------------------------------------------------------
+// Priority Validation
+// ---------------------------------------------------------------------------
+
+/// Validate that priority is in the valid range (0-4, P0-P4).
+pub fn validate_priority(priority: u8) -> Result<()> {
+    if priority > 4 {
+        return Err(anyhow::anyhow!(
+            "Invalid priority: {}. Priority must be in range 0-4 (P0-P4)",
+            priority
+        ));
+    }
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Unit
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Unit {
+    pub id: String,
+    pub title: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub slug: Option<String>,
+    pub status: Status,
+    #[serde(default = "default_priority")]
+    pub priority: u8,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub acceptance: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub notes: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub design: Option<String>,
+
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub labels: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub assignee: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub closed_at: Option<DateTime<Utc>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub close_reason: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub dependencies: Vec<String>,
+
+    // -- verification & claim fields --
+    /// Shell command that must exit 0 to close the unit.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub verify: Option<String>,
+    /// Whether this unit was created with --fail-first (enforced TDD).
+    /// Records that the verify command was proven to fail before creation.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub fail_first: bool,
+    /// Git commit SHA recorded when verify was proven to fail at claim time.
+    /// Proves the test was meaningful at the point work began.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub checkpoint: Option<String>,
+    /// How many times the verify command has been run.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub attempts: u32,
+    /// Maximum verify attempts before escalation (default 3).
+    #[serde(
+        default = "default_max_attempts",
+        skip_serializing_if = "is_default_max_attempts"
+    )]
+    pub max_attempts: u32,
+    /// Agent or user currently holding a claim on this unit.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub claimed_by: Option<String>,
+    /// When the claim was acquired.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub claimed_at: Option<DateTime<Utc>>,
+
+    /// Whether this unit has been moved to the archive.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub is_archived: bool,
+
+    /// Artifacts this unit produces (types, functions, files).
+    /// Used by decompose skill for dependency inference.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub produces: Vec<String>,
+
+    /// Artifacts this unit requires from other units.
+    /// Maps to dependencies via sibling produces.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub requires: Vec<String>,
+
+    /// Declarative action to execute when verify fails.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub on_fail: Option<OnFailAction>,
+
+    /// Declarative actions to execute when this unit is closed.
+    /// Runs after archive and post-close hook. Failures warn but don't revert.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub on_close: Vec<OnCloseAction>,
+
+    /// Structured history of verification runs.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub history: Vec<RunRecord>,
+
+    /// Structured output from verify commands (arbitrary JSON).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub outputs: Option<serde_json::Value>,
+
+    /// Maximum agent loops for this unit (overrides config default, 0 = unlimited).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_loops: Option<u32>,
+
+    /// Timeout in seconds for the verify command (overrides config default).
+    /// If the verify command exceeds this limit, it is killed and treated as failure.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub verify_timeout: Option<u64>,
+
+    // -- Memory system fields --
+    /// Unit type: 'task' (default) or 'fact' (verified knowledge).
+    #[serde(
+        default = "default_bean_type",
+        skip_serializing_if = "is_default_bean_type"
+    )]
+    pub bean_type: String,
+
+    /// Unix timestamp of last successful verify (for staleness detection).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_verified: Option<DateTime<Utc>>,
+
+    /// When this fact becomes stale (created_at + TTL). Only meaningful for facts.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stale_after: Option<DateTime<Utc>>,
+
+    /// File paths this unit is relevant to (for context relevance scoring).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub paths: Vec<String>,
+
+    /// Structured attempt tracking: [{num, outcome, notes}].
+    /// Tracks claim→close cycles for episodic memory.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub attempt_log: Vec<AttemptRecord>,
+
+    /// Identity of who created this unit (resolved from config/git/env).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub created_by: Option<String>,
+
+    /// Whether this unit is a feature (product-level goal, human-only close).
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub feature: bool,
+}
+
+fn default_priority() -> u8 {
+    2
+}
+
+fn default_max_attempts() -> u32 {
+    3
+}
+
+fn is_zero(v: &u32) -> bool {
+    *v == 0
+}
+
+fn is_default_max_attempts(v: &u32) -> bool {
+    *v == 3
+}
+
+fn is_false(v: &bool) -> bool {
+    !*v
+}
+
+fn default_bean_type() -> String {
+    "task".to_string()
+}
+
+fn is_default_bean_type(v: &str) -> bool {
+    v == "task"
+}
+
+impl Unit {
+    /// Create a new unit with sensible defaults.
+    /// Returns an error if the ID is invalid.
+    pub fn try_new(id: impl Into<String>, title: impl Into<String>) -> Result<Self> {
+        let id_str = id.into();
+        validate_bean_id(&id_str)?;
+
+        let now = Utc::now();
+        Ok(Self {
+            id: id_str,
+            title: title.into(),
+            slug: None,
+            status: Status::Open,
+            priority: 2,
+            created_at: now,
+            updated_at: now,
+            description: None,
+            acceptance: None,
+            notes: None,
+            design: None,
+            labels: Vec::new(),
+            assignee: None,
+            closed_at: None,
+            close_reason: None,
+            parent: None,
+            dependencies: Vec::new(),
+            verify: None,
+            fail_first: false,
+            checkpoint: None,
+            attempts: 0,
+            max_attempts: 3,
+            claimed_by: None,
+            claimed_at: None,
+            is_archived: false,
+            feature: false,
+            produces: Vec::new(),
+            requires: Vec::new(),
+            on_fail: None,
+            on_close: Vec::new(),
+            history: Vec::new(),
+            outputs: None,
+            max_loops: None,
+            verify_timeout: None,
+            bean_type: "task".to_string(),
+            last_verified: None,
+            stale_after: None,
+            paths: Vec::new(),
+            attempt_log: Vec::new(),
+            created_by: None,
+        })
+    }
+
+    /// Create a new unit with sensible defaults.
+    /// Panics if the ID is invalid. Prefer `try_new` for fallible construction.
+    pub fn new(id: impl Into<String>, title: impl Into<String>) -> Self {
+        Self::try_new(id, title).expect("Invalid unit ID")
+    }
+
+    /// Get effective max_loops (per-unit override or config default).
+    /// A value of 0 means unlimited.
+    pub fn effective_max_loops(&self, config_max: u32) -> u32 {
+        self.max_loops.unwrap_or(config_max)
+    }
+
+    /// Get effective verify_timeout: unit-level override, then config default, then None.
+    pub fn effective_verify_timeout(&self, config_timeout: Option<u64>) -> Option<u64> {
+        self.verify_timeout.or(config_timeout)
+    }
+
+    /// Parse YAML frontmatter and markdown body.
+    /// Expects format:
+    /// ```text
+    /// ---
+    /// id: 1
+    /// title: Example
+    /// status: open
+    /// ...
+    /// ---
+    /// # Markdown body here
+    /// ```
+    fn parse_frontmatter(content: &str) -> Result<(String, Option<String>)> {
+        // Check if content starts with ---
+        if !content.starts_with("---\n") && !content.starts_with("---\r\n") {
+            // Not frontmatter format, try pure YAML
+            return Err(anyhow::anyhow!("Not markdown frontmatter format"));
+        }
+
+        // Find the second --- delimiter
+        let after_first_delimiter = if let Some(stripped) = content.strip_prefix("---\r\n") {
+            stripped
+        } else if let Some(stripped) = content.strip_prefix("---\n") {
+            stripped
+        } else {
+            return Err(anyhow::anyhow!("Not markdown frontmatter format"));
+        };
+
+        let second_delimiter_pos = Self::find_closing_delimiter(after_first_delimiter)
+            .ok_or_else(|| {
+                anyhow::anyhow!("Markdown frontmatter is missing closing delimiter (---)")
+            })?;
+        let frontmatter = &after_first_delimiter[..second_delimiter_pos];
+
+        // Skip the closing --- and any whitespace to get the body
+        let body_start = second_delimiter_pos + 3;
+        let body_raw = &after_first_delimiter[body_start..];
+
+        // Trim leading/trailing whitespace from body
+        let body = body_raw.trim();
+        let body = (!body.is_empty()).then(|| body.to_string());
+
+        Ok((frontmatter.to_string(), body))
+    }
+
+    /// Find the closing `---` delimiter at the start of a line.
+    /// A naive `find("---")` matches inside YAML values, corrupting the parse.
+    fn find_closing_delimiter(content: &str) -> Option<usize> {
+        if content.starts_with("---\n") || content.starts_with("---\r\n") || content == "---" {
+            return Some(0);
+        }
+        let mut search_from = 0;
+        while let Some(pos) = content[search_from..].find("\n---") {
+            let abs_pos = search_from + pos;
+            let delimiter_start = abs_pos + 1;
+            let after_dashes = delimiter_start + 3;
+            if after_dashes >= content.len()
+                || content.as_bytes()[after_dashes] == b'\n'
+                || content.as_bytes()[after_dashes] == b'\r'
+            {
+                return Some(delimiter_start);
+            }
+            search_from = abs_pos + 1;
+        }
+        None
+    }
+
+    /// Parse a unit from a string (either YAML or Markdown with YAML frontmatter).
+    pub fn from_string(content: &str) -> Result<Self> {
+        // Try frontmatter format first
+        match Self::parse_frontmatter(content) {
+            Ok((frontmatter, body)) => {
+                // Parse frontmatter as YAML
+                let mut unit: Unit = serde_yml::from_str(&frontmatter)?;
+
+                // If there's a body and no description yet, set it
+                if let Some(markdown_body) = body {
+                    if unit.description.is_none() {
+                        unit.description = Some(markdown_body);
+                    }
+                }
+
+                Ok(unit)
+            }
+            Err(_) => {
+                // Fallback: treat entire content as YAML
+                let unit: Unit = serde_yml::from_str(content)?;
+                Ok(unit)
+            }
+        }
+    }
+
+    /// Read a unit from a file (supports both YAML and Markdown with YAML frontmatter).
+    pub fn from_file(path: impl AsRef<Path>) -> Result<Self> {
+        let contents = std::fs::read_to_string(path.as_ref())?;
+        Self::from_string(&contents)
+    }
+
+    /// Write this unit to a file.
+    /// For `.md` files, writes markdown frontmatter format (YAML between `---` delimiters
+    /// with description as the markdown body). For other extensions, writes pure YAML.
+    pub fn to_file(&self, path: impl AsRef<Path>) -> Result<()> {
+        let path = path.as_ref();
+        let is_md = path.extension().and_then(|e| e.to_str()) == Some("md");
+
+        if is_md && self.description.is_some() {
+            // Write frontmatter format: YAML metadata + markdown body
+            let mut frontmatter_bean = self.clone();
+            let description = frontmatter_bean.description.take(); // Remove from YAML
+            let yaml = serde_yml::to_string(&frontmatter_bean)?;
+            let mut content = String::from("---\n");
+            content.push_str(yaml.trim_start_matches("---\n").trim_end());
+            content.push_str("\n---\n");
+            if let Some(desc) = description {
+                content.push('\n');
+                content.push_str(&desc);
+                if !desc.ends_with('\n') {
+                    content.push('\n');
+                }
+            }
+            atomic_write(path, &content)?;
+        } else {
+            let yaml = serde_yml::to_string(self)?;
+            atomic_write(path, &yaml)?;
+        }
+        Ok(())
+    }
+
+    /// Calculate SHA256 hash of canonical form.
+    ///
+    /// Used for optimistic locking. The hash is calculated from a canonical
+    /// JSON representation with transient fields cleared.
+    pub fn hash(&self) -> String {
+        use sha2::{Digest, Sha256};
+        let canonical = self.clone();
+
+        // Serialize to JSON (deterministic)
+        let json =
+            serde_json::to_string(&canonical).expect("Unit serialization to JSON cannot fail");
+        let mut hasher = Sha256::new();
+        hasher.update(json.as_bytes());
+        format!("{:x}", hasher.finalize())
+    }
+
+    /// Load unit with version hash for optimistic locking.
+    ///
+    /// Returns the unit and its content hash as a tuple. The hash can be
+    /// compared before saving to detect concurrent modifications.
+    pub fn from_file_with_hash(path: impl AsRef<Path>) -> Result<(Self, String)> {
+        let unit = Self::from_file(path)?;
+        let hash = unit.hash();
+        Ok((unit, hash))
+    }
+
+    /// Apply a JSON-serialized value to a field by name.
+    ///
+    /// Used by conflict resolution to set a field to a chosen value.
+    /// The value should be JSON-serialized (e.g., `"\"hello\""` for a string).
+    ///
+    /// # Arguments
+    /// * `field` - The field name to update
+    /// * `json_value` - JSON-serialized value to apply
+    ///
+    /// # Returns
+    /// * `Ok(())` on success
+    /// * `Err` if field is unknown or value cannot be deserialized
+    pub fn apply_value(&mut self, field: &str, json_value: &str) -> Result<()> {
+        match field {
+            "title" => self.title = serde_json::from_str(json_value)?,
+            "status" => self.status = serde_json::from_str(json_value)?,
+            "priority" => self.priority = serde_json::from_str(json_value)?,
+            "description" => self.description = serde_json::from_str(json_value)?,
+            "acceptance" => self.acceptance = serde_json::from_str(json_value)?,
+            "notes" => self.notes = serde_json::from_str(json_value)?,
+            "design" => self.design = serde_json::from_str(json_value)?,
+            "assignee" => self.assignee = serde_json::from_str(json_value)?,
+            "labels" => self.labels = serde_json::from_str(json_value)?,
+            "dependencies" => self.dependencies = serde_json::from_str(json_value)?,
+            "parent" => self.parent = serde_json::from_str(json_value)?,
+            "verify" => self.verify = serde_json::from_str(json_value)?,
+            "produces" => self.produces = serde_json::from_str(json_value)?,
+            "requires" => self.requires = serde_json::from_str(json_value)?,
+            "claimed_by" => self.claimed_by = serde_json::from_str(json_value)?,
+            "close_reason" => self.close_reason = serde_json::from_str(json_value)?,
+            "on_fail" => self.on_fail = serde_json::from_str(json_value)?,
+            "outputs" => self.outputs = serde_json::from_str(json_value)?,
+            "max_loops" => self.max_loops = serde_json::from_str(json_value)?,
+            "bean_type" => self.bean_type = serde_json::from_str(json_value)?,
+            "last_verified" => self.last_verified = serde_json::from_str(json_value)?,
+            "stale_after" => self.stale_after = serde_json::from_str(json_value)?,
+            "paths" => self.paths = serde_json::from_str(json_value)?,
+            _ => return Err(anyhow::anyhow!("Unknown field: {}", field)),
+        }
+        self.updated_at = Utc::now();
+        Ok(())
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::NamedTempFile;
+
+    #[test]
+    fn round_trip_minimal_bean() {
+        let unit = Unit::new("1", "My first unit");
+
+        // Serialize
+        let yaml = serde_yml::to_string(&unit).unwrap();
+
+        // Deserialize
+        let restored: Unit = serde_yml::from_str(&yaml).unwrap();
+
+        assert_eq!(unit, restored);
+    }
+
+    #[test]
+    fn round_trip_full_bean() {
+        let now = Utc::now();
+        let unit = Unit {
+            id: "3.2.1".to_string(),
+            title: "Implement parser".to_string(),
+            slug: None,
+            status: Status::InProgress,
+            priority: 1,
+            created_at: now,
+            updated_at: now,
+            description: Some("Build a robust YAML parser".to_string()),
+            acceptance: Some("All tests pass".to_string()),
+            notes: Some("Watch out for edge cases".to_string()),
+            design: Some("Use serde_yaml".to_string()),
+            labels: vec!["backend".to_string(), "core".to_string()],
+            assignee: Some("alice".to_string()),
+            closed_at: Some(now),
+            close_reason: Some("Done".to_string()),
+            parent: Some("3.2".to_string()),
+            dependencies: vec!["3.1".to_string()],
+            verify: Some("cargo test".to_string()),
+            fail_first: false,
+            checkpoint: None,
+            attempts: 1,
+            max_attempts: 5,
+            claimed_by: Some("agent-7".to_string()),
+            claimed_at: Some(now),
+            is_archived: false,
+            feature: false,
+            produces: vec!["Parser".to_string()],
+            requires: vec!["Lexer".to_string()],
+            on_fail: Some(OnFailAction::Retry {
+                max: Some(5),
+                delay_secs: None,
+            }),
+            on_close: vec![
+                OnCloseAction::Run {
+                    command: "echo done".to_string(),
+                },
+                OnCloseAction::Notify {
+                    message: "Task complete".to_string(),
+                },
+            ],
+            verify_timeout: None,
+            history: Vec::new(),
+            outputs: Some(serde_json::json!({"key": "value"})),
+            max_loops: None,
+            bean_type: "task".to_string(),
+            last_verified: None,
+            stale_after: None,
+            paths: Vec::new(),
+            attempt_log: Vec::new(),
+            created_by: Some("alice".to_string()),
+        };
+
+        let yaml = serde_yml::to_string(&unit).unwrap();
+        let restored: Unit = serde_yml::from_str(&yaml).unwrap();
+
+        assert_eq!(unit, restored);
+    }
+
+    #[test]
+    fn optional_fields_omitted_when_none() {
+        let unit = Unit::new("1", "Minimal");
+        let yaml = serde_yml::to_string(&unit).unwrap();
+
+        assert!(!yaml.contains("description:"));
+        assert!(!yaml.contains("acceptance:"));
+        assert!(!yaml.contains("notes:"));
+        assert!(!yaml.contains("design:"));
+        assert!(!yaml.contains("assignee:"));
+        assert!(!yaml.contains("closed_at:"));
+        assert!(!yaml.contains("close_reason:"));
+        assert!(!yaml.contains("parent:"));
+        assert!(!yaml.contains("labels:"));
+        assert!(!yaml.contains("dependencies:"));
+        assert!(!yaml.contains("verify:"));
+        assert!(!yaml.contains("attempts:"));
+        assert!(!yaml.contains("max_attempts:"));
+        assert!(!yaml.contains("claimed_by:"));
+        assert!(!yaml.contains("claimed_at:"));
+        assert!(!yaml.contains("is_archived:"));
+        assert!(!yaml.contains("on_fail:"));
+        assert!(!yaml.contains("on_close:"));
+        assert!(!yaml.contains("history:"));
+        assert!(!yaml.contains("outputs:"));
+    }
+
+    #[test]
+    fn timestamps_serialize_as_iso8601() {
+        let unit = Unit::new("1", "Check timestamps");
+        let yaml = serde_yml::to_string(&unit).unwrap();
+
+        // ISO 8601 timestamps contain 'T' between date and time
+        for line in yaml.lines() {
+            if line.starts_with("created_at:") || line.starts_with("updated_at:") {
+                let value = line.split_once(':').unwrap().1.trim();
+                assert!(value.contains('T'), "timestamp should be ISO 8601: {value}");
+            }
+        }
+    }
+
+    #[test]
+    fn file_round_trip() {
+        let unit = Unit::new("42", "File I/O test");
+
+        let tmp = NamedTempFile::new().unwrap();
+        let path = tmp.path().to_path_buf();
+
+        // Write
+        unit.to_file(&path).unwrap();
+
+        // Read back
+        let restored = Unit::from_file(&path).unwrap();
+        assert_eq!(unit, restored);
+
+        // Verify the file is valid YAML we can also read raw
+        let raw = std::fs::read_to_string(&path).unwrap();
+        assert!(raw.contains("id: '42'") || raw.contains("id: \"42\""));
+        assert!(raw.contains("title: File I/O test") || raw.contains("title: 'File I/O test'"));
+        drop(tmp);
+    }
+
+    #[test]
+    fn defaults_are_correct() {
+        let unit = Unit::new("1", "Defaults");
+        assert_eq!(unit.status, Status::Open);
+        assert_eq!(unit.priority, 2);
+        assert!(unit.labels.is_empty());
+        assert!(unit.dependencies.is_empty());
+        assert!(unit.description.is_none());
+    }
+
+    #[test]
+    fn deserialize_with_missing_optional_fields() {
+        let yaml = r#"
+id: "5"
+title: Sparse unit
+status: open
+priority: 3
+created_at: "2025-01-01T00:00:00Z"
+updated_at: "2025-01-01T00:00:00Z"
+"#;
+        let unit: Unit = serde_yml::from_str(yaml).unwrap();
+        assert_eq!(unit.id, "5");
+        assert_eq!(unit.priority, 3);
+        assert!(unit.description.is_none());
+        assert!(unit.labels.is_empty());
+    }
+
+    #[test]
+    fn validate_priority_accepts_valid_range() {
+        for priority in 0..=4 {
+            assert!(
+                validate_priority(priority).is_ok(),
+                "Priority {} should be valid",
+                priority
+            );
+        }
+    }
+
+    #[test]
+    fn validate_priority_rejects_out_of_range() {
+        assert!(validate_priority(5).is_err());
+        assert!(validate_priority(10).is_err());
+        assert!(validate_priority(255).is_err());
+    }
+
+    // =====================================================================
+    // Tests for Markdown Frontmatter Parsing
+    // =====================================================================
+
+    #[test]
+    fn test_parse_md_frontmatter() {
+        let content = r#"---
+id: 11.1
+title: Test Unit
+status: open
+priority: 2
+created_at: "2026-01-26T15:00:00Z"
+updated_at: "2026-01-26T15:00:00Z"
+---
+
+# Description
+
+Test markdown body.
+"#;
+        let unit = Unit::from_string(content).unwrap();
+        assert_eq!(unit.id, "11.1");
+        assert_eq!(unit.title, "Test Unit");
+        assert_eq!(unit.status, Status::Open);
+        assert!(unit.description.is_some());
+        assert!(unit.description.as_ref().unwrap().contains("# Description"));
+        assert!(unit
+            .description
+            .as_ref()
+            .unwrap()
+            .contains("Test markdown body"));
+    }
+
+    #[test]
+    fn test_parse_md_frontmatter_preserves_metadata_fields() {
+        let content = r#"---
+id: "2.5"
+title: Complex Unit
+status: in_progress
+priority: 1
+created_at: "2026-01-01T10:00:00Z"
+updated_at: "2026-01-26T15:00:00Z"
+parent: "2"
+labels:
+  - backend
+  - urgent
+dependencies:
+  - "2.1"
+  - "2.2"
+---
+
+## Implementation Notes
+
+This is a complex unit with multiple metadata fields.
+"#;
+        let unit = Unit::from_string(content).unwrap();
+        assert_eq!(unit.id, "2.5");
+        assert_eq!(unit.title, "Complex Unit");
+        assert_eq!(unit.status, Status::InProgress);
+        assert_eq!(unit.priority, 1);
+        assert_eq!(unit.parent, Some("2".to_string()));
+        assert_eq!(
+            unit.labels,
+            vec!["backend".to_string(), "urgent".to_string()]
+        );
+        assert_eq!(
+            unit.dependencies,
+            vec!["2.1".to_string(), "2.2".to_string()]
+        );
+        assert!(unit.description.is_some());
+    }
+
+    #[test]
+    fn test_parse_md_frontmatter_empty_body() {
+        let content = r#"---
+id: "3"
+title: No Body Unit
+status: open
+priority: 2
+created_at: "2026-01-01T00:00:00Z"
+updated_at: "2026-01-01T00:00:00Z"
+---
+"#;
+        let unit = Unit::from_string(content).unwrap();
+        assert_eq!(unit.id, "3");
+        assert_eq!(unit.title, "No Body Unit");
+        assert!(unit.description.is_none());
+    }
+
+    #[test]
+    fn test_parse_md_frontmatter_with_body_containing_dashes() {
+        let content = r#"---
+id: "4"
+title: Dashes in Body
+status: open
+priority: 2
+created_at: "2026-01-01T00:00:00Z"
+updated_at: "2026-01-01T00:00:00Z"
+---
+
+# Section 1
+
+This has --- inside the body, which should not break parsing.
+
+---
+
+More content after a horizontal rule.
+"#;
+        let unit = Unit::from_string(content).unwrap();
+        assert_eq!(unit.id, "4");
+        assert!(unit.description.is_some());
+        let body = unit.description.as_ref().unwrap();
+        assert!(body.contains("---"));
+        assert!(body.contains("horizontal rule"));
+    }
+
+    #[test]
+    fn test_parse_md_frontmatter_with_whitespace_in_body() {
+        let content = r#"---
+id: "5"
+title: Whitespace Test
+status: open
+priority: 2
+created_at: "2026-01-01T00:00:00Z"
+updated_at: "2026-01-01T00:00:00Z"
+---
+
+
+   Leading whitespace preserved after trimming newlines.
+
+"#;
+        let unit = Unit::from_string(content).unwrap();
+        assert_eq!(unit.id, "5");
+        assert!(unit.description.is_some());
+        let body = unit.description.as_ref().unwrap();
+        // Leading newlines trimmed, but content preserved
+        assert!(body.contains("Leading whitespace"));
+    }
+
+    #[test]
+    fn test_fallback_to_yaml_parsing() {
+        let yaml_content = r#"
+id: "6"
+title: Pure YAML Unit
+status: open
+priority: 3
+created_at: "2026-01-01T00:00:00Z"
+updated_at: "2026-01-01T00:00:00Z"
+description: "This is YAML, not markdown"
+"#;
+        let unit = Unit::from_string(yaml_content).unwrap();
+        assert_eq!(unit.id, "6");
+        assert_eq!(unit.title, "Pure YAML Unit");
+        assert_eq!(
+            unit.description,
+            Some("This is YAML, not markdown".to_string())
+        );
+    }
+
+    #[test]
+    fn test_file_round_trip_with_markdown() {
+        let content = r#"---
+id: "7"
+title: File Markdown Test
+status: open
+priority: 2
+created_at: "2026-01-01T00:00:00Z"
+updated_at: "2026-01-01T00:00:00Z"
+---
+
+# Markdown Body
+
+This is a test of reading markdown from a file.
+"#;
+
+        // Use a .md extension to trigger frontmatter write
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("7-test.md");
+
+        // Write markdown content
+        std::fs::write(&path, content).unwrap();
+
+        // Read back as unit
+        let unit = Unit::from_file(&path).unwrap();
+        assert_eq!(unit.id, "7");
+        assert_eq!(unit.title, "File Markdown Test");
+        assert!(unit.description.is_some());
+        assert!(unit
+            .description
+            .as_ref()
+            .unwrap()
+            .contains("# Markdown Body"));
+
+        // Write it back — should preserve frontmatter format for .md files
+        unit.to_file(&path).unwrap();
+
+        // Verify the file still has frontmatter format
+        let written = std::fs::read_to_string(&path).unwrap();
+        assert!(
+            written.starts_with("---\n"),
+            "Should start with frontmatter delimiter, got: {}",
+            &written[..50.min(written.len())]
+        );
+        assert!(
+            written.contains("# Markdown Body"),
+            "Should contain markdown body"
+        );
+        // Description should NOT be in the YAML frontmatter section
+        let parts: Vec<&str> = written.splitn(3, "---").collect();
+        assert!(parts.len() >= 3, "Should have frontmatter delimiters");
+        let frontmatter_section = parts[1];
+        assert!(
+            !frontmatter_section.contains("# Markdown Body"),
+            "Description should be in body, not frontmatter"
+        );
+
+        // Read back one more time to verify full round-trip
+        let bean2 = Unit::from_file(&path).unwrap();
+        assert_eq!(bean2.id, unit.id);
+        assert_eq!(bean2.title, unit.title);
+        assert_eq!(bean2.description, unit.description);
+    }
+
+    #[test]
+    fn test_parse_md_frontmatter_missing_closing_delimiter() {
+        let bad_content = r#"---
+id: "8"
+title: Missing Delimiter
+status: open
+"#;
+        let result = Unit::from_string(bad_content);
+        // Should fail because no closing ---
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_md_frontmatter_multiline_fields() {
+        let content = r#"---
+id: "9"
+title: Multiline Test
+status: open
+priority: 2
+created_at: "2026-01-01T00:00:00Z"
+updated_at: "2026-01-01T00:00:00Z"
+acceptance: |
+  - Criterion 1
+  - Criterion 2
+  - Criterion 3
+---
+
+# Implementation
+
+Start implementing...
+"#;
+        let unit = Unit::from_string(content).unwrap();
+        assert_eq!(unit.id, "9");
+        assert!(unit.acceptance.is_some());
+        let acceptance = unit.acceptance.as_ref().unwrap();
+        assert!(acceptance.contains("Criterion 1"));
+        assert!(acceptance.contains("Criterion 2"));
+        assert!(unit.description.is_some());
+    }
+
+    #[test]
+    fn test_parse_md_with_crlf_line_endings() {
+        let content = "---\r\nid: \"10\"\r\ntitle: CRLF Test\r\nstatus: open\r\npriority: 2\r\ncreated_at: \"2026-01-01T00:00:00Z\"\r\nupdated_at: \"2026-01-01T00:00:00Z\"\r\n---\r\n\r\n# Body\r\n\r\nCRLF line endings.";
+        let unit = Unit::from_string(content).unwrap();
+        assert_eq!(unit.id, "10");
+        assert_eq!(unit.title, "CRLF Test");
+        assert!(unit.description.is_some());
+    }
+
+    #[test]
+    fn test_parse_md_description_does_not_override_yaml_description() {
+        let content = r#"---
+id: "11"
+title: Override Test
+status: open
+priority: 2
+created_at: "2026-01-01T00:00:00Z"
+updated_at: "2026-01-01T00:00:00Z"
+description: "From YAML metadata"
+---
+
+# From Markdown Body
+
+This should not override.
+"#;
+        let unit = Unit::from_string(content).unwrap();
+        // Description from YAML should take precedence
+        assert_eq!(unit.description, Some("From YAML metadata".to_string()));
+    }
+
+    // =====================================================================
+    // Tests for Unit hash methods
+    // =====================================================================
+
+    #[test]
+    fn test_hash_consistency() {
+        let bean1 = Unit::new("1", "Test unit");
+        let bean2 = bean1.clone();
+        // Same content produces same hash
+        assert_eq!(bean1.hash(), bean2.hash());
+        // Hash is deterministic
+        assert_eq!(bean1.hash(), bean1.hash());
+    }
+
+    #[test]
+    fn test_hash_changes_with_content() {
+        let bean1 = Unit::new("1", "Test unit");
+        let bean2 = Unit::new("1", "Different title");
+        assert_ne!(bean1.hash(), bean2.hash());
+    }
+
+    #[test]
+    fn test_from_file_with_hash() {
+        let unit = Unit::new("42", "Hash file test");
+        let expected_hash = unit.hash();
+
+        let tmp = NamedTempFile::new().unwrap();
+        unit.to_file(tmp.path()).unwrap();
+
+        let (loaded, hash) = Unit::from_file_with_hash(tmp.path()).unwrap();
+        assert_eq!(loaded, unit);
+        assert_eq!(hash, expected_hash);
+    }
+
+    // =====================================================================
+    // on_close serialization tests
+    // =====================================================================
+
+    #[test]
+    fn on_close_empty_vec_not_serialized() {
+        let unit = Unit::new("1", "No actions");
+        let yaml = serde_yml::to_string(&unit).unwrap();
+        assert!(!yaml.contains("on_close"));
+    }
+
+    #[test]
+    fn on_close_round_trip_run_action() {
+        let mut unit = Unit::new("1", "With run");
+        unit.on_close = vec![OnCloseAction::Run {
+            command: "echo hi".to_string(),
+        }];
+
+        let yaml = serde_yml::to_string(&unit).unwrap();
+        assert!(yaml.contains("on_close"));
+        assert!(yaml.contains("action: run"));
+        assert!(yaml.contains("echo hi"));
+
+        let restored: Unit = serde_yml::from_str(&yaml).unwrap();
+        assert_eq!(restored.on_close, unit.on_close);
+    }
+
+    #[test]
+    fn on_close_round_trip_notify_action() {
+        let mut unit = Unit::new("1", "With notify");
+        unit.on_close = vec![OnCloseAction::Notify {
+            message: "Done!".to_string(),
+        }];
+
+        let yaml = serde_yml::to_string(&unit).unwrap();
+        assert!(yaml.contains("action: notify"));
+        assert!(yaml.contains("Done!"));
+
+        let restored: Unit = serde_yml::from_str(&yaml).unwrap();
+        assert_eq!(restored.on_close, unit.on_close);
+    }
+
+    #[test]
+    fn on_close_round_trip_multiple_actions() {
+        let mut unit = Unit::new("1", "Multiple actions");
+        unit.on_close = vec![
+            OnCloseAction::Run {
+                command: "make deploy".to_string(),
+            },
+            OnCloseAction::Notify {
+                message: "Deployed".to_string(),
+            },
+            OnCloseAction::Run {
+                command: "echo cleanup".to_string(),
+            },
+        ];
+
+        let yaml = serde_yml::to_string(&unit).unwrap();
+        let restored: Unit = serde_yml::from_str(&yaml).unwrap();
+        assert_eq!(restored.on_close.len(), 3);
+        assert_eq!(restored.on_close, unit.on_close);
+    }
+
+    #[test]
+    fn on_close_deserialized_from_yaml() {
+        let yaml = r#"
+id: "1"
+title: From YAML
+status: open
+priority: 2
+created_at: "2026-01-01T00:00:00Z"
+updated_at: "2026-01-01T00:00:00Z"
+on_close:
+  - action: run
+    command: "cargo test"
+  - action: notify
+    message: "Tests passed"
+"#;
+        let unit: Unit = serde_yml::from_str(yaml).unwrap();
+        assert_eq!(unit.on_close.len(), 2);
+        assert_eq!(
+            unit.on_close[0],
+            OnCloseAction::Run {
+                command: "cargo test".to_string()
+            }
+        );
+        assert_eq!(
+            unit.on_close[1],
+            OnCloseAction::Notify {
+                message: "Tests passed".to_string()
+            }
+        );
+    }
+
+    // =====================================================================
+    // RunResult / RunRecord / history tests
+    // =====================================================================
+
+    #[test]
+    fn history_empty_not_serialized() {
+        let unit = Unit::new("1", "No history");
+        let yaml = serde_yml::to_string(&unit).unwrap();
+        assert!(!yaml.contains("history:"));
+    }
+
+    #[test]
+    fn history_round_trip_yaml() {
+        let now = Utc::now();
+        let mut unit = Unit::new("1", "With history");
+        unit.history = vec![
+            RunRecord {
+                attempt: 1,
+                started_at: now,
+                finished_at: Some(now),
+                duration_secs: Some(5.2),
+                agent: Some("agent-1".to_string()),
+                result: RunResult::Fail,
+                exit_code: Some(1),
+                tokens: None,
+                cost: None,
+                output_snippet: Some("error: test failed".to_string()),
+            },
+            RunRecord {
+                attempt: 2,
+                started_at: now,
+                finished_at: Some(now),
+                duration_secs: Some(3.1),
+                agent: Some("agent-1".to_string()),
+                result: RunResult::Pass,
+                exit_code: Some(0),
+                tokens: Some(12000),
+                cost: Some(0.05),
+                output_snippet: None,
+            },
+        ];
+
+        let yaml = serde_yml::to_string(&unit).unwrap();
+        assert!(yaml.contains("history:"));
+
+        let restored: Unit = serde_yml::from_str(&yaml).unwrap();
+        assert_eq!(restored.history.len(), 2);
+        assert_eq!(restored.history[0].result, RunResult::Fail);
+        assert_eq!(restored.history[1].result, RunResult::Pass);
+        assert_eq!(restored.history[0].attempt, 1);
+        assert_eq!(restored.history[1].attempt, 2);
+        assert_eq!(restored.history, unit.history);
+    }
+
+    #[test]
+    fn history_deserialized_from_yaml() {
+        let yaml = r#"
+id: "1"
+title: From YAML
+status: open
+priority: 2
+created_at: "2026-01-01T00:00:00Z"
+updated_at: "2026-01-01T00:00:00Z"
+history:
+  - attempt: 1
+    started_at: "2026-01-01T00:01:00Z"
+    duration_secs: 10.0
+    result: timeout
+    exit_code: 124
+  - attempt: 2
+    started_at: "2026-01-01T00:05:00Z"
+    finished_at: "2026-01-01T00:05:03Z"
+    duration_secs: 3.0
+    agent: agent-7
+    result: pass
+    exit_code: 0
+"#;
+        let unit: Unit = serde_yml::from_str(yaml).unwrap();
+        assert_eq!(unit.history.len(), 2);
+        assert_eq!(unit.history[0].result, RunResult::Timeout);
+        assert_eq!(unit.history[0].exit_code, Some(124));
+        assert_eq!(unit.history[1].result, RunResult::Pass);
+        assert_eq!(unit.history[1].agent, Some("agent-7".to_string()));
+    }
+
+    // =====================================================================
+    // on_fail serialization tests
+    // =====================================================================
+
+    #[test]
+    fn on_fail_none_not_serialized() {
+        let unit = Unit::new("1", "No fail action");
+        let yaml = serde_yml::to_string(&unit).unwrap();
+        assert!(!yaml.contains("on_fail"));
+    }
+
+    #[test]
+    fn on_fail_retry_round_trip() {
+        let mut unit = Unit::new("1", "With retry");
+        unit.on_fail = Some(OnFailAction::Retry {
+            max: Some(5),
+            delay_secs: Some(10),
+        });
+
+        let yaml = serde_yml::to_string(&unit).unwrap();
+        assert!(yaml.contains("on_fail"));
+        assert!(yaml.contains("action: retry"));
+        assert!(yaml.contains("max: 5"));
+        assert!(yaml.contains("delay_secs: 10"));
+
+        let restored: Unit = serde_yml::from_str(&yaml).unwrap();
+        assert_eq!(restored.on_fail, unit.on_fail);
+    }
+
+    #[test]
+    fn on_fail_retry_minimal_round_trip() {
+        let mut unit = Unit::new("1", "Retry minimal");
+        unit.on_fail = Some(OnFailAction::Retry {
+            max: None,
+            delay_secs: None,
+        });
+
+        let yaml = serde_yml::to_string(&unit).unwrap();
+        assert!(yaml.contains("action: retry"));
+        // Optional fields should be omitted
+        assert!(!yaml.contains("max:"));
+        assert!(!yaml.contains("delay_secs:"));
+
+        let restored: Unit = serde_yml::from_str(&yaml).unwrap();
+        assert_eq!(restored.on_fail, unit.on_fail);
+    }
+
+    #[test]
+    fn on_fail_escalate_round_trip() {
+        let mut unit = Unit::new("1", "With escalate");
+        unit.on_fail = Some(OnFailAction::Escalate {
+            priority: Some(0),
+            message: Some("Needs attention".to_string()),
+        });
+
+        let yaml = serde_yml::to_string(&unit).unwrap();
+        assert!(yaml.contains("action: escalate"));
+        assert!(yaml.contains("priority: 0"));
+        assert!(yaml.contains("Needs attention"));
+
+        let restored: Unit = serde_yml::from_str(&yaml).unwrap();
+        assert_eq!(restored.on_fail, unit.on_fail);
+    }
+
+    #[test]
+    fn on_fail_escalate_minimal_round_trip() {
+        let mut unit = Unit::new("1", "Escalate minimal");
+        unit.on_fail = Some(OnFailAction::Escalate {
+            priority: None,
+            message: None,
+        });
+
+        let yaml = serde_yml::to_string(&unit).unwrap();
+        assert!(yaml.contains("action: escalate"));
+        // The on_fail block should not contain priority or message
+        // (the unit itself has a top-level priority field, so check within on_fail)
+        let on_fail_section = yaml.split("on_fail:").nth(1).unwrap();
+        let on_fail_end = on_fail_section
+            .find("\non_close:")
+            .or_else(|| on_fail_section.find("\nhistory:"))
+            .unwrap_or(on_fail_section.len());
+        let on_fail_block = &on_fail_section[..on_fail_end];
+        assert!(
+            !on_fail_block.contains("priority:"),
+            "on_fail block should not contain priority"
+        );
+        assert!(
+            !on_fail_block.contains("message:"),
+            "on_fail block should not contain message"
+        );
+
+        let restored: Unit = serde_yml::from_str(&yaml).unwrap();
+        assert_eq!(restored.on_fail, unit.on_fail);
+    }
+
+    #[test]
+    fn on_fail_deserialized_from_yaml() {
+        let yaml = r#"
+id: "1"
+title: From YAML
+status: open
+priority: 2
+created_at: "2026-01-01T00:00:00Z"
+updated_at: "2026-01-01T00:00:00Z"
+on_fail:
+  action: retry
+  max: 3
+  delay_secs: 30
+"#;
+        let unit: Unit = serde_yml::from_str(yaml).unwrap();
+        assert_eq!(
+            unit.on_fail,
+            Some(OnFailAction::Retry {
+                max: Some(3),
+                delay_secs: Some(30),
+            })
+        );
+    }
+
+    #[test]
+    fn on_fail_escalate_deserialized_from_yaml() {
+        let yaml = r#"
+id: "1"
+title: Escalate YAML
+status: open
+priority: 2
+created_at: "2026-01-01T00:00:00Z"
+updated_at: "2026-01-01T00:00:00Z"
+on_fail:
+  action: escalate
+  priority: 0
+  message: "Critical failure"
+"#;
+        let unit: Unit = serde_yml::from_str(yaml).unwrap();
+        assert_eq!(
+            unit.on_fail,
+            Some(OnFailAction::Escalate {
+                priority: Some(0),
+                message: Some("Critical failure".to_string()),
+            })
+        );
+    }
+
+    // =====================================================================
+    // outputs field tests
+    // =====================================================================
+
+    #[test]
+    fn outputs_none_not_serialized() {
+        let unit = Unit::new("1", "No outputs");
+        let yaml = serde_yml::to_string(&unit).unwrap();
+        assert!(
+            !yaml.contains("outputs:"),
+            "outputs field should be omitted when None, got:\n{yaml}"
+        );
+    }
+
+    #[test]
+    fn outputs_round_trip_nested_object() {
+        let mut unit = Unit::new("1", "With outputs");
+        unit.outputs = Some(serde_json::json!({
+            "test_results": {
+                "passed": 42,
+                "failed": 0,
+                "skipped": 3
+            },
+            "coverage": 87.5
+        }));
+
+        let yaml = serde_yml::to_string(&unit).unwrap();
+        assert!(yaml.contains("outputs"));
+
+        let restored: Unit = serde_yml::from_str(&yaml).unwrap();
+        assert_eq!(restored.outputs, unit.outputs);
+        let out = restored.outputs.unwrap();
+        assert_eq!(out["test_results"]["passed"], 42);
+        assert_eq!(out["coverage"], 87.5);
+    }
+
+    #[test]
+    fn outputs_round_trip_array() {
+        let mut unit = Unit::new("1", "Array outputs");
+        unit.outputs = Some(serde_json::json!(["artifact1.tar.gz", "artifact2.zip"]));
+
+        let yaml = serde_yml::to_string(&unit).unwrap();
+        let restored: Unit = serde_yml::from_str(&yaml).unwrap();
+        assert_eq!(restored.outputs, unit.outputs);
+        let arr = restored.outputs.unwrap();
+        assert_eq!(arr.as_array().unwrap().len(), 2);
+        assert_eq!(arr[0], "artifact1.tar.gz");
+    }
+
+    #[test]
+    fn outputs_round_trip_simple_values() {
+        // String value
+        let mut unit = Unit::new("1", "String output");
+        unit.outputs = Some(serde_json::json!("just a string"));
+        let yaml = serde_yml::to_string(&unit).unwrap();
+        let restored: Unit = serde_yml::from_str(&yaml).unwrap();
+        assert_eq!(restored.outputs, unit.outputs);
+
+        // Number value
+        unit.outputs = Some(serde_json::json!(42));
+        let yaml = serde_yml::to_string(&unit).unwrap();
+        let restored: Unit = serde_yml::from_str(&yaml).unwrap();
+        assert_eq!(restored.outputs, unit.outputs);
+
+        // Boolean value
+        unit.outputs = Some(serde_json::json!(true));
+        let yaml = serde_yml::to_string(&unit).unwrap();
+        let restored: Unit = serde_yml::from_str(&yaml).unwrap();
+        assert_eq!(restored.outputs, unit.outputs);
+    }
+
+    #[test]
+    fn max_loops_defaults_to_none() {
+        let unit = Unit::new("1", "No max_loops");
+        assert_eq!(unit.max_loops, None);
+        let yaml = serde_yml::to_string(&unit).unwrap();
+        assert!(!yaml.contains("max_loops:"));
+    }
+
+    #[test]
+    fn max_loops_overrides_config_when_set() {
+        let mut unit = Unit::new("1", "With max_loops");
+        unit.max_loops = Some(5);
+
+        let yaml = serde_yml::to_string(&unit).unwrap();
+        assert!(yaml.contains("max_loops: 5"));
+
+        let restored: Unit = serde_yml::from_str(&yaml).unwrap();
+        assert_eq!(restored.max_loops, Some(5));
+    }
+
+    #[test]
+    fn max_loops_effective_returns_bean_value_when_set() {
+        let mut unit = Unit::new("1", "Override");
+        unit.max_loops = Some(20);
+        assert_eq!(unit.effective_max_loops(10), 20);
+    }
+
+    #[test]
+    fn max_loops_effective_returns_config_value_when_none() {
+        let unit = Unit::new("1", "Default");
+        assert_eq!(unit.effective_max_loops(10), 10);
+        assert_eq!(unit.effective_max_loops(42), 42);
+    }
+
+    #[test]
+    fn max_loops_zero_means_unlimited() {
+        let mut unit = Unit::new("1", "Unlimited");
+        unit.max_loops = Some(0);
+        assert_eq!(unit.effective_max_loops(10), 0);
+
+        // Config-level zero also works
+        let bean2 = Unit::new("2", "Config unlimited");
+        assert_eq!(bean2.effective_max_loops(0), 0);
+    }
+
+    #[test]
+    fn outputs_deserialized_from_yaml() {
+        let yaml = r#"
+id: "1"
+title: Outputs YAML
+status: open
+priority: 2
+created_at: "2026-01-01T00:00:00Z"
+updated_at: "2026-01-01T00:00:00Z"
+outputs:
+  binary: /tmp/build/app
+  size_bytes: 1048576
+  checksums:
+    sha256: abc123
+"#;
+        let unit: Unit = serde_yml::from_str(yaml).unwrap();
+        assert!(unit.outputs.is_some());
+        let out = unit.outputs.unwrap();
+        assert_eq!(out["binary"], "/tmp/build/app");
+        assert_eq!(out["size_bytes"], 1048576);
+        assert_eq!(out["checksums"]["sha256"], "abc123");
+    }
+}

@@ -1,0 +1,495 @@
+use std::path::{Path, PathBuf};
+use std::process::Command as ShellCommand;
+
+use anyhow::{anyhow, Context, Result};
+use chrono::Utc;
+
+use crate::unit::{AttemptOutcome, AttemptRecord, Unit, Status};
+use crate::config::resolve_identity;
+use crate::discovery::find_unit_file;
+use crate::index::Index;
+
+/// Parameters for claiming a unit.
+pub struct ClaimParams {
+    /// Who is claiming the unit. If None, resolved from config/git/env.
+    pub by: Option<String>,
+    /// Skip verify-on-claim check.
+    pub force: bool,
+}
+
+/// Result of successfully claiming a unit.
+#[derive(Debug)]
+pub struct ClaimResult {
+    pub unit: Unit,
+    pub path: PathBuf,
+    /// The resolved claimer identity.
+    pub claimer: String,
+    /// Whether the unit had no verify command (a GOAL, not a SPEC).
+    pub is_goal: bool,
+}
+
+/// Result of releasing a claim on a unit.
+pub struct ReleaseResult {
+    pub unit: Unit,
+    pub path: PathBuf,
+}
+
+/// Try to get the current git HEAD SHA. Returns None if not in a git repo.
+fn git_head_sha(working_dir: &Path) -> Option<String> {
+    ShellCommand::new("git")
+        .args(["rev-parse", "HEAD"])
+        .current_dir(working_dir)
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
+/// Run a verify command and return whether it passed (exit 0).
+fn run_verify_check(verify_cmd: &str, project_root: &Path) -> Result<bool> {
+    let output = ShellCommand::new("sh")
+        .args(["-c", verify_cmd])
+        .current_dir(project_root)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .with_context(|| format!("Failed to execute verify command: {}", verify_cmd))?;
+
+    Ok(output.success())
+}
+
+/// Claim a unit for work.
+///
+/// Sets status to InProgress, records who claimed it and when.
+/// The unit must be in Open status to be claimed.
+///
+/// If the unit has a verify command and `force` is false, the verify command
+/// is run first. If it already passes, the claim is rejected (nothing to do).
+/// If it fails, the claim is granted with `fail_first: true` and the current
+/// git HEAD SHA is stored as `checkpoint`.
+pub fn claim(mana_dir: &Path, id: &str, params: ClaimParams) -> Result<ClaimResult> {
+    let bean_path =
+        find_unit_file(mana_dir, id).map_err(|_| anyhow!("Unit not found: {}", id))?;
+    let mut unit =
+        Unit::from_file(&bean_path).with_context(|| format!("Failed to load unit: {}", id))?;
+
+    if unit.status != Status::Open {
+        return Err(anyhow!(
+            "Unit {} is {} -- only open units can be claimed",
+            id,
+            unit.status
+        ));
+    }
+
+    let has_verify = unit.verify.as_ref().is_some_and(|v| !v.trim().is_empty());
+    let is_goal = !has_verify;
+
+    // Verify-on-claim: run verify before granting claim (TDD enforcement)
+    // Skip when fail_first is false (unit created with -p / pass-ok)
+    if has_verify && !params.force && unit.fail_first {
+        let project_root = mana_dir
+            .parent()
+            .ok_or_else(|| anyhow!("Cannot determine project root from units dir"))?;
+        let verify_cmd = unit.verify.as_ref().unwrap();
+
+        let passed = run_verify_check(verify_cmd, project_root)?;
+
+        if passed {
+            return Err(anyhow!(
+                "Cannot claim unit {}: verify already passes\n\n\
+                 The verify command succeeded before any work was done.\n\
+                 This means either the test is bogus or the work is already complete.\n\n\
+                 Use --force to override.",
+                id
+            ));
+        }
+
+        // Verify failed — good, this proves the test is meaningful
+        unit.fail_first = true;
+        unit.checkpoint = git_head_sha(project_root);
+    }
+
+    // Resolve identity: explicit --by > resolved identity > "anonymous"
+    let resolved_by = params.by.or_else(|| resolve_identity(mana_dir));
+    let claimer = resolved_by.clone().unwrap_or_else(|| "anonymous".to_string());
+
+    let now = Utc::now();
+    unit.status = Status::InProgress;
+    unit.claimed_by = resolved_by.clone();
+    unit.claimed_at = Some(now);
+    unit.updated_at = now;
+
+    // Start a new attempt in the attempt log (for memory system tracking)
+    let attempt_num = unit.attempt_log.len() as u32 + 1;
+    unit.attempt_log.push(AttemptRecord {
+        num: attempt_num,
+        outcome: AttemptOutcome::Abandoned, // default until close/release updates it
+        notes: None,
+        agent: resolved_by,
+        started_at: Some(now),
+        finished_at: None,
+    });
+
+    unit.to_file(&bean_path)
+        .with_context(|| format!("Failed to save unit: {}", id))?;
+
+    // Rebuild index
+    let index = Index::build(mana_dir).with_context(|| "Failed to rebuild index")?;
+    index
+        .save(mana_dir)
+        .with_context(|| "Failed to save index")?;
+
+    Ok(ClaimResult {
+        unit,
+        path: bean_path,
+        claimer,
+        is_goal,
+    })
+}
+
+/// Release a claim on a unit.
+///
+/// Clears claimed_by/claimed_at and sets status back to Open.
+/// Marks the current attempt as abandoned.
+pub fn release(mana_dir: &Path, id: &str) -> Result<ReleaseResult> {
+    let bean_path =
+        find_unit_file(mana_dir, id).map_err(|_| anyhow!("Unit not found: {}", id))?;
+    let mut unit =
+        Unit::from_file(&bean_path).with_context(|| format!("Failed to load unit: {}", id))?;
+
+    let now = Utc::now();
+
+    // Finalize the current attempt as abandoned (if one is in progress)
+    if let Some(attempt) = unit.attempt_log.last_mut() {
+        if attempt.finished_at.is_none() {
+            attempt.outcome = AttemptOutcome::Abandoned;
+            attempt.finished_at = Some(now);
+        }
+    }
+
+    unit.claimed_by = None;
+    unit.claimed_at = None;
+    unit.status = Status::Open;
+    unit.updated_at = now;
+
+    unit.to_file(&bean_path)
+        .with_context(|| format!("Failed to save unit: {}", id))?;
+
+    // Rebuild index
+    let index = Index::build(mana_dir).with_context(|| "Failed to rebuild index")?;
+    index
+        .save(mana_dir)
+        .with_context(|| "Failed to save index")?;
+
+    Ok(ReleaseResult {
+        unit,
+        path: bean_path,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::Config;
+    use crate::ops::create::{self, tests::minimal_params};
+    use std::fs;
+    use tempfile::TempDir;
+
+    fn setup() -> (TempDir, PathBuf) {
+        let dir = TempDir::new().unwrap();
+        let bd = dir.path().join(".mana");
+        fs::create_dir(&bd).unwrap();
+        Config {
+            project: "test".to_string(),
+            next_id: 1,
+            auto_close_parent: true,
+            run: None,
+            plan: None,
+            max_loops: 10,
+            max_concurrent: 4,
+            poll_interval: 30,
+            extends: vec![],
+            rules_file: None,
+            file_locking: false,
+            worktree: false,
+            on_close: None,
+            on_fail: None,
+            post_plan: None,
+            verify_timeout: None,
+            review: None,
+            user: None,
+            user_email: None,
+            auto_commit: false,
+        }
+        .save(&bd)
+        .unwrap();
+        (dir, bd)
+    }
+
+    fn force_params(by: Option<&str>) -> ClaimParams {
+        ClaimParams {
+            by: by.map(String::from),
+            force: true,
+        }
+    }
+
+    fn strict_params(by: Option<&str>) -> ClaimParams {
+        ClaimParams {
+            by: by.map(String::from),
+            force: false,
+        }
+    }
+
+    #[test]
+    fn claim_open_bean() {
+        let (_dir, bd) = setup();
+        create::create(&bd, minimal_params("Task")).unwrap();
+
+        let result = claim(&bd, "1", force_params(Some("alice"))).unwrap();
+        assert_eq!(result.unit.status, Status::InProgress);
+        assert_eq!(result.unit.claimed_by, Some("alice".to_string()));
+        assert!(result.unit.claimed_at.is_some());
+        assert_eq!(result.claimer, "alice");
+    }
+
+    #[test]
+    fn claim_without_by() {
+        let (_dir, bd) = setup();
+        create::create(&bd, minimal_params("Task")).unwrap();
+
+        let result = claim(&bd, "1", force_params(None)).unwrap();
+        assert_eq!(result.unit.status, Status::InProgress);
+        assert!(result.unit.claimed_at.is_some());
+    }
+
+    #[test]
+    fn claim_non_open_bean_fails() {
+        let (_dir, bd) = setup();
+        create::create(&bd, minimal_params("Task")).unwrap();
+        let bp = find_unit_file(&bd, "1").unwrap();
+        let mut unit = Unit::from_file(&bp).unwrap();
+        unit.status = Status::InProgress;
+        unit.to_file(&bp).unwrap();
+
+        assert!(claim(&bd, "1", force_params(Some("bob"))).is_err());
+    }
+
+    #[test]
+    fn claim_closed_bean_fails() {
+        let (_dir, bd) = setup();
+        create::create(&bd, minimal_params("Task")).unwrap();
+        let bp = find_unit_file(&bd, "1").unwrap();
+        let mut unit = Unit::from_file(&bp).unwrap();
+        unit.status = Status::Closed;
+        unit.to_file(&bp).unwrap();
+
+        assert!(claim(&bd, "1", force_params(Some("bob"))).is_err());
+    }
+
+    #[test]
+    fn claim_nonexistent_bean_fails() {
+        let (_dir, bd) = setup();
+        assert!(claim(&bd, "99", force_params(Some("alice"))).is_err());
+    }
+
+    #[test]
+    fn release_claimed_bean() {
+        let (_dir, bd) = setup();
+        create::create(&bd, minimal_params("Task")).unwrap();
+        // First claim it
+        claim(&bd, "1", force_params(Some("alice"))).unwrap();
+
+        let result = release(&bd, "1").unwrap();
+        assert_eq!(result.unit.status, Status::Open);
+        assert_eq!(result.unit.claimed_by, None);
+        assert_eq!(result.unit.claimed_at, None);
+    }
+
+    #[test]
+    fn release_nonexistent_bean_fails() {
+        let (_dir, bd) = setup();
+        assert!(release(&bd, "99").is_err());
+    }
+
+    #[test]
+    fn claim_rebuilds_index() {
+        let (_dir, bd) = setup();
+        create::create(&bd, minimal_params("Task")).unwrap();
+
+        claim(&bd, "1", force_params(Some("alice"))).unwrap();
+
+        let index = Index::load(&bd).unwrap();
+        assert_eq!(index.units.len(), 1);
+        assert_eq!(index.units[0].status, Status::InProgress);
+    }
+
+    #[test]
+    fn release_rebuilds_index() {
+        let (_dir, bd) = setup();
+        create::create(&bd, minimal_params("Task")).unwrap();
+        claim(&bd, "1", force_params(Some("alice"))).unwrap();
+
+        release(&bd, "1").unwrap();
+
+        let index = Index::load(&bd).unwrap();
+        assert_eq!(index.units.len(), 1);
+        assert_eq!(index.units[0].status, Status::Open);
+    }
+
+    #[test]
+    fn claim_bean_without_verify_is_goal() {
+        let (_dir, bd) = setup();
+        create::create(&bd, minimal_params("Task")).unwrap();
+
+        let result = claim(&bd, "1", force_params(Some("alice"))).unwrap();
+        assert!(result.is_goal);
+    }
+
+    #[test]
+    fn claim_bean_with_verify_is_not_goal() {
+        let (_dir, bd) = setup();
+        let mut params = minimal_params("Task");
+        params.verify = Some("cargo test".to_string());
+        create::create(&bd, params).unwrap();
+
+        let result = claim(&bd, "1", force_params(Some("alice"))).unwrap();
+        assert!(!result.is_goal);
+    }
+
+    #[test]
+    fn claim_bean_with_empty_verify_is_goal() {
+        let (_dir, bd) = setup();
+        let mut params = minimal_params("Task");
+        params.verify = Some("   ".to_string());
+        create::create(&bd, params).unwrap();
+
+        let result = claim(&bd, "1", force_params(Some("alice"))).unwrap();
+        assert!(result.is_goal);
+    }
+
+    #[test]
+    fn verify_on_claim_passing_verify_rejected() {
+        let (_dir, bd) = setup();
+        let mut params = minimal_params("Already done");
+        params.verify = Some("true".to_string());
+        params.fail_first = true;
+        create::create(&bd, params).unwrap();
+
+        let result = claim(&bd, "1", strict_params(Some("alice")));
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("verify already passes"));
+
+        // Unit should still be open
+        let bp = find_unit_file(&bd, "1").unwrap();
+        let unit = Unit::from_file(&bp).unwrap();
+        assert_eq!(unit.status, Status::Open);
+    }
+
+    #[test]
+    fn verify_on_claim_failing_verify_succeeds() {
+        let (_dir, bd) = setup();
+        let mut params = minimal_params("Real work");
+        params.verify = Some("false".to_string());
+        params.fail_first = true;
+        create::create(&bd, params).unwrap();
+
+        let result = claim(&bd, "1", strict_params(Some("alice"))).unwrap();
+        assert_eq!(result.unit.status, Status::InProgress);
+        assert!(result.unit.fail_first);
+    }
+
+    #[test]
+    fn verify_on_claim_force_overrides() {
+        let (_dir, bd) = setup();
+        let mut params = minimal_params("Force claim");
+        params.verify = Some("true".to_string());
+        create::create(&bd, params).unwrap();
+
+        let result = claim(&bd, "1", force_params(Some("alice"))).unwrap();
+        assert_eq!(result.unit.status, Status::InProgress);
+    }
+
+    #[test]
+    fn verify_on_claim_checkpoint_sha_stored() {
+        let (_dir, bd) = setup();
+        let mut params = minimal_params("Checkpoint");
+        params.verify = Some("false".to_string());
+        params.fail_first = true;
+        create::create(&bd, params).unwrap();
+
+        // Initialize a git repo so we get a real SHA
+        let project_root = bd.parent().unwrap();
+        ShellCommand::new("git")
+            .args(["init"])
+            .current_dir(project_root)
+            .output()
+            .unwrap();
+        ShellCommand::new("git")
+            .args(["commit", "-m", "init", "--allow-empty"])
+            .current_dir(project_root)
+            .env("GIT_AUTHOR_NAME", "test")
+            .env("GIT_AUTHOR_EMAIL", "test@test.com")
+            .env("GIT_COMMITTER_NAME", "test")
+            .env("GIT_COMMITTER_EMAIL", "test@test.com")
+            .output()
+            .unwrap();
+
+        let result = claim(&bd, "1", strict_params(Some("alice"))).unwrap();
+        assert!(result.unit.checkpoint.is_some());
+        let sha = result.unit.checkpoint.unwrap();
+        assert_eq!(sha.len(), 40);
+        assert!(sha.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    #[test]
+    fn claim_starts_attempt() {
+        let (_dir, bd) = setup();
+        create::create(&bd, minimal_params("Task")).unwrap();
+
+        let result = claim(&bd, "1", force_params(Some("agent-1"))).unwrap();
+        assert_eq!(result.unit.attempt_log.len(), 1);
+        assert_eq!(result.unit.attempt_log[0].num, 1);
+        assert_eq!(
+            result.unit.attempt_log[0].agent,
+            Some("agent-1".to_string())
+        );
+        assert!(result.unit.attempt_log[0].started_at.is_some());
+        assert!(result.unit.attempt_log[0].finished_at.is_none());
+    }
+
+    #[test]
+    fn release_marks_attempt_abandoned() {
+        let (_dir, bd) = setup();
+        create::create(&bd, minimal_params("Task")).unwrap();
+        claim(&bd, "1", force_params(Some("agent-1"))).unwrap();
+
+        let result = release(&bd, "1").unwrap();
+        assert_eq!(result.unit.attempt_log.len(), 1);
+        assert_eq!(result.unit.attempt_log[0].outcome, AttemptOutcome::Abandoned);
+        assert!(result.unit.attempt_log[0].finished_at.is_some());
+    }
+
+    #[test]
+    fn multiple_claims_accumulate_attempts() {
+        let (_dir, bd) = setup();
+        create::create(&bd, minimal_params("Task")).unwrap();
+
+        claim(&bd, "1", force_params(Some("agent-1"))).unwrap();
+        release(&bd, "1").unwrap();
+        let result = claim(&bd, "1", force_params(Some("agent-2"))).unwrap();
+
+        assert_eq!(result.unit.attempt_log.len(), 2);
+        assert_eq!(result.unit.attempt_log[0].num, 1);
+        assert_eq!(result.unit.attempt_log[0].outcome, AttemptOutcome::Abandoned);
+        assert!(result.unit.attempt_log[0].finished_at.is_some());
+        assert_eq!(result.unit.attempt_log[1].num, 2);
+        assert_eq!(
+            result.unit.attempt_log[1].agent,
+            Some("agent-2".to_string())
+        );
+        assert!(result.unit.attempt_log[1].finished_at.is_none());
+    }
+}

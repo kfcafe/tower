@@ -1,0 +1,9 @@
+[package]
+name = "wizard-browser"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Browser panel lifecycle types for Wizard"
+
+[dependencies]
+serde.workspace = true

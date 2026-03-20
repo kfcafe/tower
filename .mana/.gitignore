@@ -1,0 +1,6 @@
+# Regenerable cache — rebuilt automatically by mana sync
+index.yaml
+archive.yaml
+
+# File lock
+index.lock
