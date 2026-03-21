@@ -551,6 +551,47 @@ pub fn topological_sort(index: &Index) -> Result<Vec<String>> {
     Ok(result)
 }
 
+// ---------------------------------------------------------------------------
+// Additional graph utilities (re-exported from graph module)
+// ---------------------------------------------------------------------------
+
+/// Build a text dependency tree rooted at a unit ID.
+///
+/// Returns a box-drawing string showing which units depend on the given unit.
+///
+/// # Errors
+/// - Returns an error if the unit ID is not found in the index.
+pub use crate::graph::build_dependency_tree;
+
+/// Build a project-wide dependency graph as a text tree.
+///
+/// Shows all units with no parents as roots, with their dependents branching below.
+///
+/// # Errors
+/// - Returns an error only on unexpected failures.
+pub use crate::graph::build_full_graph;
+
+/// Count total verify attempts across all descendants of a unit.
+///
+/// Includes the unit itself and archived descendants. Used by the circuit
+/// breaker to detect runaway retry loops across a subtree.
+///
+/// # Errors
+/// - Returns an error on I/O failures reading the index.
+pub use crate::graph::count_subtree_attempts;
+
+/// Find all dependency cycles in the graph.
+///
+/// Returns a list of cycle paths (each path is a list of unit IDs forming a cycle).
+/// An empty list means the graph is acyclic.
+///
+/// # Errors
+/// - Returns an error only on unexpected graph traversal failures.
+pub use crate::graph::find_all_cycles;
+
+// Also re-export validate_priority for callers who need to validate
+pub use crate::unit::validate_priority;
+
 /// Detect whether adding an edge from `from_id` to `to_id` would create a cycle.
 ///
 /// Returns `true` if the proposed edge would introduce a cycle. Use this
