@@ -98,7 +98,7 @@ fn main() -> Result<()> {
 
     // Onboard doesn't need mana_dir — works on any project directory
     if let Command::Onboard { dir } = cli.command {
-        let project_root = if dir == std::path::PathBuf::from(".") {
+        let project_root = if dir == std::path::Path::new(".") {
             env::current_dir()?
         } else {
             dir

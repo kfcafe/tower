@@ -10,6 +10,7 @@ use crate::unit::{validate_priority, Unit};
 use crate::util::parse_status;
 
 /// Parameters for updating a unit.
+#[derive(Default)]
 pub struct UpdateParams {
     pub title: Option<String>,
     pub description: Option<String>,

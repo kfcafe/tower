@@ -216,7 +216,7 @@ fn is_unit_ready(
 }
 
 /// Sort a list of units by priority (ascending) then critical-path weight (descending) then ID.
-fn sort_units(units: &mut Vec<ReadyUnit>, weights: &HashMap<String, u32>) {
+fn sort_units(units: &mut [ReadyUnit], weights: &HashMap<String, u32>) {
     units.sort_by(|a, b| {
         a.priority
             .cmp(&b.priority)

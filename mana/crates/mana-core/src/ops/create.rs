@@ -11,6 +11,7 @@ use crate::util::title_to_slug;
 use crate::verify_lint::{lint_verify, VerifyLintLevel};
 
 /// Parameters for creating a new unit.
+#[derive(Default)]
 pub struct CreateParams {
     pub title: String,
     pub description: Option<String>,
