@@ -130,3 +130,21 @@ That means:
 If work spans multiple projects, do it from the Tower root.
 
 If work is local to one project, work inside that project folder — but keep Tower as the main mental model.
+
+## Configuration philosophy
+
+Tower should be config-centric.
+
+That means:
+- each app should have a clear, human-readable config surface
+- shared team behavior belongs in project config checked into git
+- personal defaults belong in user config outside the repo
+- secrets belong in environment variables or a secrets system, not committed config
+- CLI flags and env vars can override config, but should not be the only way to control behavior
+- defaults should let a fresh checkout boot, but project policy should live in config rather than scattered code constants
+
+Today that means:
+- `mana` uses `.mana/config.yaml`
+- `imp` uses `~/.config/imp/config.toml` plus `.imp/config.toml`
+- `wizard` should grow a first-class config file alongside `.wizard/` local state
+- `familiar` should follow the same rule in its Elixir-native config surface

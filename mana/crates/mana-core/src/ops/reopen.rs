@@ -3,9 +3,9 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use chrono::Utc;
 
-use crate::unit::{Unit, Status};
 use crate::discovery::find_unit_file;
 use crate::index::Index;
+use crate::unit::{Status, Unit};
 
 /// Result of reopening a unit.
 pub struct ReopenResult {
@@ -15,10 +15,10 @@ pub struct ReopenResult {
 
 /// Reopen a closed unit.
 pub fn reopen(mana_dir: &Path, id: &str) -> Result<ReopenResult> {
-    let bean_path = find_unit_file(mana_dir, id)
-        .with_context(|| format!("Unit not found: {}", id))?;
-    let mut unit = Unit::from_file(&bean_path)
-        .with_context(|| format!("Failed to load unit: {}", id))?;
+    let bean_path =
+        find_unit_file(mana_dir, id).with_context(|| format!("Unit not found: {}", id))?;
+    let mut unit =
+        Unit::from_file(&bean_path).with_context(|| format!("Failed to load unit: {}", id))?;
 
     unit.status = Status::Open;
     unit.closed_at = None;
@@ -31,7 +31,10 @@ pub fn reopen(mana_dir: &Path, id: &str) -> Result<ReopenResult> {
     let index = Index::build(mana_dir)?;
     index.save(mana_dir)?;
 
-    Ok(ReopenResult { unit, path: bean_path })
+    Ok(ReopenResult {
+        unit,
+        path: bean_path,
+    })
 }
 
 #[cfg(test)]
@@ -46,13 +49,29 @@ mod tests {
         let bd = dir.path().join(".mana");
         fs::create_dir(&bd).unwrap();
         crate::config::Config {
-            project: "test".to_string(), next_id: 1, auto_close_parent: true,
-            run: None, plan: None, max_loops: 10, max_concurrent: 4,
-            poll_interval: 30, extends: vec![], rules_file: None,
-            file_locking: false, worktree: false, on_close: None,
-            on_fail: None, post_plan: None, verify_timeout: None,
-            review: None, user: None, user_email: None, auto_commit: false,
-        }.save(&bd).unwrap();
+            project: "test".to_string(),
+            next_id: 1,
+            auto_close_parent: true,
+            run: None,
+            plan: None,
+            max_loops: 10,
+            max_concurrent: 4,
+            poll_interval: 30,
+            extends: vec![],
+            rules_file: None,
+            file_locking: false,
+            worktree: false,
+            on_close: None,
+            on_fail: None,
+            post_plan: None,
+            verify_timeout: None,
+            review: None,
+            user: None,
+            user_email: None,
+            auto_commit: false,
+        }
+        .save(&bd)
+        .unwrap();
         (dir, bd)
     }
 
@@ -90,6 +109,9 @@ mod tests {
 
         reopen(&bd, "1").unwrap();
         let index = Index::load(&bd).unwrap();
-        assert_eq!(index.units.iter().find(|e| e.id == "1").unwrap().status, Status::Open);
+        assert_eq!(
+            index.units.iter().find(|e| e.id == "1").unwrap().status,
+            Status::Open
+        );
     }
 }

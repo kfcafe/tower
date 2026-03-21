@@ -4,10 +4,10 @@ use std::path::Path;
 use anyhow::{anyhow, Context, Result};
 use chrono::Utc;
 
-use crate::unit::Unit;
 use crate::discovery::find_unit_file;
 use crate::graph::detect_cycle;
 use crate::index::{Index, IndexEntry};
+use crate::unit::Unit;
 
 /// Result of adding a dependency.
 #[derive(Debug)]
@@ -65,8 +65,8 @@ pub fn dep_add(mana_dir: &Path, from_id: &str, depends_on_id: &str) -> Result<De
         ));
     }
 
-    let mut unit = Unit::from_file(&bean_path)
-        .with_context(|| format!("Failed to load unit: {}", from_id))?;
+    let mut unit =
+        Unit::from_file(&bean_path).with_context(|| format!("Failed to load unit: {}", from_id))?;
 
     if unit.dependencies.contains(&depends_on_id.to_string()) {
         return Err(anyhow!(
@@ -98,8 +98,8 @@ pub fn dep_remove(mana_dir: &Path, from_id: &str, depends_on_id: &str) -> Result
     let bean_path =
         find_unit_file(mana_dir, from_id).map_err(|_| anyhow!("Unit {} not found", from_id))?;
 
-    let mut unit = Unit::from_file(&bean_path)
-        .with_context(|| format!("Failed to load unit: {}", from_id))?;
+    let mut unit =
+        Unit::from_file(&bean_path).with_context(|| format!("Failed to load unit: {}", from_id))?;
 
     let original_len = unit.dependencies.len();
     unit.dependencies.retain(|d| d != depends_on_id);

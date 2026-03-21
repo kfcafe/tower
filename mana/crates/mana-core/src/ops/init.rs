@@ -38,10 +38,7 @@ pub fn init(path: Option<&Path>, params: InitParams) -> Result<InitResult> {
 
     if !mana_dir.exists() {
         fs::create_dir(&mana_dir).with_context(|| {
-            format!(
-                "Failed to create .mana directory at {}",
-                mana_dir.display()
-            )
+            format!("Failed to create .mana directory at {}", mana_dir.display())
         })?;
     } else if !mana_dir.is_dir() {
         anyhow::bail!(".mana exists but is not a directory");

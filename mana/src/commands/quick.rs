@@ -4,12 +4,12 @@ use std::process::Command as ShellCommand;
 use anyhow::{anyhow, Context, Result};
 use chrono::Utc;
 
-use crate::unit::{validate_priority, Unit, OnFailAction, Status};
 use crate::commands::create::assign_child_id;
 use crate::config::Config;
 use crate::hooks::{execute_hook, HookEvent};
 use crate::index::Index;
 use crate::project::suggest_verify_command;
+use crate::unit::{validate_priority, OnFailAction, Status, Unit};
 use crate::util::title_to_slug;
 
 /// Arguments for quick-create command.

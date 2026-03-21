@@ -7,6 +7,7 @@ use clap::{CommandFactory, Parser};
 
 mod cli;
 
+use cli::{Cli, Command, ConfigCommand, CreateOpts, CreateSubcommand, DepCommand, McpCommand};
 use mana::commands::create::CreateArgs;
 use mana::commands::plan::PlanArgs;
 use mana::commands::quick::QuickArgs;
@@ -14,16 +15,14 @@ use mana::commands::{
     cmd_adopt, cmd_agents, cmd_claim, cmd_close, cmd_config_get, cmd_config_set, cmd_context,
     cmd_create, cmd_delete, cmd_dep_add, cmd_dep_list, cmd_dep_remove, cmd_doctor, cmd_edit,
     cmd_fact, cmd_graph, cmd_init, cmd_list, cmd_locks, cmd_locks_clear, cmd_logs, cmd_mcp_serve,
-    cmd_memory_context, cmd_move_from, cmd_move_to, cmd_plan, cmd_quick, cmd_recall,
-    cmd_release, cmd_reopen,
-    cmd_run, cmd_show, cmd_stats, cmd_status, cmd_sync, cmd_tidy, cmd_trace, cmd_tree, cmd_trust,
-    cmd_unarchive, cmd_update, cmd_verify, cmd_verify_facts,
+    cmd_memory_context, cmd_move_from, cmd_move_to, cmd_plan, cmd_quick, cmd_recall, cmd_release,
+    cmd_reopen, cmd_run, cmd_show, cmd_stats, cmd_status, cmd_sync, cmd_tidy, cmd_trace, cmd_tree,
+    cmd_trust, cmd_unarchive, cmd_update, cmd_verify, cmd_verify_facts,
     review::{cmd_review, ReviewArgs},
 };
 use mana::discovery::find_mana_dir;
 use mana::index::Index;
 use mana::util::validate_bean_id;
-use cli::{Cli, Command, ConfigCommand, CreateOpts, CreateSubcommand, DepCommand, McpCommand};
 
 // Helper to resolve a single unit ID (handles @latest selector or plain IDs)
 fn resolve_bean_id(id: &str, mana_dir: &std::path::Path) -> Result<String> {

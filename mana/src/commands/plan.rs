@@ -8,10 +8,10 @@ use std::path::Path;
 
 use anyhow::Result;
 
-use crate::unit::Unit;
 use crate::config::Config;
 use crate::discovery::find_unit_file;
 use crate::index::Index;
+use crate::unit::Unit;
 use mana_core::ops::plan::{
     build_decomposition_prompt, find_plan_candidates, is_oversized, shell_escape,
 };
@@ -182,11 +182,7 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
-        fs::write(
-            mana_dir.join("config.yaml"),
-            "project: test\nnext_id: 10\n",
-        )
-        .unwrap();
+        fs::write(mana_dir.join("config.yaml"), "project: test\nnext_id: 10\n").unwrap();
         (dir, mana_dir)
     }
 

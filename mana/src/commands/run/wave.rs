@@ -6,9 +6,9 @@ use std::time::{Duration, Instant};
 
 use anyhow::Result;
 
-use crate::unit::Status;
 use crate::index::Index;
 use crate::stream::{self, StreamEvent};
+use crate::unit::Status;
 use crate::util::natural_cmp;
 
 use super::plan::SizedBean;

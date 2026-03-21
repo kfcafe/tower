@@ -3,10 +3,10 @@ use std::path::Path;
 use anyhow::Result;
 use chrono::{Duration, Utc};
 
-use crate::unit::{AttemptOutcome, Unit, Status};
 use crate::discovery::{find_archived_unit, find_unit_file};
 use crate::index::Index;
 use crate::relevance::relevance_score;
+use crate::unit::{AttemptOutcome, Status, Unit};
 
 /// Default token budget for context output (~4000 tokens ≈ ~16000 chars).
 const DEFAULT_MAX_CHARS: usize = 16000;

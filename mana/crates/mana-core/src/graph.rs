@@ -291,8 +291,7 @@ mod tests {
         for (id, deps) in specs {
             let mut unit = Unit::new(id, format!("Task {}", id));
             unit.dependencies = deps.iter().map(|s| s.to_string()).collect();
-            unit.to_file(mana_dir.join(format!("{}.yaml", id)))
-                .unwrap();
+            unit.to_file(mana_dir.join(format!("{}.yaml", id))).unwrap();
         }
 
         (dir, mana_dir)

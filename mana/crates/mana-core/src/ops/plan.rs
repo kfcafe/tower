@@ -2,10 +2,10 @@ use std::path::Path;
 
 use anyhow::Result;
 
-use crate::unit::{Unit, Status};
 use crate::blocking::{MAX_PATHS, MAX_PRODUCES};
 use crate::discovery::find_unit_file;
 use crate::index::Index;
+use crate::unit::{Status, Unit};
 use crate::util::natural_cmp;
 
 /// A candidate unit that needs planning (decomposition).
@@ -53,7 +53,11 @@ pub fn find_plan_candidates(mana_dir: &Path) -> Result<Vec<PlanCandidate>> {
         }
     }
 
-    candidates.sort_by(|a, b| a.priority.cmp(&b.priority).then_with(|| natural_cmp(&a.id, &b.id)));
+    candidates.sort_by(|a, b| {
+        a.priority
+            .cmp(&b.priority)
+            .then_with(|| natural_cmp(&a.id, &b.id))
+    });
 
     Ok(candidates)
 }
@@ -182,11 +186,7 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
-        fs::write(
-            mana_dir.join("config.yaml"),
-            "project: test\nnext_id: 10\n",
-        )
-        .unwrap();
+        fs::write(mana_dir.join("config.yaml"), "project: test\nnext_id: 10\n").unwrap();
         (dir, mana_dir)
     }
 

@@ -10,10 +10,10 @@ use std::path::Path;
 use anyhow::{anyhow, Context, Result};
 use chrono::Utc;
 
-use crate::unit::{Unit, RunRecord, RunResult, Status};
 use crate::config::Config;
 use crate::discovery::find_unit_file;
 use crate::index::Index;
+use crate::unit::{RunRecord, RunResult, Status, Unit};
 
 use verify::run_verify;
 
@@ -154,10 +154,7 @@ pub fn cmd_close(
                             max,
                             delay_secs,
                         } => {
-                            println!(
-                                "on_fail: will retry (attempt {}/{})",
-                                attempt, max
-                            );
+                            println!("on_fail: will retry (attempt {}/{})", attempt, max);
                             if let Some(delay) = delay_secs {
                                 println!(
                                     "on_fail: retry delay {}s (enforced by orchestrator)",
@@ -169,18 +166,13 @@ pub fn cmd_close(
                             println!("on_fail: max retries ({}) exhausted", max);
                         }
                         failure::OnFailActionTaken::Escalated => {
-                            if let Some(crate::unit::OnFailAction::Escalate {
-                                priority,
-                                message,
-                            }) = &unit.on_fail
+                            if let Some(crate::unit::OnFailAction::Escalate { priority, message }) =
+                                &unit.on_fail
                             {
                                 if let Some(p) = priority {
                                     // priority was already updated by process_on_fail;
                                     // print with old priority approximated from context
-                                    println!(
-                                        "on_fail: escalated priority → P{}",
-                                        p
-                                    );
+                                    println!("on_fail: escalated priority → P{}", p);
                                 }
                                 if let Some(msg) = message {
                                     println!("on_fail: {}", msg);
@@ -287,16 +279,10 @@ pub fn cmd_close(
         if unit.feature {
             use std::io::IsTerminal;
             if !std::io::stdin().is_terminal() {
-                println!(
-                    "Feature \"{}\" requires human review to close.",
-                    unit.title
-                );
+                println!("Feature \"{}\" requires human review to close.", unit.title);
                 continue;
             }
-            eprintln!(
-                "Feature: \"{}\" — mark as complete? [y/N] ",
-                unit.title
-            );
+            eprintln!("Feature: \"{}\" — mark as complete? [y/N] ", unit.title);
             let mut input = String::new();
             std::io::stdin().read_line(&mut input).unwrap_or(0);
             if !input.trim().eq_ignore_ascii_case("y") {
@@ -471,7 +457,6 @@ pub fn cmd_close_failed(mana_dir: &Path, ids: Vec<String>, reason: Option<String
 
     Ok(())
 }
-
 
 #[cfg(test)]
 #[path = "tests_close.rs"]

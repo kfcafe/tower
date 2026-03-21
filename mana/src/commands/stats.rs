@@ -4,8 +4,8 @@ use std::path::Path;
 use anyhow::Result;
 use serde::Serialize;
 
-use crate::unit::{Unit, RunResult, Status};
 use crate::index::Index;
+use crate::unit::{RunResult, Status, Unit};
 
 // ---------------------------------------------------------------------------
 // Output types (used for both text rendering and JSON serialization)

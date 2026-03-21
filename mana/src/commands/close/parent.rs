@@ -3,10 +3,10 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use chrono::Utc;
 
-use crate::unit::{Unit, Status};
+use super::archive;
 use crate::discovery::{find_archived_unit, find_unit_file};
 use crate::index::Index;
-use super::archive;
+use crate::unit::{Status, Unit};
 
 /// Check if all children of a parent unit are closed (in archive or with status=closed).
 ///

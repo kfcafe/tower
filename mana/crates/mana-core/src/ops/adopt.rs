@@ -5,9 +5,9 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use chrono::Utc;
 
-use crate::unit::Unit;
 use crate::discovery::find_unit_file;
 use crate::index::Index;
+use crate::unit::Unit;
 
 /// Result of an adopt operation.
 pub struct AdoptResult {
@@ -123,11 +123,7 @@ fn update_all_dependencies(mana_dir: &Path, id_map: &HashMap<String, String>) ->
 /// renames the file, updates all dependency references, and rebuilds the index.
 ///
 /// Returns a map of old_id -> new_id.
-pub fn adopt(
-    mana_dir: &Path,
-    parent_id: &str,
-    child_ids: &[String],
-) -> Result<AdoptResult> {
+pub fn adopt(mana_dir: &Path, parent_id: &str, child_ids: &[String]) -> Result<AdoptResult> {
     let parent_path = find_unit_file(mana_dir, parent_id)
         .with_context(|| format!("Parent unit '{}' not found", parent_id))?;
     let _parent_bean = Unit::from_file(&parent_path)

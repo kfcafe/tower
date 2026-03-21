@@ -290,8 +290,8 @@ impl Unit {
             return Err(anyhow::anyhow!("Not markdown frontmatter format"));
         };
 
-        let second_delimiter_pos = Self::find_closing_delimiter(after_first_delimiter)
-            .ok_or_else(|| {
+        let second_delimiter_pos =
+            Self::find_closing_delimiter(after_first_delimiter).ok_or_else(|| {
                 anyhow::anyhow!("Markdown frontmatter is missing closing delimiter (---)")
             })?;
         let frontmatter = &after_first_delimiter[..second_delimiter_pos];

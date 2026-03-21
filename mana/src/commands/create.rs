@@ -4,12 +4,12 @@ use std::process::Command as ShellCommand;
 
 use anyhow::{anyhow, Context, Result};
 
-use crate::unit::{validate_priority, Unit, OnFailAction};
 use crate::commands::claim::cmd_claim;
 use crate::config::Config;
 use crate::hooks::{execute_hook, HookEvent};
 use crate::index::Index;
 use crate::project::suggest_verify_command;
+use crate::unit::{validate_priority, OnFailAction, Unit};
 use crate::util::title_to_slug;
 
 /// Create arguments structure for organizing all the parameters passed to create.
@@ -794,15 +794,9 @@ mod tests {
         let bean2 = Unit::new("parent.2", "Child 2");
         let bean5 = Unit::new("parent.5", "Child 5");
 
-        bean1
-            .to_file(mana_dir.join("parent.1-child-1.md"))
-            .unwrap();
-        bean2
-            .to_file(mana_dir.join("parent.2-child-2.md"))
-            .unwrap();
-        bean5
-            .to_file(mana_dir.join("parent.5-child-5.md"))
-            .unwrap();
+        bean1.to_file(mana_dir.join("parent.1-child-1.md")).unwrap();
+        bean2.to_file(mana_dir.join("parent.2-child-2.md")).unwrap();
+        bean5.to_file(mana_dir.join("parent.5-child-5.md")).unwrap();
 
         let id = assign_child_id(&mana_dir, "parent").unwrap();
         assert_eq!(id, "parent.6");

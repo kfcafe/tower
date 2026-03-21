@@ -42,7 +42,7 @@ pub fn sync(mana_dir: &Path) -> Result<SyncResult> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::unit::{Unit, Status};
+    use crate::unit::{Status, Unit};
     use crate::util::title_to_slug;
     use std::fs;
     use tempfile::TempDir;
@@ -57,8 +57,12 @@ mod tests {
         let bean2 = Unit::new("2", "Task two");
         let slug1 = title_to_slug(&bean1.title);
         let slug2 = title_to_slug(&bean2.title);
-        bean1.to_file(mana_dir.join(format!("1-{}.md", slug1))).unwrap();
-        bean2.to_file(mana_dir.join(format!("2-{}.md", slug2))).unwrap();
+        bean1
+            .to_file(mana_dir.join(format!("1-{}.md", slug1)))
+            .unwrap();
+        bean2
+            .to_file(mana_dir.join(format!("2-{}.md", slug2)))
+            .unwrap();
 
         let result = sync(&mana_dir).unwrap();
 
@@ -91,7 +95,8 @@ mod tests {
         unit.status = Status::Closed;
         unit.is_archived = true;
         let slug = title_to_slug(&unit.title);
-        unit.to_file(archive_dir.join(format!("10-{}.md", slug))).unwrap();
+        unit.to_file(archive_dir.join(format!("10-{}.md", slug)))
+            .unwrap();
 
         let result = sync(&mana_dir).unwrap();
 

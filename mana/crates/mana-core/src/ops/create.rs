@@ -3,9 +3,9 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Context, Result};
 
-use crate::unit::{validate_priority, Unit, OnFailAction};
 use crate::config::Config;
 use crate::index::Index;
+use crate::unit::{validate_priority, OnFailAction, Unit};
 use crate::util::title_to_slug;
 
 /// Parameters for creating a new unit.
@@ -64,7 +64,9 @@ pub fn create(mana_dir: &Path, params: CreateParams) -> Result<CreateResult> {
     unit.feature = params.feature;
     unit.verify_timeout = params.verify_timeout;
     unit.on_fail = params.on_fail;
-    if let Some(priority) = params.priority { unit.priority = priority; }
+    if let Some(priority) = params.priority {
+        unit.priority = priority;
+    }
     unit.assignee = params.assignee;
     unit.parent = params.parent;
     unit.labels = params.labels;
@@ -77,7 +79,10 @@ pub fn create(mana_dir: &Path, params: CreateParams) -> Result<CreateResult> {
     unit.to_file(&bean_path)?;
     let index = Index::build(mana_dir)?;
     index.save(mana_dir)?;
-    Ok(CreateResult { unit, path: bean_path })
+    Ok(CreateResult {
+        unit,
+        path: bean_path,
+    })
 }
 
 /// Assign a child ID for a parent unit.
@@ -87,12 +92,21 @@ pub fn assign_child_id(mana_dir: &Path, parent_id: &str) -> Result<String> {
         .with_context(|| format!("Failed to read directory: {}", mana_dir.display()))?;
     for entry in dir_entries {
         let entry = entry?;
-        let filename = entry.path().file_name()
-            .and_then(|n| n.to_str()).unwrap_or_default().to_string();
+        let filename = entry
+            .path()
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or_default()
+            .to_string();
         if let Some(name) = filename.strip_suffix(".md") {
             if let Some(rest) = name.strip_prefix(parent_id) {
                 if let Some(after_dot) = rest.strip_prefix('.') {
-                    if let Ok(n) = after_dot.split('-').next().unwrap_or_default().parse::<u32>() {
+                    if let Ok(n) = after_dot
+                        .split('-')
+                        .next()
+                        .unwrap_or_default()
+                        .parse::<u32>()
+                    {
                         max_child = max_child.max(n);
                     }
                 }
@@ -119,22 +133,34 @@ pub fn parse_on_fail(s: &str) -> Result<OnFailAction> {
     };
     match action {
         "retry" => {
-            let max = arg.map(|a| a.parse::<u32>()).transpose().map_err(|_| {
-                anyhow!("Invalid retry max: \'{}\'", arg.unwrap_or(""))
-            })?;
-            Ok(OnFailAction::Retry { max, delay_secs: None })
+            let max = arg
+                .map(|a| a.parse::<u32>())
+                .transpose()
+                .map_err(|_| anyhow!("Invalid retry max: \'{}\'", arg.unwrap_or("")))?;
+            Ok(OnFailAction::Retry {
+                max,
+                delay_secs: None,
+            })
         }
         "escalate" => {
             let priority = match arg {
                 Some(a) => {
-                    let stripped = a.strip_prefix('P').or_else(|| a.strip_prefix('p')).unwrap_or(a);
-                    let p = stripped.parse::<u8>().map_err(|_| anyhow!("Invalid priority: \'{}\'", a))?;
+                    let stripped = a
+                        .strip_prefix('P')
+                        .or_else(|| a.strip_prefix('p'))
+                        .unwrap_or(a);
+                    let p = stripped
+                        .parse::<u8>()
+                        .map_err(|_| anyhow!("Invalid priority: \'{}\'", a))?;
                     validate_priority(p)?;
                     Some(p)
                 }
                 None => None,
             };
-            Ok(OnFailAction::Escalate { priority, message: None })
+            Ok(OnFailAction::Escalate {
+                priority,
+                message: None,
+            })
         }
         _ => Err(anyhow!("Unknown on-fail action: \'{}\'", action)),
     }
@@ -150,24 +176,52 @@ pub mod tests {
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
         Config {
-            project: "test".to_string(), next_id: 1, auto_close_parent: true,
-            run: None, plan: None, max_loops: 10, max_concurrent: 4,
-            poll_interval: 30, extends: vec![], rules_file: None,
-            file_locking: false, worktree: false, on_close: None,
-            on_fail: None, post_plan: None, verify_timeout: None,
-            review: None, user: None, user_email: None, auto_commit: false,
-        }.save(&mana_dir).unwrap();
+            project: "test".to_string(),
+            next_id: 1,
+            auto_close_parent: true,
+            run: None,
+            plan: None,
+            max_loops: 10,
+            max_concurrent: 4,
+            poll_interval: 30,
+            extends: vec![],
+            rules_file: None,
+            file_locking: false,
+            worktree: false,
+            on_close: None,
+            on_fail: None,
+            post_plan: None,
+            verify_timeout: None,
+            review: None,
+            user: None,
+            user_email: None,
+            auto_commit: false,
+        }
+        .save(&mana_dir)
+        .unwrap();
         (dir, mana_dir)
     }
 
     pub fn minimal_params(title: &str) -> CreateParams {
         CreateParams {
-            title: title.to_string(), description: None, acceptance: None,
-            notes: None, design: None, verify: None, priority: None,
-            labels: vec![], assignee: None, dependencies: vec![],
-            parent: None, produces: vec![], requires: vec![],
-            paths: vec![], on_fail: None, fail_first: false,
-            feature: false, verify_timeout: None,
+            title: title.to_string(),
+            description: None,
+            acceptance: None,
+            notes: None,
+            design: None,
+            verify: None,
+            priority: None,
+            labels: vec![],
+            assignee: None,
+            dependencies: vec![],
+            parent: None,
+            produces: vec![],
+            requires: vec![],
+            paths: vec![],
+            on_fail: None,
+            fail_first: false,
+            feature: false,
+            verify_timeout: None,
         }
     }
 

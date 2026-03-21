@@ -3,9 +3,9 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use chrono::Utc;
 
-use crate::unit::Unit;
 use crate::discovery::find_archived_unit;
 use crate::index::{ArchiveIndex, Index};
+use crate::unit::Unit;
 
 /// Unarchive a unit by moving it from `.mana/archive/**/` back to `.mana/`.
 ///

@@ -4,9 +4,9 @@ use std::path::Path;
 
 use anyhow::Result;
 
-use crate::unit::Unit;
 use crate::graph;
 use crate::index::{count_bean_formats, Index};
+use crate::unit::Unit;
 
 /// Issue types that doctor can detect and potentially fix
 #[derive(Debug)]
@@ -444,9 +444,7 @@ mod tests {
         // .yaml file (legacy format)
         bean1.to_file(mana_dir.join("1.yaml")).unwrap();
         // .md file (new format)
-        bean2
-            .to_file(mana_dir.join("2-task-two-in-md.md"))
-            .unwrap();
+        bean2.to_file(mana_dir.join("2-task-two-in-md.md")).unwrap();
 
         // Doctor should succeed but detect the issue
         let result = cmd_doctor(&mana_dir, false);

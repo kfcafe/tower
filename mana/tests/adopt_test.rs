@@ -5,10 +5,10 @@
 
 use std::fs;
 
-use mana::unit::Unit;
 use mana::commands::cmd_adopt;
 use mana::config::Config;
 use mana::index::Index;
+use mana::unit::Unit;
 use tempfile::TempDir;
 
 /// Setup a test environment with a .mana directory and config.

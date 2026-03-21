@@ -2,11 +2,11 @@ use std::path::Path;
 
 use anyhow::Result;
 
-use crate::unit::Status;
 use crate::blocking::{check_blocked, check_scope_warning, BlockReason, ScopeWarning};
 use crate::config::Config;
 use crate::index::{ArchiveIndex, Index, IndexEntry};
 use crate::stream::{self, StreamEvent};
+use crate::unit::Status;
 
 use super::ready_queue::all_deps_closed;
 use super::wave::{compute_waves, Wave};

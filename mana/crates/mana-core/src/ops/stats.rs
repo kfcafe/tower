@@ -4,8 +4,8 @@ use std::path::Path;
 use anyhow::Result;
 use serde::Serialize;
 
-use crate::unit::{Unit, RunResult, Status};
 use crate::index::Index;
+use crate::unit::{RunResult, Status, Unit};
 
 /// Cost and token statistics aggregated from RunRecord history.
 #[derive(Debug, Serialize)]
@@ -164,9 +164,21 @@ pub fn stats(mana_dir: &Path) -> Result<StatsResult> {
     let index = Index::load_or_rebuild(mana_dir)?;
 
     let total = index.units.len();
-    let open = index.units.iter().filter(|e| e.status == Status::Open).count();
-    let in_progress = index.units.iter().filter(|e| e.status == Status::InProgress).count();
-    let closed = index.units.iter().filter(|e| e.status == Status::Closed).count();
+    let open = index
+        .units
+        .iter()
+        .filter(|e| e.status == Status::Open)
+        .count();
+    let in_progress = index
+        .units
+        .iter()
+        .filter(|e| e.status == Status::InProgress)
+        .count();
+    let closed = index
+        .units
+        .iter()
+        .filter(|e| e.status == Status::Closed)
+        .count();
 
     let blocked = index
         .units
@@ -219,7 +231,7 @@ pub fn stats(mana_dir: &Path) -> Result<StatsResult> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::unit::{Unit, RunRecord, RunResult};
+    use crate::unit::{RunRecord, RunResult, Unit};
     use chrono::Utc;
     use std::fs;
     use tempfile::TempDir;

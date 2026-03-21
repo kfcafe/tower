@@ -5,10 +5,10 @@ use std::path::{Path, PathBuf};
 use anyhow::{bail, Context, Result};
 use chrono::Utc;
 
-use crate::unit::Unit;
 use crate::config::Config;
 use crate::discovery::find_unit_file;
 use crate::index::Index;
+use crate::unit::Unit;
 
 /// Result of a move operation.
 pub struct MoveResult {
@@ -43,17 +43,13 @@ pub fn resolve_beans_dir(path: &Path) -> Result<PathBuf> {
 /// Clears parent, dependencies, and claim fields on the moved unit.
 ///
 /// Returns a map of old_id -> new_id.
-pub fn move_beans(
-    source_dir: &Path,
-    dest_dir: &Path,
-    ids: &[String],
-) -> Result<MoveResult> {
-    let source_canonical = source_dir.canonicalize().with_context(|| {
-        format!("Failed to resolve source path: {}", source_dir.display())
-    })?;
-    let dest_canonical = dest_dir.canonicalize().with_context(|| {
-        format!("Failed to resolve destination path: {}", dest_dir.display())
-    })?;
+pub fn move_beans(source_dir: &Path, dest_dir: &Path, ids: &[String]) -> Result<MoveResult> {
+    let source_canonical = source_dir
+        .canonicalize()
+        .with_context(|| format!("Failed to resolve source path: {}", source_dir.display()))?;
+    let dest_canonical = dest_dir
+        .canonicalize()
+        .with_context(|| format!("Failed to resolve destination path: {}", dest_dir.display()))?;
     if source_canonical == dest_canonical {
         bail!("Source and destination are the same .mana/ directory");
     }
@@ -109,11 +105,7 @@ pub fn move_beans(
 }
 
 /// Move units from another project into this one.
-pub fn move_from(
-    mana_dir: &Path,
-    from: &str,
-    ids: &[String],
-) -> Result<MoveResult> {
+pub fn move_from(mana_dir: &Path, from: &str, ids: &[String]) -> Result<MoveResult> {
     let from_path = PathBuf::from(from);
     let source_dir = resolve_beans_dir(&from_path)
         .with_context(|| format!("Failed to resolve --from: {}", from))?;
@@ -121,14 +113,10 @@ pub fn move_from(
 }
 
 /// Move units from this project into another one.
-pub fn move_to(
-    mana_dir: &Path,
-    to: &str,
-    ids: &[String],
-) -> Result<MoveResult> {
+pub fn move_to(mana_dir: &Path, to: &str, ids: &[String]) -> Result<MoveResult> {
     let to_path = PathBuf::from(to);
-    let dest_dir = resolve_beans_dir(&to_path)
-        .with_context(|| format!("Failed to resolve --to: {}", to))?;
+    let dest_dir =
+        resolve_beans_dir(&to_path).with_context(|| format!("Failed to resolve --to: {}", to))?;
     move_beans(mana_dir, &dest_dir, ids)
 }
 

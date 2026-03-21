@@ -3,11 +3,11 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 
-use crate::unit::{AttemptOutcome, Unit};
 use crate::config::Config;
 use crate::ctx_assembler::{extract_paths, read_file};
 use crate::discovery::find_unit_file;
 use crate::index::Index;
+use crate::unit::{AttemptOutcome, Unit};
 
 // ─── Result types ────────────────────────────────────────────────────────────
 
@@ -454,22 +454,14 @@ mod tests {
     #[test]
     fn load_rules_returns_none_when_missing() {
         let (_dir, mana_dir) = setup_test_env();
-        fs::write(
-            mana_dir.join("config.yaml"),
-            "project: test\nnext_id: 1\n",
-        )
-        .unwrap();
+        fs::write(mana_dir.join("config.yaml"), "project: test\nnext_id: 1\n").unwrap();
         assert!(load_rules(&mana_dir).is_none());
     }
 
     #[test]
     fn load_rules_returns_none_when_empty() {
         let (_dir, mana_dir) = setup_test_env();
-        fs::write(
-            mana_dir.join("config.yaml"),
-            "project: test\nnext_id: 1\n",
-        )
-        .unwrap();
+        fs::write(mana_dir.join("config.yaml"), "project: test\nnext_id: 1\n").unwrap();
         fs::write(mana_dir.join("RULES.md"), "   \n\n  ").unwrap();
         assert!(load_rules(&mana_dir).is_none());
     }
@@ -477,11 +469,7 @@ mod tests {
     #[test]
     fn load_rules_returns_content() {
         let (_dir, mana_dir) = setup_test_env();
-        fs::write(
-            mana_dir.join("config.yaml"),
-            "project: test\nnext_id: 1\n",
-        )
-        .unwrap();
+        fs::write(mana_dir.join("config.yaml"), "project: test\nnext_id: 1\n").unwrap();
         fs::write(mana_dir.join("RULES.md"), "# My Rules\nNo unwrap.\n").unwrap();
         let result = load_rules(&mana_dir);
         assert!(result.is_some());

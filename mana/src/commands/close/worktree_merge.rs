@@ -10,9 +10,7 @@ use crate::worktree;
 /// Returns Some(WorktreeInfo) if we're in a valid secondary worktree that
 /// belongs to the given project root. Returns None if we're not in a worktree,
 /// or if the detected worktree doesn't match the project.
-pub(crate) fn detect_valid_worktree(
-    project_root: &Path,
-) -> Option<worktree::WorktreeInfo> {
+pub(crate) fn detect_valid_worktree(project_root: &Path) -> Option<worktree::WorktreeInfo> {
     let info = worktree::detect_worktree().unwrap_or(None)?;
 
     let canonical_root =
@@ -28,10 +26,7 @@ pub(crate) fn detect_valid_worktree(
 ///
 /// Returns Ok(true) if merge succeeded or there was nothing to merge.
 /// Returns Ok(false) if there was a conflict (caller should abort the close).
-pub(crate) fn handle_merge(
-    wt_info: &worktree::WorktreeInfo,
-    unit: &Unit,
-) -> Result<bool> {
+pub(crate) fn handle_merge(wt_info: &worktree::WorktreeInfo, unit: &Unit) -> Result<bool> {
     // Commit any uncommitted changes
     worktree::commit_worktree_changes(&format!("Close unit {}: {}", unit.id, unit.title))?;
 
@@ -67,7 +62,10 @@ pub(crate) fn auto_commit_on_close(project_root: &Path, id: &str, title: &str) {
 
     match add_status {
         Ok(s) if !s.success() => {
-            eprintln!("Warning: git add -A failed (exit {})", s.code().unwrap_or(-1));
+            eprintln!(
+                "Warning: git add -A failed (exit {})",
+                s.code().unwrap_or(-1)
+            );
             return;
         }
         Err(e) => {

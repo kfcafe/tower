@@ -3,9 +3,9 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use chrono::Utc;
 
-use crate::unit::{Unit, Status};
 use crate::discovery::{archive_path_for_bean, find_unit_file};
 use crate::index::{ArchiveIndex, Index};
+use crate::unit::{Status, Unit};
 use crate::util::title_to_slug;
 
 /// A record of one unit that was archived during tidy.
@@ -62,11 +62,7 @@ fn format_duration(duration: chrono::Duration) -> String {
 /// if agent processes are currently running.
 ///
 /// With `dry_run = true`, reports what would change without touching any files.
-pub fn tidy(
-    mana_dir: &Path,
-    dry_run: bool,
-    check_agents: fn() -> bool,
-) -> Result<TidyResult> {
+pub fn tidy(mana_dir: &Path, dry_run: bool, check_agents: fn() -> bool) -> Result<TidyResult> {
     let index = Index::build(mana_dir).context("Failed to build index")?;
 
     let closed: Vec<&crate::index::IndexEntry> = index
@@ -117,9 +113,7 @@ pub fn tidy(
             .unwrap_or("md");
         let archive_path = archive_path_for_bean(mana_dir, &entry.id, &slug, ext, archive_date);
 
-        let relative = archive_path
-            .strip_prefix(mana_dir)
-            .unwrap_or(&archive_path);
+        let relative = archive_path.strip_prefix(mana_dir).unwrap_or(&archive_path);
         tidied.push(TidiedBean {
             id: entry.id.clone(),
             title: entry.title.clone(),
@@ -203,9 +197,7 @@ pub fn tidy(
 
     // Rebuild the index
     let final_index = Index::build(mana_dir).context("Failed to rebuild index after tidy")?;
-    final_index
-        .save(mana_dir)
-        .context("Failed to save index")?;
+    final_index.save(mana_dir).context("Failed to save index")?;
 
     // Rebuild archive index if units were archived
     if !dry_run && !tidied.is_empty() {

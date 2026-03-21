@@ -5,9 +5,9 @@ use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, Context, Result};
 
-use crate::unit::Unit;
 use crate::config::Config;
 use crate::discovery::find_unit_file;
+use crate::unit::Unit;
 
 /// Result of running a verify command.
 pub struct VerifyResult {
@@ -34,8 +34,7 @@ pub struct VerifyResult {
 ///
 /// If the unit has no verify command, returns `Ok(None)`.
 pub fn run_verify(mana_dir: &Path, id: &str) -> Result<Option<VerifyResult>> {
-    let bean_path =
-        find_unit_file(mana_dir, id).map_err(|_| anyhow!("Unit not found: {}", id))?;
+    let bean_path = find_unit_file(mana_dir, id).map_err(|_| anyhow!("Unit not found: {}", id))?;
     let unit =
         Unit::from_file(&bean_path).with_context(|| format!("Failed to load unit: {}", id))?;
 
@@ -52,8 +51,7 @@ pub fn run_verify(mana_dir: &Path, id: &str) -> Result<Option<VerifyResult>> {
         .parent()
         .ok_or_else(|| anyhow!("Cannot determine project root from units dir"))?;
 
-    run_verify_command(&verify_cmd, project_root, timeout_secs)
-        .map(Some)
+    run_verify_command(&verify_cmd, project_root, timeout_secs).map(Some)
 }
 
 /// Execute a verify command in the given directory with an optional timeout.

@@ -3,9 +3,9 @@ use std::path::Path;
 
 use anyhow::Result;
 
-use crate::unit::Status;
 use crate::blocking::check_blocked;
 use crate::index::{Index, IndexEntry};
+use crate::unit::Status;
 use crate::util::natural_cmp;
 
 /// Display dependency graph in ASCII, Mermaid, or DOT format

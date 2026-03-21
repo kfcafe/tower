@@ -331,6 +331,14 @@ Each project keeps its own configuration. No merging across projects.
 
 The workspace `Cargo.toml` handles build-time concerns. Runtime configuration stays separated by project.
 
+Common rules across Tower:
+- each app gets a first-class, human-readable config surface
+- shared project behavior belongs in repo config
+- personal preferences belong in user config outside the repo
+- secrets do not live in committed config
+- env vars and CLI flags override config, but do not replace it as the primary control surface
+- defaults should make a fresh checkout usable, while durable behavior stays configurable
+
 ## 9. Git Strategy
 
 ### Recommendation: Monorepo

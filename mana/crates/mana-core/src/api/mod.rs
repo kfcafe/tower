@@ -48,7 +48,7 @@ use anyhow::Result;
 
 // Unit and related types
 pub use crate::unit::{
-    AttemptOutcome, AttemptRecord, Unit, OnCloseAction, OnFailAction, RunRecord, RunResult, Status,
+    AttemptOutcome, AttemptRecord, OnCloseAction, OnFailAction, RunRecord, RunResult, Status, Unit,
 };
 
 // Index types
@@ -59,7 +59,7 @@ pub use crate::config::Config;
 
 // Discovery functions
 pub use crate::discovery::{
-    archive_path_for_bean, find_archived_unit, find_unit_file, find_mana_dir,
+    archive_path_for_bean, find_archived_unit, find_mana_dir, find_unit_file,
 };
 
 // Graph functions

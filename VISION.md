@@ -151,11 +151,22 @@ Different triggers, different scope, no overlap.
 
 ## Configuration
 
+Tower should be config-centric: runtime policy should live in explicit configuration files, not be buried in code paths or only reachable through ad-hoc flags.
+
 **mana config** (`.mana/config.yaml`, per-project) — work graph settings. Max attempts, default priority, fact definitions, orchestration hooks. Checked into git.
 
 **imp config** (`~/.config/imp/config.toml` + `.imp/config.toml`) — agent settings. Default model, provider keys, thinking level, tool preferences, skills, in-process hooks. Personal + per-project.
 
-**wizard config** (`~/.config/wizard/config.toml`) — orchestration settings. Concurrency limits, dispatch strategy, scheduler (pulse/cron), budget caps, orchestration hooks.
+**wizard config** (`~/.config/wizard/config.toml`, plus eventual project-level wizard config where shared behavior matters) — orchestration settings. Concurrency limits, dispatch strategy, scheduler (pulse/cron), budget caps, orchestration hooks.
+
+**familiar config** (Elixir-native app config, following the same layering rules) — team/platform settings, integrations, limits, and deployment-specific behavior.
+
+Common rules:
+- shared project behavior belongs in repo config
+- personal preferences belong in user config
+- secrets stay in environment variables or a secrets system
+- built-in defaults exist for bootstrapping, but product policy should be configurable
+- CLI and env overrides sit on top of config instead of replacing it
 
 They compose but don't merge. Mana doesn't care which model runs. Imp doesn't care about scheduling rules. Wizard doesn't care about tool preferences.
 

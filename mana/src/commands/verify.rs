@@ -5,10 +5,10 @@ use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, Context, Result};
 
-use crate::unit::Unit;
 use crate::config::Config;
 use crate::discovery::find_unit_file;
 use crate::output::Output;
+use crate::unit::Unit;
 
 /// Run the verify command for a unit without closing it.
 ///

@@ -5,10 +5,10 @@ use std::path::{Path, PathBuf};
 use anyhow::{bail, Context, Result};
 use chrono::Utc;
 
-use crate::unit::Unit;
 use crate::config::Config;
 use crate::discovery::find_unit_file;
 use crate::index::Index;
+use crate::unit::Unit;
 
 /// Resolve a path to a `.mana/` directory.
 ///
@@ -48,25 +48,18 @@ fn move_beans(
     ids: &[String],
 ) -> Result<HashMap<String, String>> {
     // Prevent moving units into the same directory
-    let source_canonical = source_dir.canonicalize().with_context(|| {
-        format!(
-            "Failed to resolve source path: {}",
-            source_dir.display()
-        )
-    })?;
-    let dest_canonical = dest_dir.canonicalize().with_context(|| {
-        format!(
-            "Failed to resolve destination path: {}",
-            dest_dir.display()
-        )
-    })?;
+    let source_canonical = source_dir
+        .canonicalize()
+        .with_context(|| format!("Failed to resolve source path: {}", source_dir.display()))?;
+    let dest_canonical = dest_dir
+        .canonicalize()
+        .with_context(|| format!("Failed to resolve destination path: {}", dest_dir.display()))?;
     if source_canonical == dest_canonical {
         bail!("Source and destination are the same .mana/ directory");
     }
 
     // Load destination config to get next_id
-    let mut dest_config =
-        Config::load(dest_dir).context("Failed to load destination config")?;
+    let mut dest_config = Config::load(dest_dir).context("Failed to load destination config")?;
 
     let mut id_map: HashMap<String, String> = HashMap::new();
     let mut source_files_to_remove: Vec<PathBuf> = Vec::new();
@@ -156,14 +149,10 @@ pub fn cmd_move_from(
 /// Move units from the current project into another `.mana/` directory.
 ///
 /// `mana_dir` is the current project's `.mana/` (the source).
-pub fn cmd_move_to(
-    mana_dir: &Path,
-    to: &str,
-    ids: &[String],
-) -> Result<HashMap<String, String>> {
+pub fn cmd_move_to(mana_dir: &Path, to: &str, ids: &[String]) -> Result<HashMap<String, String>> {
     let to_path = PathBuf::from(to);
-    let dest_dir = resolve_beans_dir(&to_path)
-        .with_context(|| format!("Failed to resolve --to: {}", to))?;
+    let dest_dir =
+        resolve_beans_dir(&to_path).with_context(|| format!("Failed to resolve --to: {}", to))?;
 
     let result = move_beans(mana_dir, &dest_dir, ids)?;
 
@@ -291,8 +280,7 @@ mod tests {
         unit.claimed_by = Some("agent-1".to_string());
         unit.to_file(src_beans.join("1.1-child-task.md")).unwrap();
 
-        let result =
-            move_beans(&src_beans, &dst_beans, &["1.1".to_string()]).unwrap();
+        let result = move_beans(&src_beans, &dst_beans, &["1.1".to_string()]).unwrap();
 
         let new_id = result.get("1.1").unwrap();
         let moved = Unit::from_file(dst_beans.join(format!("{}-child-task.md", new_id))).unwrap();
@@ -320,12 +308,10 @@ mod tests {
         unit.priority = 0;
         unit.to_file(src_beans.join("1-complex-task.md")).unwrap();
 
-        let result =
-            move_beans(&src_beans, &dst_beans, &["1".to_string()]).unwrap();
+        let result = move_beans(&src_beans, &dst_beans, &["1".to_string()]).unwrap();
 
         let new_id = result.get("1").unwrap();
-        let moved =
-            Unit::from_file(dst_beans.join(format!("{}-complex-task.md", new_id))).unwrap();
+        let moved = Unit::from_file(dst_beans.join(format!("{}-complex-task.md", new_id))).unwrap();
 
         assert_eq!(moved.verify, Some("cargo test auth".to_string()));
         assert_eq!(
@@ -333,10 +319,7 @@ mod tests {
             Some("Do the thing with the stuff".to_string())
         );
         assert_eq!(moved.acceptance, Some("All tests pass".to_string()));
-        assert_eq!(
-            moved.notes,
-            Some("Tried X, failed. Avoid Y.".to_string())
-        );
+        assert_eq!(moved.notes, Some("Tried X, failed. Avoid Y.".to_string()));
         assert_eq!(moved.labels, vec!["bug".to_string(), "auth".to_string()]);
         assert_eq!(moved.priority, 0);
     }
@@ -377,12 +360,7 @@ mod tests {
         create_test_bean(&src_beans, "1", "Task one");
         create_test_bean(&src_beans, "2", "Task two");
 
-        move_beans(
-            &src_beans,
-            &dst_beans,
-            &["1".to_string(), "2".to_string()],
-        )
-        .unwrap();
+        move_beans(&src_beans, &dst_beans, &["1".to_string(), "2".to_string()]).unwrap();
 
         let config = Config::load(&dst_beans).unwrap();
         assert_eq!(config.next_id, 3);
@@ -418,12 +396,8 @@ mod tests {
 
         create_test_bean(&src_beans, "1", "Some task");
 
-        let result = cmd_move_from(
-            &dst_beans,
-            src_beans.to_str().unwrap(),
-            &["1".to_string()],
-        )
-        .unwrap();
+        let result =
+            cmd_move_from(&dst_beans, src_beans.to_str().unwrap(), &["1".to_string()]).unwrap();
 
         assert_eq!(result.len(), 1);
     }
@@ -460,12 +434,8 @@ mod tests {
 
         create_test_bean(&src_beans, "1", "Push me");
 
-        let result = cmd_move_to(
-            &src_beans,
-            dst_beans.to_str().unwrap(),
-            &["1".to_string()],
-        )
-        .unwrap();
+        let result =
+            cmd_move_to(&src_beans, dst_beans.to_str().unwrap(), &["1".to_string()]).unwrap();
 
         assert_eq!(result.get("1"), Some(&"50".to_string()));
         assert!(!src_beans.join("1-push-me.md").exists());

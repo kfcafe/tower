@@ -4,10 +4,10 @@ use std::process::Command as ShellCommand;
 use anyhow::{anyhow, Context, Result};
 use chrono::Utc;
 
-use crate::unit::{AttemptOutcome, AttemptRecord, Unit, Status};
 use crate::config::resolve_identity;
 use crate::discovery::find_unit_file;
 use crate::index::Index;
+use crate::unit::{AttemptOutcome, AttemptRecord, Status, Unit};
 
 /// Try to get the current git HEAD SHA. Returns None if not in a git repo.
 fn git_head_sha(working_dir: &Path) -> Option<String> {

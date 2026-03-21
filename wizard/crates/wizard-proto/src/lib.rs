@@ -23,8 +23,18 @@ pub enum Command {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Event {
-    ProjectLoaded { snapshot: ProjectSnapshot },
-    RuntimeUpdated { snapshot: RuntimeSnapshot },
-    AgentSpawned { agent_id: String, unit_id: String },
-    AgentExited { agent_id: String, exit_code: Option<i32> },
+    ProjectLoaded {
+        snapshot: ProjectSnapshot,
+    },
+    RuntimeUpdated {
+        snapshot: RuntimeSnapshot,
+    },
+    AgentSpawned {
+        agent_id: String,
+        unit_id: String,
+    },
+    AgentExited {
+        agent_id: String,
+        exit_code: Option<i32>,
+    },
 }

@@ -8,7 +8,7 @@ use chrono::{DateTime, Utc};
 use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 
-use crate::unit::{Unit, Status};
+use crate::unit::{Status, Unit};
 use crate::util::{atomic_write, natural_cmp};
 
 // ---------------------------------------------------------------------------
@@ -568,11 +568,7 @@ mod tests {
         bean3_1.to_file(mana_dir.join("3.1.yaml")).unwrap();
 
         // Create files that should be excluded
-        fs::write(
-            mana_dir.join("config.yaml"),
-            "project: test\nnext_id: 11\n",
-        )
-        .unwrap();
+        fs::write(mana_dir.join("config.yaml"), "project: test\nnext_id: 11\n").unwrap();
 
         (dir, mana_dir)
     }

@@ -2,9 +2,9 @@ use std::path::Path;
 
 use anyhow::Result;
 
-use crate::unit::{Unit, Status};
 use crate::discovery::{find_archived_unit, find_unit_file};
 use crate::index::Index;
+use crate::unit::{Status, Unit};
 
 /// Search units by substring matching (MVP — no embeddings).
 ///

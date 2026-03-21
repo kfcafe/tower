@@ -2,8 +2,8 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 
-use crate::unit::Unit;
 use crate::discovery::find_unit_file;
+use crate::unit::Unit;
 
 /// Result of loading a unit.
 pub struct GetResult {
@@ -13,11 +13,14 @@ pub struct GetResult {
 
 /// Load a unit by ID and return its full data.
 pub fn get(mana_dir: &Path, id: &str) -> Result<GetResult> {
-    let bean_path = find_unit_file(mana_dir, id)
-        .with_context(|| format!("Unit not found: {}", id))?;
-    let unit = Unit::from_file(&bean_path)
-        .with_context(|| format!("Failed to load unit: {}", id))?;
-    Ok(GetResult { unit, path: bean_path })
+    let bean_path =
+        find_unit_file(mana_dir, id).with_context(|| format!("Unit not found: {}", id))?;
+    let unit =
+        Unit::from_file(&bean_path).with_context(|| format!("Failed to load unit: {}", id))?;
+    Ok(GetResult {
+        unit,
+        path: bean_path,
+    })
 }
 
 #[cfg(test)]
@@ -32,13 +35,29 @@ mod tests {
         let bd = dir.path().join(".mana");
         fs::create_dir(&bd).unwrap();
         crate::config::Config {
-            project: "test".to_string(), next_id: 1, auto_close_parent: true,
-            run: None, plan: None, max_loops: 10, max_concurrent: 4,
-            poll_interval: 30, extends: vec![], rules_file: None,
-            file_locking: false, worktree: false, on_close: None,
-            on_fail: None, post_plan: None, verify_timeout: None,
-            review: None, user: None, user_email: None, auto_commit: false,
-        }.save(&bd).unwrap();
+            project: "test".to_string(),
+            next_id: 1,
+            auto_close_parent: true,
+            run: None,
+            plan: None,
+            max_loops: 10,
+            max_concurrent: 4,
+            poll_interval: 30,
+            extends: vec![],
+            rules_file: None,
+            file_locking: false,
+            worktree: false,
+            on_close: None,
+            on_fail: None,
+            post_plan: None,
+            verify_timeout: None,
+            review: None,
+            user: None,
+            user_email: None,
+            auto_commit: false,
+        }
+        .save(&bd)
+        .unwrap();
         (dir, bd)
     }
 

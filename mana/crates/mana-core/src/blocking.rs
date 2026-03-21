@@ -1,7 +1,7 @@
 use std::fmt;
 
-use crate::unit::Status;
 use crate::index::{Index, IndexEntry};
+use crate::unit::Status;
 
 // ---------------------------------------------------------------------------
 // Scope thresholds

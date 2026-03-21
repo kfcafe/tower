@@ -3,9 +3,9 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use chrono::Utc;
 
-use crate::unit::Unit;
 use crate::discovery::find_unit_file;
 use crate::index::Index;
+use crate::unit::Unit;
 
 /// Reopen a closed unit.
 ///

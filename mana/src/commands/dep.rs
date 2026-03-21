@@ -50,8 +50,8 @@ pub fn cmd_dep_list(mana_dir: &Path, id: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::unit::Unit;
     use crate::index::Index;
+    use crate::unit::Unit;
     use crate::util::title_to_slug;
     use std::fs;
     use tempfile::TempDir;

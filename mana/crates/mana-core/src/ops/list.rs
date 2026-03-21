@@ -2,8 +2,8 @@ use std::path::Path;
 
 use anyhow::Result;
 
-use crate::unit::Status;
 use crate::index::{Index, IndexEntry};
+use crate::unit::Status;
 use crate::util::parse_status;
 
 /// Parameters for listing/filtering units.
@@ -37,13 +37,25 @@ pub fn list(mana_dir: &Path, params: &ListParams) -> Result<Vec<IndexEntry>> {
         {
             return false;
         }
-        if let Some(s) = status_filter { if entry.status != s { return false; } }
-        if let Some(p) = params.priority { if entry.priority != p { return false; } }
+        if let Some(s) = status_filter {
+            if entry.status != s {
+                return false;
+            }
+        }
+        if let Some(p) = params.priority {
+            if entry.priority != p {
+                return false;
+            }
+        }
         if let Some(ref parent) = params.parent {
-            if entry.parent.as_deref() != Some(parent.as_str()) { return false; }
+            if entry.parent.as_deref() != Some(parent.as_str()) {
+                return false;
+            }
         }
         if let Some(ref label) = params.label {
-            if !entry.labels.contains(label) { return false; }
+            if !entry.labels.contains(label) {
+                return false;
+            }
         }
         true
     });
@@ -64,13 +76,29 @@ mod tests {
         let bd = dir.path().join(".mana");
         fs::create_dir(&bd).unwrap();
         crate::config::Config {
-            project: "test".to_string(), next_id: 1, auto_close_parent: true,
-            run: None, plan: None, max_loops: 10, max_concurrent: 4,
-            poll_interval: 30, extends: vec![], rules_file: None,
-            file_locking: false, worktree: false, on_close: None,
-            on_fail: None, post_plan: None, verify_timeout: None,
-            review: None, user: None, user_email: None, auto_commit: false,
-        }.save(&bd).unwrap();
+            project: "test".to_string(),
+            next_id: 1,
+            auto_close_parent: true,
+            run: None,
+            plan: None,
+            max_loops: 10,
+            max_concurrent: 4,
+            poll_interval: 30,
+            extends: vec![],
+            rules_file: None,
+            file_locking: false,
+            worktree: false,
+            on_close: None,
+            on_fail: None,
+            post_plan: None,
+            verify_timeout: None,
+            review: None,
+            user: None,
+            user_email: None,
+            auto_commit: false,
+        }
+        .save(&bd)
+        .unwrap();
         (dir, bd)
     }
 
@@ -87,11 +115,23 @@ mod tests {
         let (_dir, bd) = setup();
         create::create(&bd, minimal_params("Open")).unwrap();
         create::create(&bd, minimal_params("Closed")).unwrap();
-        update::update(&bd, "2", update::UpdateParams {
-            title: None, description: None, acceptance: None, notes: None,
-            design: None, status: Some("closed".into()), priority: None,
-            assignee: None, add_label: None, remove_label: None,
-        }).unwrap();
+        update::update(
+            &bd,
+            "2",
+            update::UpdateParams {
+                title: None,
+                description: None,
+                acceptance: None,
+                notes: None,
+                design: None,
+                status: Some("closed".into()),
+                priority: None,
+                assignee: None,
+                add_label: None,
+                remove_label: None,
+            },
+        )
+        .unwrap();
         let entries = list(&bd, &ListParams::default()).unwrap();
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].id, "1");
@@ -104,7 +144,14 @@ mod tests {
         p0.priority = Some(0);
         create::create(&bd, p0).unwrap();
         create::create(&bd, minimal_params("Normal")).unwrap();
-        let entries = list(&bd, &ListParams { priority: Some(0), ..Default::default() }).unwrap();
+        let entries = list(
+            &bd,
+            &ListParams {
+                priority: Some(0),
+                ..Default::default()
+            },
+        )
+        .unwrap();
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].title, "Urgent");
     }
@@ -116,7 +163,14 @@ mod tests {
         let mut child = minimal_params("Child");
         child.parent = Some("1".to_string());
         create::create(&bd, child).unwrap();
-        let entries = list(&bd, &ListParams { parent: Some("1".into()), ..Default::default() }).unwrap();
+        let entries = list(
+            &bd,
+            &ListParams {
+                parent: Some("1".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].id, "1.1");
     }

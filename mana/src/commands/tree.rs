@@ -2,8 +2,8 @@ use std::path::Path;
 
 use anyhow::Result;
 
-use crate::unit::Status;
 use crate::index::Index;
+use crate::unit::Status;
 use crate::util::natural_cmp;
 
 /// Show hierarchical tree of units with status indicators

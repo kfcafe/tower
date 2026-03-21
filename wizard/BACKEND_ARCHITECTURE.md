@@ -24,6 +24,7 @@ The backend is split into **daemon responsibilities** and **desktop-local native
 3. **Typed protocols.** UI/backend communication uses typed commands and events, not stringly JSON blobs.
 4. **Agent-agnostic orchestration.** Wizard supervises workers through `.mana/`, process contracts, and runtime events. It should not assume one specific internal imp implementation.
 5. **Native integrations behind wrappers.** PTY, libghostty, sockets, and OS-specific behaviors live behind focused crates/modules.
+6. **Config-centric policy.** Shared runtime policy comes from explicit config, not from `.wizard/` local state or scattered constants.
 
 ## 3. Proposed Crates
 

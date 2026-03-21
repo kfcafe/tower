@@ -3,8 +3,8 @@ use std::path::Path;
 use anyhow::Result;
 use termimad::MadSkin;
 
-use crate::unit::{Unit, RunRecord};
 use crate::discovery::find_unit_file;
+use crate::unit::{RunRecord, Unit};
 
 /// Default number of history entries to show without `--history`.
 const DEFAULT_HISTORY_LIMIT: usize = 10;

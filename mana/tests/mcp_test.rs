@@ -8,11 +8,11 @@ use std::fs;
 use serde_json::{json, Value};
 use tempfile::TempDir;
 
-use mana::unit::Unit;
 use mana::index::Index;
 use mana::mcp::protocol::{JsonRpcRequest, JsonRpcResponse};
 use mana::mcp::resources;
 use mana::mcp::tools;
+use mana::unit::Unit;
 
 // ---------------------------------------------------------------------------
 // Test helpers
@@ -418,11 +418,8 @@ fn mcp_close_bean_force_skips_verify() {
     let index = Index::build(&mana_dir).unwrap();
     index.save(&mana_dir).unwrap();
 
-    let result = tools::handle_tool_call(
-        "close_bean",
-        &json!({"id": "10", "force": true}),
-        &mana_dir,
-    );
+    let result =
+        tools::handle_tool_call("close_bean", &json!({"id": "10", "force": true}), &mana_dir);
 
     assert!(result.get("isError").is_none());
     let text = result["content"][0]["text"].as_str().unwrap();

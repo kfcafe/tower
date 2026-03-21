@@ -579,7 +579,11 @@ fn test_close_batch_partial_rejection_by_hook() {
     crate::hooks::create_trust(project_root).unwrap();
 
     let hook_path = hooks_dir.join("pre-close");
-    fs::write(&hook_path, "#!/bin/bash\ntimeout 5 dd bs=1M 2>/dev/null | grep -q '\"id\":\"2\"' && exit 1 || exit 0").unwrap();
+    fs::write(
+        &hook_path,
+        "#!/bin/bash\ntimeout 5 dd bs=1M 2>/dev/null | grep -q '\"id\":\"2\"' && exit 1 || exit 0",
+    )
+    .unwrap();
 
     #[cfg(unix)]
     {

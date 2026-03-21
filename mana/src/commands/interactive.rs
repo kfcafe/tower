@@ -4,10 +4,10 @@ use anyhow::Result;
 use dialoguer::theme::ColorfulTheme;
 use dialoguer::{Confirm, Editor, FuzzySelect, Input, Select};
 
-use crate::unit::Status;
 use crate::commands::create::CreateArgs;
 use crate::index::Index;
 use crate::project::suggest_verify_command;
+use crate::unit::Status;
 
 /// Pre-filled values from CLI flags that were already provided.
 /// Any `Some` field skips the corresponding prompt.

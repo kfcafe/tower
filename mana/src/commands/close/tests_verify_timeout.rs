@@ -1,5 +1,5 @@
 use super::*;
-use crate::unit::{Unit, RunResult, Status};
+use crate::unit::{RunResult, Status, Unit};
 use crate::util::title_to_slug;
 use std::fs;
 use tempfile::TempDir;

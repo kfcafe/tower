@@ -179,7 +179,14 @@ Does not own:
 - verify history
 - shared artifacts with durable meaning
 
-## 5.2 Local state (`.wizard/`)
+## 5.2 Wizard config
+- user config: `~/.config/wizard/config.toml`
+- shared project config: `<project>/.wizard.toml`
+- override order: built-in defaults < user config < project config < environment overrides < CLI or in-session overrides
+
+Wizard config exists so shared orchestration and repo-specific behavior can be explicit without turning `.wizard/` into a git-churn directory.
+
+## 5.3 Local state (`.wizard/`)
 - room layout
 - panel layout
 - camera position
@@ -188,7 +195,7 @@ Does not own:
 - local editor tab state
 - local browser/terminal restoration metadata
 
-## 5.3 Ephemeral runtime state
+## 5.4 Ephemeral runtime state
 - active websocket/socket connection
 - temporary command in flight
 - hover state

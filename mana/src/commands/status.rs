@@ -4,9 +4,9 @@ use std::process::Command;
 use anyhow::Result;
 use serde::Serialize;
 
-use crate::unit::Status;
 use crate::blocking::{check_blocked, check_scope_warning, BlockReason};
 use crate::index::{ArchiveIndex, Index, IndexEntry};
+use crate::unit::Status;
 use crate::util::natural_cmp;
 
 /// Agent status parsed from claimed_by field
@@ -145,7 +145,10 @@ pub fn cmd_status(json: bool, mana_dir: &Path) -> Result<()> {
         // Features section (only shown if features exist)
         if !features.is_empty() {
             let archive = ArchiveIndex::load(mana_dir).unwrap_or(ArchiveIndex { units: vec![] });
-            let closed_features = features.iter().filter(|f| f.status == Status::Closed).count();
+            let closed_features = features
+                .iter()
+                .filter(|f| f.status == Status::Closed)
+                .count();
             println!("## Features ({}/{})", closed_features, features.len());
             for feature in &features {
                 // Count children from both active index and archive

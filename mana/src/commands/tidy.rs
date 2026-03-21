@@ -3,10 +3,10 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use chrono::Utc;
 
-use crate::unit::{Unit, Status};
 use crate::discovery::{archive_path_for_bean, find_unit_file};
 use crate::index::{ArchiveIndex, Index};
 use crate::output::Output;
+use crate::unit::{Status, Unit};
 use crate::util::title_to_slug;
 
 /// A record of one unit that was (or would be) archived during tidy.
@@ -217,9 +217,7 @@ fn cmd_tidy_inner(
 
         // Record what we're about to do (for the summary).
         // We store the archive path relative to .mana/ to keep output tidy.
-        let relative = archive_path
-            .strip_prefix(mana_dir)
-            .unwrap_or(&archive_path);
+        let relative = archive_path.strip_prefix(mana_dir).unwrap_or(&archive_path);
         tidied.push(TidiedBean {
             id: entry.id.clone(),
             title: entry.title.clone(),
@@ -328,9 +326,7 @@ fn cmd_tidy_inner(
     // is stale, so we rebuild from disk. In dry-run mode nothing changed,
     // but we still rebuild because the user asked to "update the index."
     let final_index = Index::build(mana_dir).context("Failed to rebuild index after tidy")?;
-    final_index
-        .save(mana_dir)
-        .context("Failed to save index")?;
+    final_index.save(mana_dir).context("Failed to save index")?;
 
     // Step 5b — Rebuild the archive index too, since units were moved into archive.
     if !dry_run && !tidied.is_empty() {
@@ -391,8 +387,8 @@ fn cmd_tidy_inner(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::unit::Unit;
     use crate::output::Output;
+    use crate::unit::Unit;
     use crate::util::title_to_slug;
     use std::fs;
     use tempfile::TempDir;

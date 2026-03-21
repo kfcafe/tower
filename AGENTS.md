@@ -136,6 +136,14 @@ That means:
 - `.wizard/` = local Wizard UI state
 - docs explain intent; code and `.mana/` define reality
 
+## Config-centric rule
+
+- prefer explicit config over scattered code-level policy
+- shared behavior belongs in project config checked into git
+- personal defaults belong in user config outside the repo
+- env vars and CLI flags override config, but should not be the only control surface
+- secrets belong in environment variables or a secrets system, not committed config
+
 ## Default behavior
 
 When uncertain:

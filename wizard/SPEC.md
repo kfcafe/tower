@@ -891,6 +891,7 @@ Mitigation:
 6. ~~Which web framework for the canvas UI layer? React (ecosystem), Solid (performance), Svelte (simplicity), or Leptos (Rust-native via WASM)?~~ **Decision: SolidJS for the shell and UI bindings.**
 7. ~~libghostty's Zig→C ABI→Rust FFI path — do we need a `wizard-terminal` wrapper crate, or inline the bindings in the Tauri backend?~~ **Decision: create a dedicated `wizard-terminal` wrapper crate. Do not inline libghostty bindings into the Tauri backend.**
 8. ~~Should agent terminal output be a real PTY passthrough from the imp process, or a reconstructed stream from structured events?~~ **Decision: both — live PTY passthrough for rich runtime viewing, plus structured capture for persistence, search, and artifact creation.**
+9. ~~Where should shared Wizard project config live without polluting `.wizard/` local state?~~ **Decision: shared project config lives in `<project>/.wizard.toml`; `.wizard/` stays local-only and user defaults live in `~/.config/wizard/config.toml`.**
 
 ### Remaining open questions
 

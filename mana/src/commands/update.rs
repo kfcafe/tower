@@ -3,10 +3,10 @@ use std::path::Path;
 use anyhow::{anyhow, Context, Result};
 use chrono::Utc;
 
-use crate::unit::Unit;
 use crate::discovery::find_unit_file;
 use crate::hooks::{execute_hook, HookEvent};
 use crate::index::Index;
+use crate::unit::Unit;
 use crate::util::parse_status;
 
 /// Update a unit's fields based on provided flags.
@@ -498,8 +498,7 @@ mod tests {
             assert!(result.is_ok(), "Priority {} should be valid", priority);
 
             let updated =
-                Unit::from_file(crate::discovery::find_unit_file(&mana_dir, "1").unwrap())
-                    .unwrap();
+                Unit::from_file(crate::discovery::find_unit_file(&mana_dir, "1").unwrap()).unwrap();
             assert_eq!(updated.priority, priority);
         }
     }

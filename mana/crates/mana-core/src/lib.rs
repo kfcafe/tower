@@ -1,6 +1,5 @@
 pub mod agent_presets;
 pub mod api;
-pub mod unit;
 pub mod blocking;
 pub mod config;
 pub mod ctx_assembler;
@@ -14,5 +13,6 @@ pub mod locks;
 pub mod ops;
 pub mod prompt;
 pub mod relevance;
+pub mod unit;
 pub mod util;
 pub mod worktree;

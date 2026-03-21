@@ -2,9 +2,9 @@ use std::path::Path;
 
 use anyhow::Result;
 
-use crate::unit::{Unit, Status};
 use crate::discovery::{find_archived_unit, find_unit_file};
 use crate::index::Index;
+use crate::unit::{Status, Unit};
 
 /// A matched unit with its relevance score.
 #[derive(Debug)]
@@ -123,7 +123,11 @@ fn score_match(unit: &Unit, query_lower: &str) -> Option<u32> {
         }
     }
 
-    if score > 0 { Some(score) } else { None }
+    if score > 0 {
+        Some(score)
+    } else {
+        None
+    }
 }
 
 #[cfg(test)]

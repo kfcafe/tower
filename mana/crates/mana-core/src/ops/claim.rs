@@ -4,10 +4,10 @@ use std::process::Command as ShellCommand;
 use anyhow::{anyhow, Context, Result};
 use chrono::Utc;
 
-use crate::unit::{AttemptOutcome, AttemptRecord, Unit, Status};
 use crate::config::resolve_identity;
 use crate::discovery::find_unit_file;
 use crate::index::Index;
+use crate::unit::{AttemptOutcome, AttemptRecord, Status, Unit};
 
 /// Parameters for claiming a unit.
 pub struct ClaimParams {
@@ -70,8 +70,7 @@ fn run_verify_check(verify_cmd: &str, project_root: &Path) -> Result<bool> {
 /// If it fails, the claim is granted with `fail_first: true` and the current
 /// git HEAD SHA is stored as `checkpoint`.
 pub fn claim(mana_dir: &Path, id: &str, params: ClaimParams) -> Result<ClaimResult> {
-    let bean_path =
-        find_unit_file(mana_dir, id).map_err(|_| anyhow!("Unit not found: {}", id))?;
+    let bean_path = find_unit_file(mana_dir, id).map_err(|_| anyhow!("Unit not found: {}", id))?;
     let mut unit =
         Unit::from_file(&bean_path).with_context(|| format!("Failed to load unit: {}", id))?;
 
@@ -113,7 +112,9 @@ pub fn claim(mana_dir: &Path, id: &str, params: ClaimParams) -> Result<ClaimResu
 
     // Resolve identity: explicit --by > resolved identity > "anonymous"
     let resolved_by = params.by.or_else(|| resolve_identity(mana_dir));
-    let claimer = resolved_by.clone().unwrap_or_else(|| "anonymous".to_string());
+    let claimer = resolved_by
+        .clone()
+        .unwrap_or_else(|| "anonymous".to_string());
 
     let now = Utc::now();
     unit.status = Status::InProgress;
@@ -154,8 +155,7 @@ pub fn claim(mana_dir: &Path, id: &str, params: ClaimParams) -> Result<ClaimResu
 /// Clears claimed_by/claimed_at and sets status back to Open.
 /// Marks the current attempt as abandoned.
 pub fn release(mana_dir: &Path, id: &str) -> Result<ReleaseResult> {
-    let bean_path =
-        find_unit_file(mana_dir, id).map_err(|_| anyhow!("Unit not found: {}", id))?;
+    let bean_path = find_unit_file(mana_dir, id).map_err(|_| anyhow!("Unit not found: {}", id))?;
     let mut unit =
         Unit::from_file(&bean_path).with_context(|| format!("Failed to load unit: {}", id))?;
 
@@ -468,7 +468,10 @@ mod tests {
 
         let result = release(&bd, "1").unwrap();
         assert_eq!(result.unit.attempt_log.len(), 1);
-        assert_eq!(result.unit.attempt_log[0].outcome, AttemptOutcome::Abandoned);
+        assert_eq!(
+            result.unit.attempt_log[0].outcome,
+            AttemptOutcome::Abandoned
+        );
         assert!(result.unit.attempt_log[0].finished_at.is_some());
     }
 
@@ -483,7 +486,10 @@ mod tests {
 
         assert_eq!(result.unit.attempt_log.len(), 2);
         assert_eq!(result.unit.attempt_log[0].num, 1);
-        assert_eq!(result.unit.attempt_log[0].outcome, AttemptOutcome::Abandoned);
+        assert_eq!(
+            result.unit.attempt_log[0].outcome,
+            AttemptOutcome::Abandoned
+        );
         assert!(result.unit.attempt_log[0].finished_at.is_some());
         assert_eq!(result.unit.attempt_log[1].num, 2);
         assert_eq!(

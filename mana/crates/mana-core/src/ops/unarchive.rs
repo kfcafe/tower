@@ -3,9 +3,9 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use chrono::Utc;
 
-use crate::unit::Unit;
 use crate::discovery::find_archived_unit;
 use crate::index::{ArchiveIndex, Index};
+use crate::unit::Unit;
 
 /// Result of unarchiving a unit.
 pub struct UnarchiveResult {
@@ -157,7 +157,10 @@ mod tests {
 
         let result = unarchive(&mana_dir, "1").unwrap();
 
-        assert_eq!(result.unit.description, Some("Detailed description".to_string()));
+        assert_eq!(
+            result.unit.description,
+            Some("Detailed description".to_string())
+        );
         assert_eq!(result.unit.priority, 1);
         assert_eq!(result.unit.labels, vec!["label1".to_string()]);
         assert!(!result.unit.is_archived);

@@ -1,19 +1,15 @@
 use std::path::Path;
 
-use crate::unit::{Unit, OnCloseAction};
 use crate::config::Config;
 use crate::hooks::{
     current_git_branch, execute_config_hook, execute_hook, is_trusted, HookEvent, HookVars,
 };
+use crate::unit::{OnCloseAction, Unit};
 
 /// Run pre-close hook. Returns true if hook passes (or doesn't exist).
 /// Returns false if hook rejects the close.
 /// Errors from the hook itself are logged but treated as "pass" (allow close).
-pub(crate) fn run_pre_close(
-    unit: &Unit,
-    project_root: &Path,
-    reason: Option<&str>,
-) -> bool {
+pub(crate) fn run_pre_close(unit: &Unit, project_root: &Path, reason: Option<&str>) -> bool {
     let result = execute_hook(
         HookEvent::PreClose,
         unit,
@@ -53,10 +49,7 @@ pub(crate) fn run_post_close(
             );
         }
         Err(e) => {
-            eprintln!(
-                "Warning: post-close hook error for unit {}: {}",
-                unit.id, e
-            );
+            eprintln!("Warning: post-close hook error for unit {}: {}", unit.id, e);
         }
         Ok(true) => {}
     }

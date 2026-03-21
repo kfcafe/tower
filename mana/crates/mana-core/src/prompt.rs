@@ -25,11 +25,11 @@ use anyhow::Result;
 use regex::Regex;
 use std::sync::LazyLock;
 
-use crate::unit::{AttemptOutcome, Unit, Status};
 use crate::config::Config;
 use crate::ctx_assembler::{extract_paths, read_file};
 use crate::discovery::find_unit_file;
 use crate::index::Index;
+use crate::unit::{AttemptOutcome, Status, Unit};
 
 // ---------------------------------------------------------------------------
 // Public types

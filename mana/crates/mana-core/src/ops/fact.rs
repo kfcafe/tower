@@ -5,10 +5,10 @@ use std::process::Command as ShellCommand;
 use anyhow::{anyhow, Result};
 use chrono::{Duration, Utc};
 
-use crate::unit::{Unit, Status};
 use crate::discovery::{find_archived_unit, find_unit_file};
 use crate::index::Index;
 use crate::ops::create::{create, CreateParams};
+use crate::unit::{Status, Unit};
 
 /// Default TTL for facts: 30 days.
 const DEFAULT_TTL_DAYS: i64 = 30;

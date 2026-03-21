@@ -3,10 +3,10 @@ use std::path::Path;
 
 use anyhow::Result;
 
-use crate::unit::Status;
 use crate::blocking::check_blocked;
 use crate::config::resolve_identity;
 use crate::index::{Index, IndexEntry};
+use crate::unit::Status;
 use crate::util::{natural_cmp, parse_status};
 
 /// List units with optional filtering.

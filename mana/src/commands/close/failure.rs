@@ -1,8 +1,8 @@
 use chrono::Utc;
 
-use crate::unit::{Unit, OnFailAction, RunRecord, RunResult};
 use crate::discovery::{find_archived_unit, find_unit_file};
 use crate::graph;
+use crate::unit::{OnFailAction, RunRecord, RunResult, Unit};
 
 use anyhow::Result;
 use std::path::Path;
@@ -177,8 +177,8 @@ pub(crate) fn resolve_max_loops(
     if root_id == unit.id {
         unit.effective_max_loops(config_max)
     } else {
-        let root_path = find_unit_file(mana_dir, root_id)
-            .or_else(|_| find_archived_unit(mana_dir, root_id));
+        let root_path =
+            find_unit_file(mana_dir, root_id).or_else(|_| find_archived_unit(mana_dir, root_id));
         match root_path {
             Ok(p) => Unit::from_file(&p)
                 .map(|b| b.effective_max_loops(config_max))

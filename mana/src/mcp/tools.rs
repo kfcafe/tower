@@ -9,12 +9,12 @@ use anyhow::{Context, Result};
 use chrono::Utc;
 use serde_json::{json, Value};
 
-use crate::unit::{Unit, Status};
 use crate::blocking::check_blocked;
 use crate::config::Config;
 use crate::discovery::find_unit_file;
 use crate::index::{Index, IndexEntry};
 use crate::mcp::protocol::ToolDefinition;
+use crate::unit::{Status, Unit};
 use crate::util::{natural_cmp, title_to_slug};
 
 /// Return all MCP tool definitions.

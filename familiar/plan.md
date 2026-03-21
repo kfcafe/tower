@@ -710,6 +710,43 @@ Handles:
 
 ---
 
+## Configuration Model
+
+Familiar should be config-centric, but because it is a multi-tenant platform its configuration has to be split deliberately.
+
+### 1. Operator/runtime config
+
+Elixir-native deployment config: app wiring, environment-specific endpoints, queue/backing-service configuration, feature flags, and self-hosted gateway registration. This belongs in the app's runtime configuration surface and deployment environment, not in team records.
+
+### 2. Team-managed settings
+
+Product-level settings edited through the dashboard and stored by the platform:
+- model preferences
+- cost caps
+- permission policies
+- connected repo settings
+- tool/service configuration
+
+These are durable app data, not committed repo config.
+
+### 3. Per-user preferences
+
+User-specific notification settings, dashboard defaults, and personal workflow preferences. These should stay per-user and should not silently mutate team-wide behavior.
+
+### 4. Secrets and credentials
+
+Credentials never belong in committed config. In managed mode they live in Familiar's encrypted gateway store. In self-hosted mode they live in the customer's own secret systems or local environment. Agents receive action results, not raw credentials.
+
+### Layering rule
+
+Familiar should keep these layers separate:
+- operator/runtime config controls how the platform runs
+- team-managed settings control what each team allows and prefers
+- user preferences control personal experience
+- secrets stay in dedicated secret storage
+
+This keeps Familiar config-centric without confusing platform configuration, product data, and secret material.
+
 ## Memory & Context
 
 ### Task context (ephemeral)

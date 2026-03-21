@@ -5,10 +5,10 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use serde_json::json;
 
-use crate::unit::Unit;
 use crate::discovery::find_unit_file;
 use crate::index::Index;
 use crate::mcp::protocol::{ResourceContent, ResourceDefinition};
+use crate::unit::Unit;
 
 /// Return static resource definitions.
 pub fn resource_definitions() -> Vec<ResourceDefinition> {

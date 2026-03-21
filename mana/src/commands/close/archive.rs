@@ -2,19 +2,15 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 
-use crate::unit::Unit;
 use crate::discovery::archive_path_for_bean;
 use crate::index::{ArchiveIndex, IndexEntry};
+use crate::unit::Unit;
 use crate::util::title_to_slug;
 
 /// Move a closed unit to the dated archive directory.
 /// Updates the unit's `is_archived` flag and writes to the archive path.
 /// Returns the archive path.
-pub(crate) fn archive_bean(
-    mana_dir: &Path,
-    unit: &mut Unit,
-    bean_path: &Path,
-) -> Result<PathBuf> {
+pub(crate) fn archive_bean(mana_dir: &Path, unit: &mut Unit, bean_path: &Path) -> Result<PathBuf> {
     let id = &unit.id;
     let slug = unit
         .slug

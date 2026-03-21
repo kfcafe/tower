@@ -4,9 +4,9 @@ use std::path::Path;
 use anyhow::{anyhow, Result};
 use serde::Serialize;
 
-use crate::unit::{AttemptOutcome, Unit, Status};
 use crate::discovery::find_unit_file;
 use crate::index::Index;
+use crate::unit::{AttemptOutcome, Status, Unit};
 
 // ---------------------------------------------------------------------------
 // Output types (text + JSON)

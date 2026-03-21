@@ -16,9 +16,9 @@ pub mod interactive;
 pub mod list;
 pub mod locks;
 pub mod logs;
-pub mod move_units;
 pub mod mcp;
 pub mod memory_context;
+pub mod move_units;
 pub mod plan;
 pub mod quick;
 
@@ -56,9 +56,9 @@ pub use init::{cmd_init, InitArgs};
 pub use list::cmd_list;
 pub use locks::{cmd_locks, cmd_locks_clear};
 pub use logs::cmd_logs;
-pub use move_units::{cmd_move_from, cmd_move_to};
 pub use mcp::cmd_mcp_serve;
 pub use memory_context::cmd_memory_context;
+pub use move_units::{cmd_move_from, cmd_move_to};
 pub use plan::cmd_plan;
 pub use quick::cmd_quick;
 

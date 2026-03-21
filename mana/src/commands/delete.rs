@@ -4,9 +4,9 @@ use std::path::Path;
 use anyhow::Context;
 use anyhow::Result;
 
-use crate::unit::Unit;
 use crate::discovery::find_unit_file;
 use crate::index::Index;
+use crate::unit::Unit;
 
 /// Delete a unit and clean up all references to it in other units' dependencies.
 ///

@@ -341,10 +341,7 @@ fn run_once(
                                 failure_summary: None,
                             });
                         } else {
-                            eprintln!(
-                                "  ✓ {}  {}  {}",
-                                result.id, result.title, duration
-                            );
+                            eprintln!("  ✓ {}  {}  {}", result.id, result.title, duration);
                         }
                         done += 1;
                         wave_success += 1;

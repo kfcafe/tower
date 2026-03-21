@@ -72,10 +72,7 @@ impl HookPayload {
 
 /// Get the path to a hook script based on the event and project directory.
 pub fn get_hook_path(project_dir: &Path, event: HookEvent) -> PathBuf {
-    project_dir
-        .join(".mana")
-        .join("hooks")
-        .join(event.as_str())
+    project_dir.join(".mana").join("hooks").join(event.as_str())
 }
 
 /// Check if a hook file exists and is executable.
@@ -655,8 +652,7 @@ mod tests {
         assert!(is_trusted(project_dir));
 
         // Verify file contains metadata
-        let content =
-            fs::read_to_string(project_dir.join(".mana").join(".hooks-trusted")).unwrap();
+        let content = fs::read_to_string(project_dir.join(".mana").join(".hooks-trusted")).unwrap();
         assert!(content.contains("Hooks enabled"));
     }
 

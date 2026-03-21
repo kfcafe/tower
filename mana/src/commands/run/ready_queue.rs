@@ -6,7 +6,6 @@ use std::time::{Duration, Instant};
 
 use anyhow::Result;
 
-use crate::unit::{Unit, Status};
 use crate::failure;
 use crate::history::{self, AgentHistoryEntry};
 use crate::index::{ArchiveIndex, Index, IndexEntry};
@@ -14,6 +13,7 @@ use crate::pi_output::{self, AgentEvent};
 use crate::prompt::{build_agent_prompt, PromptOptions};
 use crate::stream::{self, StreamEvent};
 use crate::timeout::{self, MonitorResult, TimeoutConfig};
+use crate::unit::{Status, Unit};
 use crate::util::natural_cmp;
 
 use super::plan::SizedBean;
@@ -119,10 +119,16 @@ fn print_result_line(result: &AgentResult) {
     };
 
     if result.success {
-        eprintln!("  ✓ {}  {}  {}{}", result.id, result.title, duration, stats_str);
+        eprintln!(
+            "  ✓ {}  {}  {}{}",
+            result.id, result.title, duration, stats_str
+        );
     } else {
         let err = result.error.as_deref().unwrap_or("failed");
-        eprintln!("  ✗ {}  {}  {} ({}){}", result.id, result.title, duration, err, stats_str);
+        eprintln!(
+            "  ✗ {}  {}  {} ({}){}",
+            result.id, result.title, duration, err, stats_str
+        );
     }
 }
 

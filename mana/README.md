@@ -454,6 +454,8 @@ run: "claude -p 'read unit {id}, implement it, then run mana close {id}'"
 
 Child values override parent. Multiple parents are applied in order; later values win.
 
+Use `extends` for shared non-secret defaults such as agent command templates or concurrency settings. Do not use it as a secret-distribution mechanism.
+
 ## Documentation
 
 - [Agent Skill](docs/SKILL.md) — Quick reference for AI agents

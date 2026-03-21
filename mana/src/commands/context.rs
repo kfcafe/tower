@@ -5,11 +5,11 @@ use anyhow::{Context, Result};
 use crate::ctx_assembler::assemble_context;
 use crate::discovery::find_unit_file;
 use crate::prompt::{build_agent_prompt, FileOverlap, PromptOptions};
-use mana_core::unit::Unit;
 use mana_core::ops::context::{
     assemble_agent_context, format_attempt_notes, load_rules, merge_paths, AgentContext,
     DepProvider,
 };
+use mana_core::unit::Unit;
 
 // ─── Formatting helpers (CLI-only) ──────────────────────────────────────────
 
@@ -131,16 +131,18 @@ pub fn cmd_context(
 ) -> Result<()> {
     // --agent-prompt: output the full structured prompt that an agent sees during mana run
     if agent_prompt {
-        let bean_path = find_unit_file(mana_dir, id)
-            .context(format!("Could not find unit with ID: {}", id))?;
-        let unit = Unit::from_file(&bean_path)
-            .context(format!("Failed to parse unit from: {}", bean_path.display()))?;
+        let bean_path =
+            find_unit_file(mana_dir, id).context(format!("Could not find unit with ID: {}", id))?;
+        let unit = Unit::from_file(&bean_path).context(format!(
+            "Failed to parse unit from: {}",
+            bean_path.display()
+        ))?;
 
         // Parse --overlaps JSON into FileOverlap structs
         let concurrent_overlaps = match overlaps_json {
             Some(ref s) => {
-                let raw: Vec<serde_json::Value> = serde_json::from_str(s)
-                    .context("Failed to parse --overlaps JSON")?;
+                let raw: Vec<serde_json::Value> =
+                    serde_json::from_str(s).context("Failed to parse --overlaps JSON")?;
                 let overlaps: Vec<FileOverlap> = raw
                     .into_iter()
                     .map(|v| FileOverlap {
@@ -300,8 +302,8 @@ fn output_text(ctx: &AgentContext, project_dir: &Path, structure_only: bool) -> 
     if !structure_only {
         let file_paths: Vec<String> = merge_paths(&ctx.unit);
         if !file_paths.is_empty() {
-            let context = assemble_context(file_paths, project_dir)
-                .context("Failed to assemble context")?;
+            let context =
+                assemble_context(file_paths, project_dir).context("Failed to assemble context")?;
             output.push_str(&context);
         }
     }

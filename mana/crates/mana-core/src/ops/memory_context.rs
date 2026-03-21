@@ -3,10 +3,10 @@ use std::path::Path;
 use anyhow::Result;
 use chrono::{Duration, Utc};
 
-use crate::unit::{AttemptOutcome, Unit, Status};
 use crate::discovery::{find_archived_unit, find_unit_file};
 use crate::index::Index;
 use crate::relevance::relevance_score;
+use crate::unit::{AttemptOutcome, Status, Unit};
 
 /// A working unit with attempt context.
 #[derive(Debug)]
@@ -77,9 +77,7 @@ pub fn memory_context(mana_dir: &Path) -> Result<MemoryContext> {
             .filter(|a| a.outcome == AttemptOutcome::Failed)
             .collect();
 
-        let last_failure_notes = failed_attempts
-            .last()
-            .and_then(|a| a.notes.clone());
+        let last_failure_notes = failed_attempts.last().and_then(|a| a.notes.clone());
 
         if let Some(ref notes) = last_failure_notes {
             warnings.push(format!(
