@@ -549,6 +549,14 @@ fn run_loop(
     };
 
     for iteration in 0..max_loops {
+        // Check for shutdown signal between loop iterations
+        if shutdown_requested() {
+            if !args.json_stream {
+                eprintln!("\nShutdown signal received, stopping.");
+            }
+            return Ok(());
+        }
+
         if iteration > 0 && !args.json_stream {
             eprintln!("\n--- Loop iteration {} ---\n", iteration + 1);
         }
@@ -799,5 +807,47 @@ mod tests {
         };
         assert_eq!(result.total_tokens, Some(5000));
         assert_eq!(result.total_cost, Some(0.03));
+    }
+
+    #[test]
+    fn signal_flag_defaults_to_false() {
+        SHUTDOWN_REQUESTED.store(false, Ordering::SeqCst);
+        assert!(!shutdown_requested());
+    }
+
+    #[test]
+    fn signal_flag_can_be_toggled() {
+        SHUTDOWN_REQUESTED.store(true, Ordering::SeqCst);
+        assert!(shutdown_requested());
+        // Reset for other tests
+        SHUTDOWN_REQUESTED.store(false, Ordering::SeqCst);
+        assert!(!shutdown_requested());
+    }
+
+    #[test]
+    fn child_pid_tracking() {
+        // Clear any existing PIDs
+        if let Ok(mut pids) = CHILD_PIDS.lock() {
+            pids.clear();
+        }
+
+        register_child_pid(1234);
+        register_child_pid(5678);
+
+        let count = CHILD_PIDS.lock().unwrap().len();
+        assert_eq!(count, 2);
+
+        unregister_child_pid(1234);
+        let count = CHILD_PIDS.lock().unwrap().len();
+        assert_eq!(count, 1);
+
+        // Unregister non-existent PID is a no-op
+        unregister_child_pid(9999);
+        let count = CHILD_PIDS.lock().unwrap().len();
+        assert_eq!(count, 1);
+
+        unregister_child_pid(5678);
+        let count = CHILD_PIDS.lock().unwrap().len();
+        assert_eq!(count, 0);
     }
 }

@@ -87,19 +87,21 @@ fn parse_worktree_list(output: &str) -> Vec<WorktreeEntry> {
     entries
 }
 
-/// Detect if the current directory is within a git worktree.
+/// Detect if the given directory is within a git worktree.
+///
+/// Uses the provided `cwd` path to determine which worktree (if any)
+/// the directory belongs to. This avoids relying on process-global
+/// `std::env::current_dir()` which is unsafe in multi-threaded tests.
 ///
 /// Returns:
 /// - `Ok(None)` if not in a git repo or in the main worktree
 /// - `Ok(Some(WorktreeInfo))` if in a secondary worktree
 /// - `Err` if there's an error running git commands
-pub fn detect_worktree() -> Result<Option<WorktreeInfo>> {
-    // Get current working directory
-    let cwd = std::env::current_dir()?;
-
-    // Run git worktree list --porcelain
+pub fn detect_worktree(cwd: &std::path::Path) -> Result<Option<WorktreeInfo>> {
+    // Run git worktree list --porcelain from the given directory
     let output = Command::new("git")
         .args(["worktree", "list", "--porcelain"])
+        .current_dir(cwd)
         .output();
 
     let output = match output {
@@ -156,18 +158,21 @@ pub fn detect_worktree() -> Result<Option<WorktreeInfo>> {
     }))
 }
 
-/// Check if the current directory is in the main worktree (or not in a worktree at all).
-/// Commit all changes in the current worktree.
+/// Commit all changes in the specified worktree directory.
 ///
-/// Runs `git add -A` followed by `git commit -m <message>`.
+/// Runs `git add -A` followed by `git commit -m <message>` in the given directory.
+/// Uses an explicit `cwd` to avoid relying on the process-global current directory.
 ///
 /// Returns:
 /// - `Ok(true)` if a commit was made
 /// - `Ok(false)` if there was nothing to commit
 /// - `Err` if git commands fail
-pub fn commit_worktree_changes(message: &str) -> Result<bool> {
+pub fn commit_worktree_changes(cwd: &std::path::Path, message: &str) -> Result<bool> {
     // Stage all changes
-    let add_output = Command::new("git").args(["add", "-A"]).output()?;
+    let add_output = Command::new("git")
+        .args(["add", "-A"])
+        .current_dir(cwd)
+        .output()?;
 
     if !add_output.status.success() {
         return Err(anyhow!(
@@ -179,6 +184,7 @@ pub fn commit_worktree_changes(message: &str) -> Result<bool> {
     // Commit changes
     let commit_output = Command::new("git")
         .args(["commit", "-m", message])
+        .current_dir(cwd)
         .output()?;
 
     if commit_output.status.success() {
