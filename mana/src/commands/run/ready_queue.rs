@@ -391,10 +391,58 @@ pub(super) fn run_ready_queue_direct(
     Ok((results, any_failed))
 }
 
-fn build_direct_pi_command(
+/// Which direct-mode agent to use.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum DirectAgent {
+    Imp,
+    Pi,
+}
+
+/// Detect which agent binary is available, preferring imp.
+pub(super) fn detect_direct_agent() -> Option<DirectAgent> {
+    if super::imp_available() {
+        Some(DirectAgent::Imp)
+    } else if super::pi_available() {
+        Some(DirectAgent::Pi)
+    } else {
+        None
+    }
+}
+
+fn build_direct_command(
+    agent: DirectAgent,
     prompt_result: &crate::prompt::PromptResult,
     model: Option<&str>,
+    unit_id: &str,
 ) -> Command {
+    match agent {
+        DirectAgent::Imp => build_imp_command(prompt_result, model, unit_id),
+        DirectAgent::Pi => {
+            let _ = unit_id; // pi doesn't use unit_id
+            build_pi_command(prompt_result, model)
+        }
+    }
+}
+
+fn build_imp_command(
+    _prompt_result: &crate::prompt::PromptResult,
+    model: Option<&str>,
+    unit_id: &str,
+) -> Command {
+    let mut cmd = Command::new("imp");
+
+    if let Some(model) = model {
+        cmd.args(["--model", model]);
+    }
+
+    // imp's headless mode: `imp run <unit-id>`
+    // It reads the unit file directly, assembles its own system prompt,
+    // and outputs JSON events to stdout.
+    cmd.args(["run", unit_id]);
+    cmd
+}
+
+fn build_pi_command(prompt_result: &crate::prompt::PromptResult, model: Option<&str>) -> Command {
     let mut cmd = Command::new("pi");
     cmd.args(["--mode", "json", "--print", "--no-session"]);
 
@@ -413,7 +461,7 @@ fn build_direct_pi_command(
     cmd
 }
 
-/// Run a single unit by spawning pi directly.
+/// Run a single unit by spawning an agent (imp or pi) directly.
 pub(super) fn run_single_direct(
     mana_dir: &Path,
     sb: &SizedBean,
@@ -517,8 +565,9 @@ pub(super) fn run_single_direct(
 
     let effective_model = unit.model.as_deref().or(config_run_model);
 
-    // Build pi command using structured prompt fields
-    let mut cmd = build_direct_pi_command(&prompt_result, effective_model);
+    // Detect which agent to use (imp preferred over pi)
+    let agent = detect_direct_agent().unwrap_or(DirectAgent::Pi);
+    let mut cmd = build_direct_command(agent, &prompt_result, effective_model, &sb.id);
     cmd.stdout(Stdio::piped());
     cmd.stderr(Stdio::piped());
 
@@ -817,7 +866,7 @@ mod tests {
             file_ref: "@.mana/1-task.md".to_string(),
         };
 
-        let cmd = build_direct_pi_command(&prompt_result, Some("sonnet"));
+        let cmd = build_pi_command(&prompt_result, Some("sonnet"));
         let args: Vec<String> = cmd
             .get_args()
             .map(|arg| arg.to_string_lossy().into_owned())
@@ -838,7 +887,7 @@ mod tests {
             file_ref: String::new(),
         };
 
-        let cmd = build_direct_pi_command(&prompt_result, None);
+        let cmd = build_pi_command(&prompt_result, None);
         let args: Vec<String> = cmd
             .get_args()
             .map(|arg| arg.to_string_lossy().into_owned())
