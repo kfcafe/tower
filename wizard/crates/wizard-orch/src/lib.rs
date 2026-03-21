@@ -1429,9 +1429,18 @@ mod tests {
 
     #[test]
     fn test_unit_verification() {
+        let _guard = CURRENT_DIR_TEST_LOCK.lock().unwrap();
+        let temp_dir = TempDir::new().unwrap();
+        let project_dir = temp_dir.path().join("verification-project");
+        let mana_dir = project_dir.join(".mana");
+        fs::create_dir_all(&mana_dir).unwrap();
+        fs::write(mana_dir.join("config.yaml"), "project: verification\nnext_id: 1\n").unwrap();
+
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(&project_dir).unwrap();
+
         let supervisor = RuntimeSupervisor::new();
 
-        // Register some artifacts for verification
         let _artifact_id = supervisor
             .register_artifact(
                 "test-unit-1".to_string(),
@@ -1440,15 +1449,15 @@ mod tests {
             )
             .unwrap();
 
-        // Verify the unit
         let verification_id = supervisor.verify_unit("test-unit-1".to_string()).unwrap();
         assert!(!verification_id.is_empty());
 
-        // Get verification results
         let results = supervisor.get_verification_results("test-unit-1");
         assert_eq!(results.len(), 1);
         assert!(!results[0].checks.is_empty());
         assert!(!results[0].summary.is_empty());
+
+        std::env::set_current_dir(original_dir).unwrap();
     }
 
     #[test]
