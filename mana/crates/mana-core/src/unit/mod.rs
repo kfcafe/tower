@@ -379,8 +379,8 @@ impl Unit {
         let path = path.as_ref();
         let is_md = path.extension().and_then(|e| e.to_str()) == Some("md");
 
-        if is_md && self.description.is_some() {
-            // Write frontmatter format: YAML metadata + markdown body
+        if is_md {
+            // Always write frontmatter format for .md files: ---\nYAML\n---\nbody
             let mut frontmatter_bean = self.clone();
             let description = frontmatter_bean.description.take(); // Remove from YAML
             let yaml = serde_yml::to_string(&frontmatter_bean)?;

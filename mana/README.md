@@ -436,6 +436,8 @@ mana config set max_concurrent 4
 | `rules_file` | — | Path to rules file injected into `mana context`. |
 | `file_locking` | `false` | Lock unit `paths` files during concurrent work. |
 | `extends` | `[]` | Parent config files to inherit from. |
+| `auto_commit` | `false` | Commit all changes on close. Skipped in worktree mode. |
+| `commit_template` | `feat(bean-{id}): {title}` | Template for auto-commit messages. Vars: `{id}`, `{title}`, `{parent_id}`, `{labels}`. |
 | `on_close` | — | Hook after close. Vars: `{id}`, `{title}`, `{status}`, `{branch}`. |
 | `on_fail` | — | Hook after verify failure. Vars: `{id}`, `{title}`, `{attempt}`, `{output}`, `{branch}`. |
 | `post_plan` | — | Hook after `mana plan` creates children. |

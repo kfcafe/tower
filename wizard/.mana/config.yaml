@@ -1,5 +1,5 @@
 project: wizard
-next_id: 5
+next_id: 7
 auto_close_parent: true
 run: '../target/debug/imp run {id} && mana close {id}'
 max_loops: 10
