@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::index::{Index, IndexEntry};
+use crate::index::{ArchiveIndex, Index, IndexEntry};
 use crate::unit::Status;
 
 // ---------------------------------------------------------------------------
@@ -59,14 +59,37 @@ impl fmt::Display for ScopeWarning {
 /// 1. **Explicit dependencies** — any dep that isn't closed (or doesn't exist).
 /// 2. **Requires/produces** — sibling units that produce a required artifact
 ///    but aren't closed yet.
+///
+/// Note: This overload does not check archived units. If a dependency was closed
+/// and archived, it will appear unsatisfied. Use [`check_blocked_with_archive`]
+/// when archive awareness is needed (e.g., `mana run`).
 pub fn check_blocked(entry: &IndexEntry, index: &Index) -> Option<BlockReason> {
+    check_blocked_with_archive(entry, index, None)
+}
+
+/// Like [`check_blocked`], but also checks the archive index.
+/// Archived units are treated as closed (satisfied).
+pub fn check_blocked_with_archive(
+    entry: &IndexEntry,
+    index: &Index,
+    archive: Option<&ArchiveIndex>,
+) -> Option<BlockReason> {
     let mut waiting_on = Vec::new();
 
     // Explicit dependencies
     for dep_id in &entry.dependencies {
         match index.units.iter().find(|e| e.id == *dep_id) {
             Some(dep) if dep.status == Status::Closed => {}
-            _ => waiting_on.push(dep_id.clone()),
+            Some(_) => waiting_on.push(dep_id.clone()), // active but not closed
+            None => {
+                // Not in active index — check archive (archived = closed)
+                let in_archive = archive
+                    .map(|a| a.units.iter().any(|e| e.id == *dep_id))
+                    .unwrap_or(false);
+                if !in_archive {
+                    waiting_on.push(dep_id.clone());
+                }
+            }
         }
     }
 
@@ -81,6 +104,7 @@ pub fn check_blocked(entry: &IndexEntry, index: &Index) -> Option<BlockReason> {
                 waiting_on.push(producer.id.clone());
             }
         }
+        // If no active producer found, check archive — archived producers are satisfied
     }
 
     if !waiting_on.is_empty() {

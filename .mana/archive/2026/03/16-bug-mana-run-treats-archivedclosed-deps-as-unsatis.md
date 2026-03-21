@@ -2,18 +2,36 @@
 id: '16'
 title: 'bug: mana run treats archived/closed deps as unsatisfied'
 slug: bug-mana-run-treats-archivedclosed-deps-as-unsatis
-status: open
+status: closed
 priority: 1
 created_at: '2026-03-21T17:18:20.083853Z'
-updated_at: '2026-03-21T17:18:20.083853Z'
+updated_at: '2026-03-21T19:55:16.985755Z'
+notes: |2
+
+  ## Attempt 1 — 2026-03-21T19:55:10Z
+  Exit code: 1
+
+  ```
+
+  ```
 labels:
 - mana
 - bug
 - deps
 - archive
+closed_at: '2026-03-21T19:55:16.985755Z'
 verify: |-
   cd /tmp && rm -rf mana-dep-test && mkdir -p mana-dep-test/.mana/archive/2026/03 && echo "project: test
   next_id: 3" > mana-dep-test/.mana/config.yaml && printf -- "---\nid: \"1\"\ntitle: Parent\nstatus: closed\n---\n" > mana-dep-test/.mana/archive/2026/03/1-parent.md && printf -- "---\nid: \"2\"\ntitle: Child\nstatus: open\ndependencies:\n- \"1\"\nverify: \"true\"\n---\n" > mana-dep-test/.mana/2-child.md && cd mana-dep-test && mana sync 2>/dev/null && mana run 2 2>&1 | rg -q "Wave 1"
+attempts: 1
+is_archived: true
+history:
+- attempt: 1
+  started_at: '2026-03-21T19:55:10.823890Z'
+  finished_at: '2026-03-21T19:55:10.904873Z'
+  duration_secs: 0.08
+  result: fail
+  exit_code: 1
 ---
 
 ## Problem

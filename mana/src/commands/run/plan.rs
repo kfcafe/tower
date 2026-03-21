@@ -2,7 +2,7 @@ use std::path::Path;
 
 use anyhow::Result;
 
-use crate::blocking::{check_blocked, check_scope_warning, BlockReason, ScopeWarning};
+use crate::blocking::{check_blocked_with_archive, check_scope_warning, BlockReason, ScopeWarning};
 use crate::config::Config;
 use crate::index::{ArchiveIndex, Index, IndexEntry};
 use crate::stream::{self, StreamEvent};
@@ -102,7 +102,7 @@ pub(super) fn plan_dispatch(
 
     for entry in &candidate_entries {
         if !simulate {
-            if let Some(reason) = check_blocked(entry, &index) {
+            if let Some(reason) = check_blocked_with_archive(entry, &index, Some(&archive)) {
                 skipped.push(BlockedBean {
                     id: entry.id.clone(),
                     title: entry.title.clone(),
