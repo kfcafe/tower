@@ -270,6 +270,16 @@ fn run_wave_direct(
     let mut handles: Vec<std::thread::JoinHandle<()>> = Vec::new();
 
     while !pending.is_empty() || !handles.is_empty() {
+        // Check for shutdown signal
+        if super::shutdown_requested() {
+            super::kill_all_children();
+            // Wait for threads to finish (they should exit after children are killed)
+            for handle in handles {
+                let _ = handle.join();
+            }
+            return Ok(Arc::try_unwrap(results).unwrap().into_inner().unwrap());
+        }
+
         // Spawn up to max_jobs threads
         while handles.len() < max_jobs && !pending.is_empty() {
             let sb = pending.remove(0);
