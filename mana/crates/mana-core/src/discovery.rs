@@ -229,7 +229,10 @@ mod tests {
         symlink(&real_child, &link_path).unwrap();
 
         let result = find_mana_dir(&link_path).unwrap();
-        assert_eq!(result, dir.path().join(".mana"));
+        assert_eq!(
+            result.canonicalize().unwrap(),
+            dir.path().join(".mana").canonicalize().unwrap()
+        );
     }
 
     #[test]
