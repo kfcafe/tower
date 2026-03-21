@@ -2,15 +2,22 @@
 id: '17'
 title: 'feature: auto-commit on mana close'
 slug: feature-auto-commit-on-mana-close
-status: open
+status: in_progress
 priority: 2
 created_at: '2026-03-21T17:18:34.214939Z'
-updated_at: '2026-03-21T17:18:34.214939Z'
+updated_at: '2026-03-21T20:21:03.446209Z'
 labels:
 - mana
 - feature
 - git
 verify: mana --help 2>&1 | rg -q "auto.commit" || rg -q "auto_commit" mana/crates/mana-core/src/config.rs
+claimed_by: pi-agent
+claimed_at: '2026-03-21T20:21:03.446209Z'
+attempt_log:
+- num: 1
+  outcome: abandoned
+  agent: pi-agent
+  started_at: '2026-03-21T20:21:03.446209Z'
 ---
 
 ## Problem

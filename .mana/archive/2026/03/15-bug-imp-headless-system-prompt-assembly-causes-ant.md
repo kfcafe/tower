@@ -2,17 +2,29 @@
 id: '15'
 title: 'bug: imp headless system prompt assembly causes Anthropic 400'
 slug: bug-imp-headless-system-prompt-assembly-causes-ant
-status: open
+status: closed
 priority: 1
 created_at: '2026-03-21T17:18:04.072208Z'
-updated_at: '2026-03-21T17:18:04.072208Z'
+updated_at: '2026-03-21T20:21:28.379542Z'
 labels:
 - imp
 - bug
 - headless
 - anthropic
 - llm
+closed_at: '2026-03-21T20:21:28.379542Z'
+close_reason: OAuth tokens require Claude Code system prompt. Custom prompts now moved to user message.
 verify: cd wizard && ../target/debug/imp run 1.6 2>&1 | head -5 | rg -q "turn_start"
+claimed_by: pi-agent
+claimed_at: '2026-03-21T20:21:03.446206Z'
+is_archived: true
+attempt_log:
+- num: 1
+  outcome: success
+  notes: OAuth tokens require Claude Code system prompt. Custom prompts now moved to user message.
+  agent: pi-agent
+  started_at: '2026-03-21T20:21:03.446206Z'
+  finished_at: '2026-03-21T20:21:28.379542Z'
 ---
 
 ## Problem

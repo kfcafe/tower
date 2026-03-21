@@ -2,16 +2,19 @@
 id: '14'
 title: 'bug: imp headless agents die mid-execution without error output'
 slug: bug-imp-headless-agents-die-mid-execution-without
-status: open
+status: closed
 priority: 0
 created_at: '2026-03-21T17:17:49.528407Z'
-updated_at: '2026-03-21T17:17:49.528407Z'
+updated_at: '2026-03-21T20:12:12.497300Z'
 labels:
 - imp
 - bug
 - headless
 - reliability
+closed_at: '2026-03-21T20:12:12.497300Z'
+close_reason: Fixed via HTTP client timeouts + retry logic + template timeout enforcement
 verify: cd wizard && ../target/debug/imp --system-prompt "" run 1.6 2>&1 | tail -5 | rg -q "agent_end"
+is_archived: true
 ---
 
 ## Problem
