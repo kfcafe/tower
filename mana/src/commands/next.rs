@@ -1,0 +1,306 @@
+use std::collections::{HashMap, HashSet};
+use std::path::Path;
+
+use anyhow::Result;
+use chrono::Utc;
+use serde::Serialize;
+
+use crate::blocking::check_blocked;
+use crate::index::{Index, IndexEntry};
+use crate::unit::Status;
+
+/// A scored bean with metadata for display.
+#[derive(Debug, Serialize)]
+pub struct ScoredBean {
+    pub id: String,
+    pub title: String,
+    pub priority: u8,
+    pub score: f64,
+    /// IDs of beans this one unblocks (directly depends-on this bean).
+    pub unblocks: Vec<String>,
+    /// Age in days since creation.
+    pub age_days: u64,
+    /// Number of verify attempts so far.
+    pub attempts: u32,
+}
+
+/// Score a ready bean based on the ranking criteria.
+///
+/// Higher score = should be worked on first.
+///
+/// Components:
+/// 1. Priority weight (P0 = 50, P1 = 40, P2 = 30, P3 = 20, P4 = 10)
+/// 2. Dependency depth — how many other beans does this unblock (transitive)
+/// 3. Age in days (capped at 30 to prevent runaway scores)
+/// 4. Fewer attempts = higher score (fresh beans preferred)
+fn score_bean(entry: &IndexEntry, unblock_count: usize) -> f64 {
+    // Priority: P0=50, P1=40, P2=30, P3=20, P4=10
+    let priority_score = (5u8.saturating_sub(entry.priority)) as f64 * 10.0;
+
+    // Dependency depth: each bean unblocked adds 5 points (capped at 50)
+    let unblock_score = (unblock_count as f64 * 5.0).min(50.0);
+
+    // Age: 1 point per day, capped at 30
+    let age_days = Utc::now()
+        .signed_duration_since(entry.created_at)
+        .num_days()
+        .max(0) as f64;
+    let age_score = age_days.min(30.0);
+
+    // Attempts: penalize 3 points per attempt (capped at 15)
+    let attempt_penalty = (entry.attempts as f64 * 3.0).min(15.0);
+
+    priority_score + unblock_score + age_score - attempt_penalty
+}
+
+/// Count how many beans a given bean transitively unblocks.
+///
+/// Walks the reverse dependency graph from `bean_id` counting all
+/// beans that are (transitively) waiting on this bean.
+fn count_transitive_unblocks(bean_id: &str, reverse_deps: &HashMap<String, Vec<String>>) -> usize {
+    let mut visited = HashSet::new();
+    let mut stack = vec![bean_id.to_string()];
+
+    while let Some(current) = stack.pop() {
+        if let Some(dependents) = reverse_deps.get(&current) {
+            for dep in dependents {
+                if visited.insert(dep.clone()) {
+                    stack.push(dep.clone());
+                }
+            }
+        }
+    }
+
+    visited.len()
+}
+
+/// Get direct unblock IDs (beans that directly depend on this one).
+fn direct_unblocks(bean_id: &str, reverse_deps: &HashMap<String, Vec<String>>) -> Vec<String> {
+    reverse_deps.get(bean_id).cloned().unwrap_or_default()
+}
+
+/// Pick the top N recommended beans to work on next.
+pub fn cmd_next(n: usize, json: bool, mana_dir: &Path) -> Result<()> {
+    let index = Index::load_or_rebuild(mana_dir)?;
+
+    // Find ready beans: open, has verify, not blocked, not a feature
+    let ready: Vec<&IndexEntry> = index
+        .units
+        .iter()
+        .filter(|e| {
+            e.status == Status::Open
+                && e.has_verify
+                && !e.feature
+                && check_blocked(e, &index).is_none()
+        })
+        .collect();
+
+    if ready.is_empty() {
+        if json {
+            println!("[]");
+        } else {
+            println!("No ready beans. Create one with: mana create \"task\" --verify \"cmd\"");
+        }
+        return Ok(());
+    }
+
+    // Build reverse dependency map: bean_id -> list of beans that depend on it
+    let mut reverse_deps: HashMap<String, Vec<String>> = HashMap::new();
+    for entry in &index.units {
+        for dep_id in &entry.dependencies {
+            reverse_deps
+                .entry(dep_id.clone())
+                .or_default()
+                .push(entry.id.clone());
+        }
+    }
+
+    // Score and sort
+    let mut scored: Vec<ScoredBean> = ready
+        .iter()
+        .map(|entry| {
+            let transitive_count = count_transitive_unblocks(&entry.id, &reverse_deps);
+            let unblocks = direct_unblocks(&entry.id, &reverse_deps);
+            let score = score_bean(entry, transitive_count);
+            let age_days = Utc::now()
+                .signed_duration_since(entry.created_at)
+                .num_days()
+                .max(0) as u64;
+
+            ScoredBean {
+                id: entry.id.clone(),
+                title: entry.title.clone(),
+                priority: entry.priority,
+                score,
+                unblocks,
+                age_days,
+                attempts: entry.attempts,
+            }
+        })
+        .collect();
+
+    // Sort by score descending
+    scored.sort_by(|a, b| {
+        b.score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    // Take top N
+    scored.truncate(n);
+
+    if json {
+        let json_str = serde_json::to_string_pretty(&scored)?;
+        println!("{}", json_str);
+    } else {
+        for bean in &scored {
+            let priority_label = format!("P{}", bean.priority);
+            println!("{}  {:.1}  {}", priority_label, bean.score, bean.title);
+
+            if !bean.unblocks.is_empty() {
+                println!("      Unblocks: {}", bean.unblocks.join(", "));
+            }
+
+            let attempts_str = if bean.attempts > 0 {
+                format!(" | Attempts: {}", bean.attempts)
+            } else {
+                String::new()
+            };
+
+            println!(
+                "      ID: {} | Age: {} days{}",
+                bean.id, bean.age_days, attempts_str
+            );
+            println!();
+        }
+    }
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::{Duration, Utc};
+
+    fn make_entry(id: &str, priority: u8) -> IndexEntry {
+        IndexEntry {
+            id: id.to_string(),
+            title: format!("Unit {}", id),
+            status: Status::Open,
+            priority,
+            parent: None,
+            dependencies: vec![],
+            labels: vec![],
+            assignee: None,
+            updated_at: Utc::now(),
+            produces: vec![],
+            requires: vec![],
+            has_verify: true,
+            verify: None,
+            created_at: Utc::now(),
+            claimed_by: None,
+            attempts: 0,
+            paths: vec![],
+            feature: false,
+            has_decisions: false,
+        }
+    }
+
+    #[test]
+    fn higher_priority_scores_higher() {
+        let p0 = make_entry("1", 0);
+        let p2 = make_entry("2", 2);
+        let p4 = make_entry("3", 4);
+
+        let reverse_deps = HashMap::new();
+
+        let s0 = score_bean(&p0, count_transitive_unblocks("1", &reverse_deps));
+        let s2 = score_bean(&p2, count_transitive_unblocks("2", &reverse_deps));
+        let s4 = score_bean(&p4, count_transitive_unblocks("3", &reverse_deps));
+
+        assert!(s0 > s2, "P0 ({}) should score higher than P2 ({})", s0, s2);
+        assert!(s2 > s4, "P2 ({}) should score higher than P4 ({})", s2, s4);
+    }
+
+    #[test]
+    fn more_unblocks_scores_higher() {
+        let entry = make_entry("1", 2);
+
+        let s_none = score_bean(&entry, 0);
+        let s_some = score_bean(&entry, 3);
+        let s_many = score_bean(&entry, 10);
+
+        assert!(
+            s_some > s_none,
+            "3 unblocks ({}) > 0 unblocks ({})",
+            s_some,
+            s_none
+        );
+        assert!(
+            s_many > s_some,
+            "10 unblocks ({}) > 3 unblocks ({})",
+            s_many,
+            s_some
+        );
+    }
+
+    #[test]
+    fn older_bean_scores_higher() {
+        let mut old = make_entry("1", 2);
+        old.created_at = Utc::now() - Duration::days(10);
+
+        let new = make_entry("2", 2);
+
+        let s_old = score_bean(&old, 0);
+        let s_new = score_bean(&new, 0);
+
+        assert!(
+            s_old > s_new,
+            "Old ({}) should score higher than new ({})",
+            s_old,
+            s_new
+        );
+    }
+
+    #[test]
+    fn more_attempts_scores_lower() {
+        let fresh = make_entry("1", 2);
+        let mut retried = make_entry("2", 2);
+        retried.attempts = 3;
+
+        let s_fresh = score_bean(&fresh, 0);
+        let s_retried = score_bean(&retried, 0);
+
+        assert!(
+            s_fresh > s_retried,
+            "Fresh ({}) should score higher than retried ({})",
+            s_fresh,
+            s_retried
+        );
+    }
+
+    #[test]
+    fn transitive_unblock_count() {
+        // A -> B -> C (A unblocks B, B unblocks C, so A transitively unblocks B and C)
+        let mut reverse_deps = HashMap::new();
+        reverse_deps.insert("A".to_string(), vec!["B".to_string()]);
+        reverse_deps.insert("B".to_string(), vec!["C".to_string()]);
+
+        assert_eq!(count_transitive_unblocks("A", &reverse_deps), 2);
+        assert_eq!(count_transitive_unblocks("B", &reverse_deps), 1);
+        assert_eq!(count_transitive_unblocks("C", &reverse_deps), 0);
+    }
+
+    #[test]
+    fn direct_unblocks_returns_correct_ids() {
+        let mut reverse_deps = HashMap::new();
+        reverse_deps.insert("A".to_string(), vec!["B".to_string(), "C".to_string()]);
+
+        let unblocks = direct_unblocks("A", &reverse_deps);
+        assert_eq!(unblocks, vec!["B".to_string(), "C".to_string()]);
+
+        let empty = direct_unblocks("Z", &reverse_deps);
+        assert!(empty.is_empty());
+    }
+}
