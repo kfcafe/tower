@@ -1449,10 +1449,18 @@ mod tests {
 
     #[test]
     fn test_global_review_functions() {
-        // Test the global API functions
-        let _supervisor = get_runtime_supervisor(); // Initialize global state
+        let temp_dir = TempDir::new().unwrap();
+        let project_dir = temp_dir.path().join("global-review-project");
+        let mana_dir = project_dir.join(".mana");
+        fs::create_dir_all(&mana_dir).unwrap();
+        fs::write(mana_dir.join("config.yaml"), "project: global-review\nnext_id: 1\n").unwrap();
 
-        // Test artifact registration
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(&project_dir).unwrap();
+
+        // Test the global API functions in an isolated mana project.
+        let _supervisor = get_runtime_supervisor();
+
         let artifact_id = register_artifact(
             "global-test".to_string(),
             ArtifactType::Config,
@@ -1461,16 +1469,13 @@ mod tests {
         .unwrap();
         assert!(!artifact_id.is_empty());
 
-        // Test getting artifacts
         let artifacts = get_artifacts(Some("global-test".to_string()));
         assert_eq!(artifacts.len(), 1);
 
-        // Test review request
         let review_id =
             request_review("global-test".to_string(), ReviewType::Documentation).unwrap();
         assert!(!review_id.is_empty());
 
-        // Test review completion
         complete_review(
             review_id,
             ReviewDecision::RequestChanges {
@@ -1480,11 +1485,12 @@ mod tests {
         )
         .unwrap();
 
-        // Test verification
         let verification_id = verify_unit("global-test".to_string()).unwrap();
         assert!(!verification_id.is_empty());
 
         let verification_results = get_verification_results("global-test");
         assert!(!verification_results.is_empty());
+
+        std::env::set_current_dir(original_dir).unwrap();
     }
 }
