@@ -292,16 +292,17 @@ pub fn cmd_run(mana_dir: &Path, args: RunArgs) -> Result<()> {
     let config = Config::load_with_extends(mana_dir)?;
     let spawn_mode = determine_spawn_mode(&config);
 
-    if spawn_mode == SpawnMode::Direct && !pi_available() {
+    if spawn_mode == SpawnMode::Direct && !imp_available() && !pi_available() {
         anyhow::bail!(
-            "No agent configured and `pi` not found on PATH.\n\n\
+            "No agent configured and neither `imp` nor `pi` found on PATH.\n\n\
              Either:\n  \
-               1. Install pi: npm i -g @anthropic/pi\n  \
-               2. Set a run template: mana config set run \"<command>\"\n\n\
+               1. Install imp (Rust): cargo install imp-cli\n  \
+               2. Install pi (Node): npm i -g @mariozechner/pi-coding-agent\n  \
+               3. Set a run template: mana config set run \"<command>\"\n\n\
              The command template uses {{id}} as a placeholder for the unit ID.\n\n\
              Examples:\n  \
-               mana config set run \"pi @.mana/{{id}}-*.md 'implement and mana close {{id}}'\"\n  \
-               mana config set run \"claude -p 'implement unit {{id}} and run mana close {{id}}'\""
+               mana config set run \"imp run {{id}} && mana close {{id}}\"\n  \
+               mana config set run \"pi @.mana/{{id}}-*.md 'implement and mana close {{id}}'\""
         );
     }
 
@@ -799,7 +800,7 @@ mod tests {
         // With no template and no pi on PATH, should error
         // (The exact error depends on whether pi is installed)
         // In CI/test without pi, it should bail
-        if !pi_available() {
+        if !pi_available() && !imp_available() {
             assert!(result.is_err());
             let err = result.unwrap_err().to_string();
             assert!(
