@@ -285,7 +285,8 @@ pub fn load_index(mana_dir: &Path) -> ManaResult<Index> {
 ///
 /// # Example
 /// ```rust,no_run
-/// use mana_core::api::{list_units, list::ListParams};
+/// use mana_core::api::list_units;
+/// use mana_core::ops::list::ListParams;
 /// use std::path::Path;
 ///
 /// let mana_dir = Path::new("/project/.mana");
@@ -587,10 +588,11 @@ pub fn detect_cycle(index: &Index, from_id: &str, to_id: &str) -> Result<bool> {
 ///
 /// # Example
 /// ```rust,no_run
-/// use mana_core::api::{create_unit, create::CreateParams};
+/// use mana_core::api::create_unit;
+/// use mana_core::ops::create::CreateParams;
 /// use std::path::Path;
 ///
-/// let result = create_unit(Path::new("/project/.mana"), create::CreateParams {
+/// let result = create_unit(Path::new("/project/.mana"), CreateParams {
 ///     title: "Fix the login bug".to_string(),
 ///     verify: Some("cargo test --test login".to_string()),
 ///     ..Default::default()
@@ -614,10 +616,11 @@ pub fn create_unit(
 ///
 /// # Example
 /// ```rust,no_run
-/// use mana_core::api::{update_unit, update::UpdateParams};
+/// use mana_core::api::update_unit;
+/// use mana_core::ops::update::UpdateParams;
 /// use std::path::Path;
 ///
-/// let result = update_unit(Path::new("/project/.mana"), "1", update::UpdateParams {
+/// let result = update_unit(Path::new("/project/.mana"), "1", UpdateParams {
 ///     notes: Some("Discovered the root cause: off-by-one in pagination".to_string()),
 ///     ..Default::default()
 /// }).unwrap();
@@ -650,7 +653,8 @@ pub fn update_unit(
 ///
 /// # Example
 /// ```rust,no_run
-/// use mana_core::api::{close_unit, close::{CloseOpts, CloseOutcome}};
+/// use mana_core::api::close_unit;
+/// use mana_core::ops::close::{CloseOpts, CloseOutcome};
 /// use std::path::Path;
 ///
 /// let outcome = close_unit(Path::new("/project/.mana"), "1", CloseOpts {
@@ -745,7 +749,8 @@ pub fn reopen_unit(mana_dir: &Path, id: &str) -> Result<crate::ops::reopen::Reop
 ///
 /// # Example
 /// ```rust,no_run
-/// use mana_core::api::{claim_unit, claim::ClaimParams};
+/// use mana_core::api::claim_unit;
+/// use mana_core::ops::claim::ClaimParams;
 /// use std::path::Path;
 ///
 /// let r = claim_unit(Path::new("/project/.mana"), "1", ClaimParams {
@@ -973,7 +978,8 @@ pub fn run_verify(mana_dir: &Path, id: &str) -> Result<Option<VerifyResult>> {
 ///
 /// # Example
 /// ```rust,no_run
-/// use mana_core::api::{create_fact, fact::FactParams};
+/// use mana_core::api::create_fact;
+/// use mana_core::ops::fact::FactParams;
 /// use std::path::Path;
 ///
 /// let r = create_fact(Path::new("/project/.mana"), FactParams {
