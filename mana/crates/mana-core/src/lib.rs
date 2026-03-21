@@ -12,7 +12,7 @@
 //! | Module | Purpose |
 //! |--------|---------|
 //! | [`api`] | High-level public API — the recommended entry point |
-//! | [`unit`] | Core `Unit` data model and serialization |
+//! | `unit` | Core `Unit` data model and serialization |
 //! | [`config`] | Project and global configuration |
 //! | [`index`] | Fast unit cache (`index.yaml`) |
 //! | [`graph`] | Dependency graph utilities |

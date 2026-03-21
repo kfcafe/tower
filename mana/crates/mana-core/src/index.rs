@@ -128,8 +128,17 @@ impl From<&Unit> for IndexEntry {
 // Index
 // ---------------------------------------------------------------------------
 
+/// The in-memory and on-disk unit index.
+///
+/// Holds a flat list of [`IndexEntry`] values for all active (non-archived)
+/// units in the project. Archived units are stored separately in
+/// `.mana/archive/` and are not included here.
+///
+/// Obtain an index via [`Index::load_or_rebuild`] (lazy, cached) or
+/// [`Index::build`] (always scans unit files from disk).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Index {
+    /// All active units, sorted by ID in natural order.
     pub units: Vec<IndexEntry>,
 }
 
