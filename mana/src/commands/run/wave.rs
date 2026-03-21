@@ -300,6 +300,7 @@ pub(super) fn run_wave(
             plan_template.as_deref(),
             cfg.max_jobs,
             cfg.timeout_minutes,
+            cfg.idle_timeout_minutes,
             cfg.run_model.as_deref(),
         ),
         SpawnMode::Direct => run_wave_direct(
@@ -322,18 +323,25 @@ fn run_wave_template(
     run_template: &str,
     _plan_template: Option<&str>,
     max_jobs: usize,
-    _timeout_minutes: u32,
+    timeout_minutes: u32,
+    idle_timeout_minutes: u32,
     config_run_model: Option<&str>,
 ) -> Result<Vec<AgentResult>> {
+    let total_timeout = Duration::from_secs(timeout_minutes as u64 * 60);
+    let _idle_timeout = Duration::from_secs(idle_timeout_minutes as u64 * 60);
+    // Note: idle timeout based on stdout activity is only enforced in Direct mode
+    // (via timeout::monitor_process). Template mode enforces total timeout only.
+
     let mut results = Vec::new();
-    let mut children: Vec<(SizedBean, std::process::Child, Instant)> = Vec::new();
+    // Track: bean, child process, start time, last stdout activity time
+    let mut children: Vec<(SizedBean, std::process::Child, Instant, Instant)> = Vec::new();
 
     let mut pending: Vec<&SizedBean> = units.iter().collect();
 
     while !pending.is_empty() || !children.is_empty() {
         // Check for shutdown signal
         if super::shutdown_requested() {
-            for (sb, mut child, started) in children {
+            for (sb, mut child, started, _) in children {
                 let _ = child.kill();
                 let _ = child.wait();
                 results.push(AgentResult {
@@ -366,7 +374,8 @@ fn run_wave_template(
                 crate::spawner::substitute_template_with_model(template, &sb.id, effective_model);
             match Command::new("sh").args(["-c", &cmd]).spawn() {
                 Ok(child) => {
-                    children.push((sb.clone(), child, Instant::now()));
+                    let now = Instant::now();
+                    children.push((sb.clone(), child, now, now));
                 }
                 Err(e) => {
                     eprintln!("  Failed to spawn agent for {}: {}", sb.id, e);
@@ -391,9 +400,9 @@ fn run_wave_template(
             break;
         }
 
-        // Poll for completions
+        // Poll for completions and enforce timeouts
         let mut still_running = Vec::new();
-        for (sb, mut child, started) in children {
+        for (sb, mut child, started, last_activity) in children {
             match child.try_wait() {
                 Ok(Some(status)) => {
                     let err = if status.success() {
@@ -416,7 +425,32 @@ fn run_wave_template(
                     });
                 }
                 Ok(None) => {
-                    still_running.push((sb, child, started));
+                    // Process still running — check timeouts
+                    let elapsed = started.elapsed();
+
+                    if !total_timeout.is_zero() && elapsed > total_timeout {
+                        eprintln!(
+                            "  ⚠ {} total timeout ({}m) — killing",
+                            sb.id, timeout_minutes
+                        );
+                        let _ = child.kill();
+                        let _ = child.wait();
+                        results.push(AgentResult {
+                            id: sb.id.clone(),
+                            title: sb.title.clone(),
+                            action: sb.action,
+                            success: false,
+                            duration: elapsed,
+                            total_tokens: None,
+                            total_cost: None,
+                            error: Some(format!("Total timeout exceeded ({}m)", timeout_minutes)),
+                            tool_count: 0,
+                            turns: 0,
+                            failure_summary: None,
+                        });
+                    } else {
+                        still_running.push((sb, child, started, last_activity));
+                    }
                 }
                 Err(e) => {
                     eprintln!("  Error checking agent for {}: {}", sb.id, e);
@@ -700,7 +734,7 @@ mod tests {
             model: None,
         }];
 
-        let results = run_wave_template(&units, "echo {id}", None, 4, 30, None).unwrap();
+        let results = run_wave_template(&units, "echo {id}", None, 4, 30, 5, None).unwrap();
         assert_eq!(results.len(), 1);
         assert!(results[0].success);
         assert_eq!(results[0].id, "1");
@@ -721,7 +755,7 @@ mod tests {
             model: None,
         }];
 
-        let results = run_wave_template(&units, "echo {id}", None, 4, 30, None).unwrap();
+        let results = run_wave_template(&units, "echo {id}", None, 4, 30, 5, None).unwrap();
         assert_eq!(results.len(), 1);
         assert!(results[0].success);
         assert_eq!(results[0].id, "1");
@@ -742,7 +776,7 @@ mod tests {
             model: None,
         }];
 
-        let results = run_wave_template(&units, "false", None, 4, 30, None).unwrap();
+        let results = run_wave_template(&units, "false", None, 4, 30, 5, None).unwrap();
         assert_eq!(results.len(), 1);
         assert!(!results[0].success);
         assert!(results[0].error.is_some());
