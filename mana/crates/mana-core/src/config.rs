@@ -271,6 +271,9 @@ impl Config {
             if !config.auto_commit {
                 config.auto_commit = parent.auto_commit;
             }
+            if config.research.is_none() {
+                config.research = parent.research.clone();
+            }
             // Never inherit: project, next_id, extends
         }
 

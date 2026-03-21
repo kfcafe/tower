@@ -49,6 +49,7 @@ pub use context::cmd_context;
 pub use create::{cmd_create, cmd_create_next};
 pub use delete::cmd_delete;
 pub use dep::{cmd_dep_add, cmd_dep_list, cmd_dep_remove};
+pub use diff::cmd_diff;
 pub use doctor::cmd_doctor;
 pub use edit::{cmd_edit, load_backup, open_editor};
 pub use fact::{cmd_fact, cmd_verify_facts};

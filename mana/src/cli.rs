@@ -56,6 +56,7 @@ Commands:
     run          Dispatch ready units to agents
     plan         Interactively plan a large unit into children
     review       Adversarial post-close review of an implementation
+    diff         Show git diff of what an agent changed for a bean
     agents       Show running and recently completed agents
     logs         View agent output from log files
 
@@ -711,17 +712,28 @@ Examples:
         review: bool,
     },
 
-    /// Interactively plan a large unit into children
+    /// Interactively plan a large unit into children, or run project research
     ///
-    /// Breaks a large unit into smaller child units with proper dependencies.
-    /// Use when a unit touches too many files or would take a single agent too long.
-    /// Strategies: feature (by capability), layer (by architecture layer),
-    /// phase (sequential steps), file (one unit per file to change).
+    /// With a unit ID: breaks a large unit into smaller child units with proper
+    /// dependencies. Use when a unit touches too many files or would take a single
+    /// agent too long.
+    ///
+    /// Without a unit ID: enters project-level research mode. Detects the project
+    /// language/stack, runs available linters and test suites, then spawns an agent
+    /// to analyze the codebase for improvements, bugs, missing tests, and code
+    /// health issues. Findings are created as units grouped under a parent.
+    ///
+    /// Configure the research agent in .mana/config.yaml:
+    ///   research: "pi -p 'Analyze this project...'"
+    ///
+    /// Falls back to the plan template if research is not set.
     #[command(after_help = "\
 Examples:
+  mana plan                      Project research mode (analyze codebase)
   mana plan 5                    Interactive breakdown of unit 5
-  mana plan --auto               Autonomous planning (no prompts)
+  mana plan --auto               Autonomous research (no prompts)
   mana plan 5 --strategy layer   Suggest layer-based split
+  mana plan --dry-run            Preview research without creating units
   mana plan 5 --dry-run          Preview without creating children")]
     Plan {
         /// Unit ID to plan (omit to pick automatically)

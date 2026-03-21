@@ -20,6 +20,7 @@ pub fn config_get(mana_dir: &Path, key: &str) -> Result<String> {
         "poll_interval" => config.poll_interval.to_string(),
         "rules_file" => config.rules_file.unwrap_or_else(|| "RULES.md".to_string()),
         "auto_commit" => config.auto_commit.to_string(),
+        "research" => config.research.unwrap_or_default(),
         "on_close" => config.on_close.unwrap_or_default(),
         "on_fail" => config.on_fail.unwrap_or_default(),
         "post_plan" => config.post_plan.unwrap_or_default(),
@@ -112,6 +113,13 @@ pub fn config_set(mana_dir: &Path, key: &str, value: &str) -> Result<()> {
                     value
                 )
             })?;
+        }
+        "research" => {
+            if value.is_empty() || value == "none" || value == "unset" {
+                config.research = None;
+            } else {
+                config.research = Some(value.to_string());
+            }
         }
         "on_close" => {
             if value.is_empty() || value == "none" || value == "unset" {
