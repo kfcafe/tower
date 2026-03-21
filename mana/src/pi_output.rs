@@ -1,7 +1,7 @@
-//! Parse pi's `--mode json` stdout into structured events.
+//! Parse agent JSON stdout into structured events.
 //!
-//! Ported from deli's agent.rs / json_output.rs. Provides:
-//! - [`AgentEvent`] — high-level enum for every event pi emits
+//! Supports both pi's `--mode json` format and imp's headless JSON format.
+//! - [`AgentEvent`] — high-level enum for every event an agent emits
 //! - [`parse_agent_event`] — turn a raw `serde_json::Value` line into an `AgentEvent`
 //! - [`extract_file_path`] — pull the most relevant file path from tool arguments
 

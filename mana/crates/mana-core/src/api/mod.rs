@@ -55,14 +55,7 @@ use crate::error::{ManaError, ManaResult};
 
 /// Core unit type representing a single work item.
 pub use crate::unit::{
-    AttemptOutcome,
-    AttemptRecord,
-    OnCloseAction,
-    OnFailAction,
-    RunRecord,
-    RunResult,
-    Status,
-    Unit,
+    AttemptOutcome, AttemptRecord, OnCloseAction, OnFailAction, RunRecord, RunResult, Status, Unit,
 };
 
 /// Index types for working with the unit cache.
@@ -165,12 +158,12 @@ pub use crate::ops::{
     claim, close, context, create, delete, dep, fact, list, plan, show, update, verify,
 };
 
-pub use crate::ops::run::{BlockedUnit, ReadyQueue, ReadyUnit, RunPlan, RunWave};
-pub use crate::ops::status::StatusSummary;
-pub use crate::ops::stats::StatsResult;
 pub use crate::ops::context::AgentContext;
+pub use crate::ops::fact::{FactParams, FactResult, VerifyFactsResult};
+pub use crate::ops::run::{BlockedUnit, ReadyQueue, ReadyUnit, RunPlan, RunWave};
+pub use crate::ops::stats::StatsResult;
+pub use crate::ops::status::StatusSummary;
 pub use crate::ops::verify::VerifyResult;
-pub use crate::ops::fact::{FactResult, FactParams, VerifyFactsResult};
 
 // ---------------------------------------------------------------------------
 // Query functions
@@ -429,7 +422,9 @@ pub fn ready_units(index: &Index) -> Vec<&IndexEntry> {
         .filter(|e| {
             e.status == Status::Open
                 && e.has_verify
-                && e.dependencies.iter().all(|dep| closed_ids.contains(dep.as_str()))
+                && e.dependencies
+                    .iter()
+                    .all(|dep| closed_ids.contains(dep.as_str()))
         })
         .collect()
 }
@@ -640,10 +635,7 @@ pub fn detect_cycle(index: &Index, from_id: &str, to_id: &str) -> Result<bool> {
 /// }).unwrap();
 /// println!("Created unit {}", result.unit.id);
 /// ```
-pub fn create_unit(
-    mana_dir: &Path,
-    params: create::CreateParams,
-) -> Result<create::CreateResult> {
+pub fn create_unit(mana_dir: &Path, params: create::CreateParams) -> Result<create::CreateResult> {
     create::create(mana_dir, params)
 }
 
@@ -955,8 +947,8 @@ pub fn record_attempt(mana_dir: &Path, id: &str, attempt: AttemptRecord) -> Resu
     use crate::discovery::find_unit_file;
     use crate::index::Index;
 
-    let bean_path = find_unit_file(mana_dir, id)
-        .map_err(|_| anyhow::anyhow!("Unit not found: {}", id))?;
+    let bean_path =
+        find_unit_file(mana_dir, id).map_err(|_| anyhow::anyhow!("Unit not found: {}", id))?;
     let mut unit = Unit::from_file(&bean_path)
         .map_err(|e| anyhow::anyhow!("Failed to load unit {}: {}", id, e))?;
 
