@@ -112,7 +112,8 @@ pub fn lint_verify(cmd: &str) -> Vec<VerifyLintResult> {
 
 fn shell_segment_splitter() -> &'static Regex {
     static SPLITTER: OnceLock<Regex> = OnceLock::new();
-    SPLITTER.get_or_init(|| Regex::new(r"\s*(?:&&|\|\||;|\n)\s*").expect("valid shell splitter regex"))
+    SPLITTER
+        .get_or_init(|| Regex::new(r"\s*(?:&&|\|\||;|\n)\s*").expect("valid shell splitter regex"))
 }
 
 fn is_setup_segment(segment: &str) -> bool {
@@ -122,10 +123,7 @@ fn is_setup_segment(segment: &str) -> bool {
 
 fn is_always_pass_command(segment: &str) -> bool {
     let trimmed = segment.trim();
-    trimmed == "true"
-        || trimmed == "exit 0"
-        || trimmed == "echo"
-        || trimmed.starts_with("echo ")
+    trimmed == "true" || trimmed == "exit 0" || trimmed == "echo" || trimmed.starts_with("echo ")
 }
 
 fn tokens(segment: &str) -> Vec<&str> {
@@ -155,12 +153,14 @@ fn is_go_test_without_run(segment: &str) -> bool {
     tokens.len() >= 2
         && tokens[0] == "go"
         && tokens[1] == "test"
-        && !tokens.iter().any(|token| *token == "-run" || token.starts_with("-run="))
+        && !tokens
+            .iter()
+            .any(|token| *token == "-run" || token.starts_with("-run="))
 }
 
 fn cargo_test_filter_arg(segment: &str) -> Option<&str> {
     let tokens = tokens(segment);
-    if tokens.get(0) != Some(&"cargo") || tokens.get(1) != Some(&"test") {
+    if tokens.first() != Some(&"cargo") || tokens.get(1) != Some(&"test") {
         return None;
     }
 
@@ -193,8 +193,7 @@ fn cargo_test_filter_arg(segment: &str) -> Option<&str> {
 fn takes_cargo_test_value(token: &str) -> bool {
     matches!(
         token,
-        "-p"
-            | "--package"
+        "-p" | "--package"
             | "--manifest-path"
             | "--message-format"
             | "--target"
@@ -235,9 +234,7 @@ fn has_inline_cargo_test_value(token: &str) -> bool {
 
 fn has_pytest_k_filter(segment: &str) -> bool {
     let tokens = tokens(segment);
-    tokens
-        .windows(2)
-        .any(|window| matches!(window, ["-k", _]))
+    tokens.windows(2).any(|window| matches!(window, ["-k", _]))
         || tokens.iter().any(|token| token.starts_with("-k="))
 }
 
@@ -291,12 +288,14 @@ mod tests {
     fn verify_lint_warns_on_filtered_commands_without_grep() {
         let cargo = lint_verify("cargo test create::tests::lint");
         assert!(cargo.iter().any(|finding| {
-            finding.level == VerifyLintLevel::Warning && finding.message.contains("matches no tests")
+            finding.level == VerifyLintLevel::Warning
+                && finding.message.contains("matches no tests")
         }));
 
         let pytest = lint_verify("pytest -k login");
         assert!(pytest.iter().any(|finding| {
-            finding.level == VerifyLintLevel::Warning && finding.message.contains("matches no tests")
+            finding.level == VerifyLintLevel::Warning
+                && finding.message.contains("matches no tests")
         }));
     }
 
@@ -310,8 +309,7 @@ mod tests {
     fn verify_lint_warns_on_existence_only_checks() {
         let findings = lint_verify("test -f README.md");
         assert!(findings.iter().any(|finding| {
-            finding.level == VerifyLintLevel::Warning
-                && finding.message.contains("existence check")
+            finding.level == VerifyLintLevel::Warning && finding.message.contains("existence check")
         }));
     }
 }

@@ -63,39 +63,77 @@ pub struct CloseOpts {
     pub force: bool,
 }
 
+/// Structured warnings emitted during close lifecycle steps.
+#[derive(Debug)]
+pub enum CloseWarning {
+    /// The pre-close hook errored, but close was allowed to continue.
+    PreCloseHookError { message: String },
+    /// The post-close hook returned a non-zero exit status.
+    PostCloseHookRejected,
+    /// The post-close hook errored.
+    PostCloseHookError { message: String },
+    /// Worktree cleanup failed after a successful close.
+    WorktreeCleanupFailed { message: String },
+}
+
+/// Result of an auto-commit attempt after close.
+#[derive(Debug)]
+pub struct AutoCommitResult {
+    pub message: String,
+    pub committed: bool,
+    pub warning: Option<String>,
+}
+
 /// Outcome of attempting to close a single unit.
+#[derive(Debug)]
 pub enum CloseOutcome {
     /// The unit was closed and archived.
     Closed(CloseResult),
     /// The verify command failed.
     VerifyFailed(VerifyFailureResult),
     /// The pre-close hook rejected the close.
-    RejectedByHook,
+    RejectedByHook { unit_id: String },
     /// Feature unit requires interactive TTY confirmation.
-    FeatureRequiresHuman,
+    FeatureRequiresHuman {
+        unit_id: String,
+        title: String,
+        warnings: Vec<CloseWarning>,
+    },
     /// Circuit breaker tripped — too many attempts across the subtree.
     CircuitBreakerTripped {
         unit_id: String,
         total_attempts: u32,
         max: u32,
+        warnings: Vec<CloseWarning>,
     },
     /// Worktree merge had conflicts — unit stays open.
-    MergeConflict,
+    MergeConflict {
+        files: Vec<String>,
+        warnings: Vec<CloseWarning>,
+    },
 }
 
 /// Details of a successful close.
+#[derive(Debug)]
 pub struct CloseResult {
     pub unit: Unit,
     pub archive_path: PathBuf,
     pub auto_closed_parents: Vec<String>,
     pub on_close_results: Vec<OnCloseActionResult>,
+    pub warnings: Vec<CloseWarning>,
+    pub auto_commit_result: Option<AutoCommitResult>,
 }
 
 /// Result of one on_close action execution.
 #[derive(Debug)]
 pub enum OnCloseActionResult {
     /// A `run` command was executed.
-    RanCommand { command: String, success: bool },
+    RanCommand {
+        command: String,
+        success: bool,
+        exit_code: Option<i32>,
+        error: Option<String>,
+    },
     /// A `notify` message was emitted.
     Notified { message: String },
     /// A `run` command was skipped (not trusted).
@@ -103,6 +141,7 @@ pub enum OnCloseActionResult {
 }
 
 /// Details of a verify failure during close.
+#[derive(Debug)]
 pub struct VerifyFailureResult {
     pub unit: Unit,
     pub attempt_number: u32,
@@ -112,6 +151,22 @@ pub struct VerifyFailureResult {
     pub on_fail_action_taken: Option<OnFailActionTaken>,
     pub verify_command: String,
     pub timeout_secs: Option<u64>,
+    pub warnings: Vec<CloseWarning>,
+}
+
+struct HookDecision {
+    accepted: bool,
+    warning: Option<CloseWarning>,
+}
+
+struct PostCloseActionsReport {
+    warnings: Vec<CloseWarning>,
+    on_close_results: Vec<OnCloseActionResult>,
+}
+
+enum WorktreeMergeStatus {
+    Merged,
+    Conflict { files: Vec<String> },
 }
 
 /// Maximum stdout size to capture as outputs (64 KB).
@@ -141,8 +196,16 @@ pub fn close(mana_dir: &Path, id: &str, opts: CloseOpts) -> Result<CloseOutcome>
         Unit::from_file(&bean_path).with_context(|| format!("Failed to load unit: {}", id))?;
 
     // 1. Pre-close hook
-    if !run_pre_close_hook(&unit, project_root, opts.reason.as_deref()) {
-        return Ok(CloseOutcome::RejectedByHook);
+    let pre_close = run_pre_close_hook(&unit, project_root, opts.reason.as_deref());
+    if !pre_close.accepted {
+        return Ok(CloseOutcome::RejectedByHook {
+            unit_id: id.to_string(),
+        });
+    }
+
+    let mut warnings = Vec::new();
+    if let Some(warning) = pre_close.warning {
+        warnings.push(warning);
     }
 
     // 2. Verify (if applicable and not force)
@@ -206,6 +269,7 @@ pub fn close(mana_dir: &Path, id: &str, opts: CloseOpts) -> Result<CloseOutcome>
                             unit_id: id.to_string(),
                             total_attempts: cb.subtree_total,
                             max: cb.max_loops,
+                            warnings,
                         });
                     }
                 }
@@ -223,14 +287,15 @@ pub fn close(mana_dir: &Path, id: &str, opts: CloseOpts) -> Result<CloseOutcome>
                 rebuild_index(mana_dir)?;
 
                 return Ok(CloseOutcome::VerifyFailed(VerifyFailureResult {
-                    unit,
-                    attempt_number: 0, // filled below
+                    attempt_number: unit.attempts,
                     exit_code: failure.exit_code,
                     output: failure.output,
                     timed_out: failure.timed_out,
                     on_fail_action_taken: Some(action_taken),
                     verify_command: verify_cmd,
                     timeout_secs,
+                    warnings,
+                    unit,
                 }));
             }
 
@@ -256,20 +321,24 @@ pub fn close(mana_dir: &Path, id: &str, opts: CloseOpts) -> Result<CloseOutcome>
     // 3. Worktree merge (after verify passes, before archiving)
     let worktree_info = detect_valid_worktree(project_root);
     if let Some(ref wt_info) = worktree_info {
-        if !handle_worktree_merge(wt_info, &unit)? {
-            return Ok(CloseOutcome::MergeConflict);
+        match handle_worktree_merge(wt_info, &unit)? {
+            WorktreeMergeStatus::Merged => {}
+            WorktreeMergeStatus::Conflict { files } => {
+                return Ok(CloseOutcome::MergeConflict { files, warnings });
+            }
         }
     }
 
     // 4. Feature gate — delegate to caller
     if unit.feature {
         use std::io::IsTerminal;
-        if !std::io::stdin().is_terminal() {
-            return Ok(CloseOutcome::FeatureRequiresHuman);
+        if !opts.force || !std::io::stdin().is_terminal() {
+            return Ok(CloseOutcome::FeatureRequiresHuman {
+                unit_id: unit.id.clone(),
+                title: unit.title.clone(),
+                warnings,
+            });
         }
-        // TTY is available, but we don't do the prompt here — let the caller handle it
-        // Actually, for backward compat, we return FeatureRequiresHuman and let CLI prompt
-        return Ok(CloseOutcome::FeatureRequiresHuman);
     }
 
     // 5. Mark the unit closed
@@ -300,28 +369,35 @@ pub fn close(mana_dir: &Path, id: &str, opts: CloseOpts) -> Result<CloseOutcome>
     let archive_path = archive_unit(mana_dir, &mut unit, &bean_path)?;
 
     // 7. Post-close cascade
-    let on_close_results =
+    let post_close =
         run_post_close_actions(&unit, project_root, opts.reason.as_deref(), config.as_ref());
+    warnings.extend(post_close.warnings);
 
     // Auto-commit if configured (skip in worktree mode — it already commits)
-    if worktree_info.is_none() {
+    let auto_commit_result = if worktree_info.is_none() {
         let auto_commit_enabled = config.as_ref().map(|c| c.auto_commit).unwrap_or(false);
         if auto_commit_enabled {
             let template = config.as_ref().and_then(|c| c.commit_template.clone());
-            auto_commit_on_close(
+            Some(auto_commit_on_close(
                 project_root,
                 id,
                 &unit.title,
                 unit.parent.as_deref(),
                 &unit.labels,
                 template.as_deref(),
-            );
+            ))
+        } else {
+            None
         }
-    }
+    } else {
+        None
+    };
 
     // Clean up worktree after successful close
     if let Some(ref wt_info) = worktree_info {
-        cleanup_worktree(wt_info);
+        if let Some(warning) = cleanup_worktree(wt_info) {
+            warnings.push(warning);
+        }
     }
 
     // 8. Auto-close parents
@@ -347,7 +423,9 @@ pub fn close(mana_dir: &Path, id: &str, opts: CloseOpts) -> Result<CloseOutcome>
         unit,
         archive_path,
         auto_closed_parents,
-        on_close_results,
+        on_close_results: post_close.on_close_results,
+        warnings,
+        auto_commit_result,
     }))
 }
 
@@ -809,8 +887,8 @@ pub fn format_failure_note(attempt: u32, exit_code: Option<i32>, output: &str) -
 // Hook helpers
 // ---------------------------------------------------------------------------
 
-/// Run pre-close hook. Returns true if hook passes or doesn't exist.
-fn run_pre_close_hook(unit: &Unit, project_root: &Path, reason: Option<&str>) -> bool {
+/// Run pre-close hook. Hook errors are returned as warnings but do not block close.
+fn run_pre_close_hook(unit: &Unit, project_root: &Path, reason: Option<&str>) -> HookDecision {
     let result = execute_hook(
         HookEvent::PreClose,
         unit,
@@ -819,11 +897,16 @@ fn run_pre_close_hook(unit: &Unit, project_root: &Path, reason: Option<&str>) ->
     );
 
     match result {
-        Ok(hook_passed) => hook_passed,
-        Err(e) => {
-            eprintln!("Unit {} pre-close hook error: {}", unit.id, e);
-            true
-        }
+        Ok(hook_passed) => HookDecision {
+            accepted: hook_passed,
+            warning: None,
+        },
+        Err(e) => HookDecision {
+            accepted: true,
+            warning: Some(CloseWarning::PreCloseHookError {
+                message: e.to_string(),
+            }),
+        },
     }
 }
 
@@ -833,7 +916,9 @@ fn run_post_close_actions(
     project_root: &Path,
     reason: Option<&str>,
     config: Option<&Config>,
-) -> Vec<OnCloseActionResult> {
+) -> PostCloseActionsReport {
+    let mut warnings = Vec::new();
+
     // Fire post-close hook
     match execute_hook(
         HookEvent::PostClose,
@@ -841,58 +926,47 @@ fn run_post_close_actions(
         project_root,
         reason.map(|s| s.to_string()),
     ) {
-        Ok(false) => {
-            eprintln!(
-                "Warning: post-close hook returned non-zero for unit {}",
-                unit.id
-            );
-        }
-        Err(e) => {
-            eprintln!("Warning: post-close hook error for unit {}: {}", unit.id, e);
-        }
+        Ok(false) => warnings.push(CloseWarning::PostCloseHookRejected),
+        Err(e) => warnings.push(CloseWarning::PostCloseHookError {
+            message: e.to_string(),
+        }),
         Ok(true) => {}
     }
 
     // Process on_close actions
-    let mut results = Vec::new();
+    let mut on_close_results = Vec::new();
     for action in &unit.on_close {
         match action {
             OnCloseAction::Run { command } => {
                 if !is_trusted(project_root) {
-                    eprintln!(
-                        "on_close: skipping `{}` (not trusted — run `mana trust` to enable)",
-                        command
-                    );
-                    results.push(OnCloseActionResult::Skipped {
+                    on_close_results.push(OnCloseActionResult::Skipped {
                         command: command.clone(),
                     });
                     continue;
                 }
-                eprintln!("on_close: running `{}`", command);
+
                 let status = std::process::Command::new("sh")
                     .args(["-c", command.as_str()])
                     .current_dir(project_root)
                     .status();
-                let success = match status {
-                    Ok(s) if s.success() => true,
-                    Ok(s) => {
-                        eprintln!("on_close run command failed: {}", command);
-                        let _ = s;
-                        false
-                    }
-                    Err(e) => {
-                        eprintln!("on_close run command error: {}", e);
-                        false
-                    }
+                let result = match status {
+                    Ok(status) => OnCloseActionResult::RanCommand {
+                        command: command.clone(),
+                        success: status.success(),
+                        exit_code: status.code(),
+                        error: None,
+                    },
+                    Err(e) => OnCloseActionResult::RanCommand {
+                        command: command.clone(),
+                        success: false,
+                        exit_code: None,
+                        error: Some(e.to_string()),
+                    },
                 };
-                results.push(OnCloseActionResult::RanCommand {
-                    command: command.clone(),
-                    success,
-                });
+                on_close_results.push(result);
             }
             OnCloseAction::Notify { message } => {
-                println!("[unit {}] {}", unit.id, message);
-                results.push(OnCloseActionResult::Notified {
+                on_close_results.push(OnCloseActionResult::Notified {
                     message: message.clone(),
                 });
             }
@@ -913,7 +987,10 @@ fn run_post_close_actions(
         }
     }
 
-    results
+    PostCloseActionsReport {
+        warnings,
+        on_close_results,
+    }
 }
 
 /// Fire the on_fail config hook.
@@ -951,8 +1028,11 @@ fn detect_valid_worktree(project_root: &Path) -> Option<crate::worktree::Worktre
     }
 }
 
-/// Commit worktree changes and merge to main. Returns false on conflict.
-fn handle_worktree_merge(wt_info: &crate::worktree::WorktreeInfo, unit: &Unit) -> Result<bool> {
+/// Commit worktree changes and merge to main.
+fn handle_worktree_merge(
+    wt_info: &crate::worktree::WorktreeInfo,
+    unit: &Unit,
+) -> Result<WorktreeMergeStatus> {
     crate::worktree::commit_worktree_changes(
         &wt_info.worktree_path,
         &format!("Close unit {}: {}", unit.id, unit.title),
@@ -960,21 +1040,21 @@ fn handle_worktree_merge(wt_info: &crate::worktree::WorktreeInfo, unit: &Unit) -
 
     match crate::worktree::merge_to_main(wt_info, &unit.id)? {
         crate::worktree::MergeResult::Success | crate::worktree::MergeResult::NothingToCommit => {
-            Ok(true)
+            Ok(WorktreeMergeStatus::Merged)
         }
         crate::worktree::MergeResult::Conflict { files } => {
-            eprintln!("Merge conflict in files: {:?}", files);
-            eprintln!("Resolve conflicts and run `mana close {}` again", unit.id);
-            Ok(false)
+            Ok(WorktreeMergeStatus::Conflict { files })
         }
     }
 }
 
 /// Clean up worktree after successful close.
-fn cleanup_worktree(wt_info: &crate::worktree::WorktreeInfo) {
-    if let Err(e) = crate::worktree::cleanup_worktree(wt_info) {
-        eprintln!("Warning: failed to clean up worktree: {}", e);
-    }
+fn cleanup_worktree(wt_info: &crate::worktree::WorktreeInfo) -> Option<CloseWarning> {
+    crate::worktree::cleanup_worktree(wt_info)
+        .err()
+        .map(|e| CloseWarning::WorktreeCleanupFailed {
+            message: e.to_string(),
+        })
 }
 
 /// Expand a commit template with placeholder values.
@@ -1002,7 +1082,7 @@ fn auto_commit_on_close(
     parent_id: Option<&str>,
     labels: &[String],
     template: Option<&str>,
-) {
+) -> AutoCommitResult {
     let message = expand_commit_template(
         template.unwrap_or("Close unit {id}: {title}"),
         id,
@@ -1019,16 +1099,22 @@ fn auto_commit_on_close(
         .status();
 
     match add_status {
-        Ok(s) if !s.success() => {
-            eprintln!(
-                "Warning: git add -A failed (exit {})",
-                s.code().unwrap_or(-1)
-            );
-            return;
+        Ok(status) if !status.success() => {
+            return AutoCommitResult {
+                message,
+                committed: false,
+                warning: Some(format!(
+                    "git add -A failed (exit {})",
+                    status.code().unwrap_or(-1)
+                )),
+            };
         }
         Err(e) => {
-            eprintln!("Warning: git add -A failed: {}", e);
-            return;
+            return AutoCommitResult {
+                message,
+                committed: false,
+                warning: Some(format!("git add -A failed: {}", e)),
+            };
         }
         _ => {}
     }
@@ -1041,21 +1127,33 @@ fn auto_commit_on_close(
         .output();
 
     match commit_result {
-        Ok(output) if output.status.success() => {
-            eprintln!("auto_commit: {}", message);
-        }
-        Ok(output) if output.status.code() == Some(1) => {}
+        Ok(output) if output.status.success() => AutoCommitResult {
+            message,
+            committed: true,
+            warning: None,
+        },
+        Ok(output) if output.status.code() == Some(1) => AutoCommitResult {
+            message,
+            committed: false,
+            warning: None,
+        },
         Ok(output) => {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            eprintln!(
-                "Warning: git commit failed (exit {}): {}",
-                output.status.code().unwrap_or(-1),
-                stderr.trim()
-            );
+            AutoCommitResult {
+                message,
+                committed: false,
+                warning: Some(format!(
+                    "git commit failed (exit {}): {}",
+                    output.status.code().unwrap_or(-1),
+                    stderr.trim()
+                )),
+            }
         }
-        Err(e) => {
-            eprintln!("Warning: git commit failed: {}", e);
-        }
+        Err(e) => AutoCommitResult {
+            message,
+            committed: false,
+            warning: Some(format!("git commit failed: {}", e)),
+        },
     }
 }
 
@@ -1282,7 +1380,7 @@ mod tests {
         )
         .unwrap();
 
-        assert!(matches!(result, CloseOutcome::FeatureRequiresHuman));
+        assert!(matches!(result, CloseOutcome::FeatureRequiresHuman { .. }));
     }
 
     #[test]

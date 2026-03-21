@@ -179,13 +179,25 @@ fn spawn_plan(
     spawn_builtin(mana_dir, id, unit, args)
 }
 
-/// Spawn the plan using a user-configured template command.
-fn spawn_template(template: &str, id: &str, args: &PlanArgs, model: Option<&str>) -> Result<()> {
+#[must_use]
+fn build_plan_template_command(
+    template: &str,
+    id: &str,
+    strategy: Option<&str>,
+    model: Option<&str>,
+) -> String {
     let mut cmd = substitute_template_with_model(template, id, model);
 
-    if let Some(ref strategy) = args.strategy {
+    if let Some(strategy) = strategy {
         cmd = format!("{} --strategy {}", cmd, strategy);
     }
+
+    cmd
+}
+
+/// Spawn the plan using a user-configured template command.
+fn spawn_template(template: &str, id: &str, args: &PlanArgs, model: Option<&str>) -> Result<()> {
+    let cmd = build_plan_template_command(template, id, args.strategy.as_deref(), model);
 
     if args.dry_run {
         eprintln!("Would spawn: {}", cmd);
@@ -514,20 +526,14 @@ mod tests {
 
     #[test]
     fn plan_template_substitutes_model_and_strategy() {
-        let result = spawn_template(
+        let cmd = build_plan_template_command(
             "claude --model {model} -p 'plan {id}'",
             "7",
-            &PlanArgs {
-                id: Some("7".to_string()),
-                strategy: Some("by-layer".to_string()),
-                auto: false,
-                force: false,
-                dry_run: true,
-            },
+            Some("by-layer"),
             Some("haiku"),
         );
 
-        assert!(result.is_ok());
+        assert_eq!(cmd, "claude --model haiku -p 'plan 7' --strategy by-layer");
     }
 
     #[test]

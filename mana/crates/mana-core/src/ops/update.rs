@@ -4,6 +4,7 @@ use anyhow::{anyhow, Context, Result};
 use chrono::Utc;
 
 use crate::discovery::find_unit_file;
+use crate::hooks::{execute_hook, HookEvent};
 use crate::index::Index;
 use crate::unit::{validate_priority, Unit};
 use crate::util::parse_status;
@@ -20,6 +21,8 @@ pub struct UpdateParams {
     pub assignee: Option<String>,
     pub add_label: Option<String>,
     pub remove_label: Option<String>,
+    pub decisions: Vec<String>,
+    pub resolve_decisions: Vec<String>,
 }
 
 /// Result of updating a unit.
@@ -39,6 +42,16 @@ pub fn update(mana_dir: &Path, id: &str, params: UpdateParams) -> Result<UpdateR
     let mut unit =
         Unit::from_file(&bean_path).with_context(|| format!("Failed to load unit: {}", id))?;
 
+    let project_root = mana_dir
+        .parent()
+        .ok_or_else(|| anyhow!("Cannot determine project root from units dir"))?;
+
+    let pre_passed = execute_hook(HookEvent::PreUpdate, &unit, project_root, None)
+        .context("Pre-update hook execution failed")?;
+    if !pre_passed {
+        return Err(anyhow!("Pre-update hook rejected unit update"));
+    }
+
     if let Some(v) = params.title {
         unit.title = v;
     }
@@ -52,8 +65,8 @@ pub fn update(mana_dir: &Path, id: &str, params: UpdateParams) -> Result<UpdateR
     if let Some(new_notes) = params.notes {
         let timestamp = Utc::now().to_rfc3339();
         unit.notes = Some(match unit.notes {
-            Some(existing) => format!("{}\n\n***\n{}\n{}", existing, timestamp, new_notes),
-            None => format!("***\n{}\n{}", timestamp, new_notes),
+            Some(existing) => format!("{}\n\n---\n{}\n{}", existing, timestamp, new_notes),
+            None => format!("---\n{}\n{}", timestamp, new_notes),
         });
     }
 
@@ -82,12 +95,40 @@ pub fn update(mana_dir: &Path, id: &str, params: UpdateParams) -> Result<UpdateR
         unit.labels.retain(|l| l != &label);
     }
 
+    for decision in params.decisions {
+        unit.decisions.push(decision);
+    }
+
+    for resolve in &params.resolve_decisions {
+        if let Ok(idx) = resolve.parse::<usize>() {
+            if idx < unit.decisions.len() {
+                unit.decisions.remove(idx);
+            } else {
+                return Err(anyhow!(
+                    "Decision index {} out of range (unit has {} decisions)",
+                    idx,
+                    unit.decisions.len()
+                ));
+            }
+        } else {
+            let before = unit.decisions.len();
+            unit.decisions.retain(|d| d != resolve);
+            if unit.decisions.len() == before {
+                return Err(anyhow!("No decision matching '{}' found", resolve));
+            }
+        }
+    }
+
     unit.updated_at = Utc::now();
     unit.to_file(&bean_path)
         .with_context(|| format!("Failed to save unit: {}", id))?;
 
     let index = Index::build(mana_dir)?;
     index.save(mana_dir)?;
+
+    if let Err(e) = execute_hook(HookEvent::PostUpdate, &unit, project_root, None) {
+        eprintln!("Warning: post-update hook failed: {}", e);
+    }
 
     Ok(UpdateResult {
         unit,
@@ -152,6 +193,8 @@ mod tests {
             assignee: None,
             add_label: None,
             remove_label: None,
+            decisions: vec![],
+            resolve_decisions: vec![],
         }
     }
 

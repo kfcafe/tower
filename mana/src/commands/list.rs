@@ -2,12 +2,13 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use anyhow::Result;
+use mana_core::ops::list as ops_list;
 
 use crate::blocking::check_blocked;
 use crate::config::resolve_identity;
 use crate::index::{Index, IndexEntry};
 use crate::unit::Status;
-use crate::util::{natural_cmp, parse_status};
+use crate::util::natural_cmp;
 
 /// List units with optional filtering.
 /// - Default: tree-format with status indicators
@@ -35,12 +36,6 @@ pub fn cmd_list(
     format_str: Option<&str>,
     mana_dir: &Path,
 ) -> Result<()> {
-    let index = Index::load_or_rebuild(mana_dir)?;
-
-    // Parse status filter
-    let status_filter = status_filter.and_then(parse_status);
-
-    // Resolve current user for --mine filter
     let current_user = if mine {
         let user = resolve_identity(mana_dir);
         if user.is_none() {
@@ -54,83 +49,27 @@ pub fn cmd_list(
         None
     };
 
-    // Start with units from the main index
-    let mut filtered = index.units.clone();
-
-    // Include archived units when querying for closed status or using --all
-    let include_archived = status_filter == Some(Status::Closed) || all;
-    if include_archived {
-        if let Ok(archived) = Index::collect_archived(mana_dir) {
-            filtered.extend(archived);
-        }
-    }
-
-    // Apply filters
-    filtered.retain(|entry| {
-        // Status filter
-        // By default, exclude closed units (unless --all or --status closed)
-        if !all && status_filter != Some(Status::Closed) && entry.status == Status::Closed {
-            return false;
-        }
-        if let Some(status) = status_filter {
-            if entry.status != status {
-                return false;
-            }
-        }
-
-        // Priority filter
-        if let Some(priority) = priority_filter {
-            if entry.priority != priority {
-                return false;
-            }
-        }
-
-        // Parent filter
-        if let Some(parent) = parent_filter {
-            if entry.parent.as_deref() != Some(parent) {
-                return false;
-            }
-        }
-
-        // Label filter
-        if let Some(label) = label_filter {
-            if !entry.labels.contains(&label.to_string()) {
-                return false;
-            }
-        }
-
-        // Assignee filter
-        if let Some(_assignee) = assignee_filter {
-            // We need to load the full unit to check assignee (not in index)
-            // For now, skip this optimization and check during rendering
-            return true;
-        }
-
-        // --mine filter: show units claimed by or assigned to the current user
-        if let Some(ref user) = current_user {
-            let claimed_match = entry
-                .claimed_by
-                .as_ref()
-                .is_some_and(|c| c == user || c.starts_with(&format!("{}/", user)));
-            let assignee_match = entry.assignee.as_deref() == Some(user.as_str());
-            if !claimed_match && !assignee_match {
-                return false;
-            }
-        }
-
-        true
-    });
+    let filtered = ops_list::list(
+        mana_dir,
+        &ops_list::ListParams {
+            status: status_filter.map(str::to_string),
+            priority: priority_filter,
+            parent: parent_filter.map(str::to_string),
+            label: label_filter.map(str::to_string),
+            assignee: assignee_filter.map(str::to_string),
+            current_user: current_user.clone(),
+            include_closed: all,
+        },
+    )?;
 
     if json {
         let json_str = serde_json::to_string_pretty(&filtered)?;
         println!("{}", json_str);
     } else if ids {
-        // Just IDs, one per line — ideal for piping
         for entry in &filtered {
             println!("{}", entry.id);
         }
     } else if let Some(fmt) = format_str {
-        // Custom format string: {id}, {title}, {status}, {priority}, {parent}
         for entry in &filtered {
             let line = fmt
                 .replace("{id}", &entry.id)
@@ -145,7 +84,8 @@ pub fn cmd_list(
             println!("{}", line);
         }
     } else {
-        // Build combined index for tree rendering (includes archived if needed)
+        let index = Index::load_or_rebuild(mana_dir)?;
+        let include_archived = status_filter == Some("closed") || all;
         let combined_index = if include_archived {
             let mut all_beans = index.units.clone();
             if let Ok(archived) = Index::collect_archived(mana_dir) {
@@ -156,7 +96,6 @@ pub fn cmd_list(
             index.clone()
         };
 
-        // Tree format with status indicators
         let tree = render_tree(&filtered, &combined_index);
         println!("{}", tree);
         println!("Legend: [ ] open  [-] in_progress  [x] closed  [!] blocked  [?] has decisions");
@@ -245,8 +184,11 @@ fn get_status_indicator(entry: &IndexEntry, index: &Index) -> (String, String) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::util::title_to_slug;
     use std::fs;
+
+    use crate::index::{Index, IndexEntry};
+    use crate::unit::Status;
+    use crate::util::{parse_status, title_to_slug};
     use tempfile::TempDir;
 
     fn setup_test_beans() -> (TempDir, std::path::PathBuf) {

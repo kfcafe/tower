@@ -8,7 +8,10 @@ use anyhow::{anyhow, Context, Result};
 use crate::unit::Unit;
 
 // Re-export core close ops for use in tests
-use mana_core::ops::close::{self as ops_close, CloseOpts, CloseOutcome, OnFailActionTaken};
+use mana_core::ops::close::{
+    self as ops_close, AutoCommitResult, CloseOpts, CloseOutcome, CloseWarning,
+    OnCloseActionResult, OnFailActionTaken,
+};
 
 // These imports are used by test modules via `use super::*`
 #[allow(unused_imports)]
@@ -22,6 +25,85 @@ use mana_core::ops::close::truncate_to_char_boundary;
 
 #[cfg(test)]
 use std::fs;
+
+fn print_close_warnings(unit_id: &str, warnings: &[CloseWarning]) {
+    for warning in warnings {
+        match warning {
+            CloseWarning::PreCloseHookError { message } => {
+                eprintln!(
+                    "Warning: pre-close hook error for unit {}: {}",
+                    unit_id, message
+                );
+            }
+            CloseWarning::PostCloseHookRejected => {
+                eprintln!(
+                    "Warning: post-close hook returned non-zero for unit {}",
+                    unit_id
+                );
+            }
+            CloseWarning::PostCloseHookError { message } => {
+                eprintln!(
+                    "Warning: post-close hook error for unit {}: {}",
+                    unit_id, message
+                );
+            }
+            CloseWarning::WorktreeCleanupFailed { message } => {
+                eprintln!(
+                    "Warning: failed to clean up worktree for unit {}: {}",
+                    unit_id, message
+                );
+            }
+        }
+    }
+}
+
+fn print_on_close_results(unit_id: &str, results: &[OnCloseActionResult]) {
+    for result in results {
+        match result {
+            OnCloseActionResult::RanCommand {
+                command,
+                success,
+                exit_code,
+                error,
+            } => {
+                if *success {
+                    eprintln!("on_close: ran `{}`", command);
+                } else if let Some(error) = error {
+                    eprintln!(
+                        "on_close run command error for unit {} (`{}`): {}",
+                        unit_id, command, error
+                    );
+                } else {
+                    eprintln!(
+                        "on_close run command failed for unit {} (`{}`) with exit {}",
+                        unit_id,
+                        command,
+                        exit_code.unwrap_or(-1)
+                    );
+                }
+            }
+            OnCloseActionResult::Notified { message } => {
+                println!("[unit {}] {}", unit_id, message);
+            }
+            OnCloseActionResult::Skipped { command } => {
+                eprintln!(
+                    "on_close: skipping `{}` for unit {} (not trusted — run `mana trust` to enable)",
+                    command,
+                    unit_id
+                );
+            }
+        }
+    }
+}
+
+fn print_auto_commit_result(result: &AutoCommitResult) {
+    if result.committed {
+        eprintln!("auto_commit: {}", result.message);
+    }
+    if let Some(warning) = &result.warning {
+        eprintln!("Warning: {}", warning);
+    }
+}
 
 /// Close one or more units.
 ///
@@ -58,6 +140,12 @@ pub fn cmd_close(
                 println!("Closed unit {}: {}", id, result.unit.title);
                 any_closed = true;
 
+                print_on_close_results(&result.unit.id, &result.on_close_results);
+                print_close_warnings(&result.unit.id, &result.warnings);
+                if let Some(auto_commit_result) = &result.auto_commit_result {
+                    print_auto_commit_result(auto_commit_result);
+                }
+
                 for parent_id in &result.auto_closed_parents {
                     // Load from archive to get the title
                     if let Ok(archived_path) =
@@ -70,6 +158,8 @@ pub fn cmd_close(
                 }
             }
             CloseOutcome::VerifyFailed(result) => {
+                print_close_warnings(&result.unit.id, &result.warnings);
+
                 // Display detailed failure feedback
                 if result.timed_out {
                     println!("✗ Verify timed out for unit {}", id);
@@ -90,7 +180,7 @@ pub fn cmd_close(
                     }
                 }
                 println!();
-                println!("Attempt {}. Unit remains open.", result.unit.attempts);
+                println!("Attempt {}. Unit remains open.", result.attempt_number);
                 println!("Tip: Run `mana verify {}` to test without closing.", id);
                 println!("Tip: Use `mana close {} --force` to skip verify.", id);
 
@@ -130,45 +220,53 @@ pub fn cmd_close(
                     }
                 }
             }
-            CloseOutcome::RejectedByHook => {
-                eprintln!("Unit {} rejected by pre-close hook", id);
-                rejected_beans.push(id.clone());
+            CloseOutcome::RejectedByHook { unit_id } => {
+                eprintln!("Unit {} rejected by pre-close hook", unit_id);
+                rejected_beans.push(unit_id);
             }
-            CloseOutcome::FeatureRequiresHuman => {
-                // Try TTY confirmation
-                let bean_path = crate::discovery::find_unit_file(mana_dir, id);
-                if let Ok(path) = bean_path {
-                    if let Ok(unit) = Unit::from_file(&path) {
-                        use std::io::IsTerminal;
-                        if !std::io::stdin().is_terminal() {
-                            println!("Feature \"{}\" requires human review to close.", unit.title);
-                            continue;
+            CloseOutcome::FeatureRequiresHuman {
+                unit_id,
+                title,
+                warnings,
+            } => {
+                print_close_warnings(&unit_id, &warnings);
+
+                use std::io::IsTerminal;
+                if !std::io::stdin().is_terminal() {
+                    println!("Feature \"{}\" requires human review to close.", title);
+                    continue;
+                }
+                eprintln!("Feature: \"{}\" — mark as complete? [y/N] ", title);
+                let mut input = String::new();
+                std::io::stdin().read_line(&mut input).unwrap_or(0);
+                if !input.trim().eq_ignore_ascii_case("y") {
+                    println!("Skipped feature \"{}\"", title);
+                    continue;
+                }
+                // User confirmed — close with force to bypass verify and feature gate.
+                let outcome = ops_close::close(
+                    mana_dir,
+                    &unit_id,
+                    CloseOpts {
+                        reason: reason.clone(),
+                        force: true,
+                    },
+                );
+                match outcome {
+                    Ok(CloseOutcome::Closed(result)) => {
+                        println!("Closed unit {}: {}", unit_id, result.unit.title);
+                        print_on_close_results(&result.unit.id, &result.on_close_results);
+                        print_close_warnings(&result.unit.id, &result.warnings);
+                        if let Some(auto_commit_result) = &result.auto_commit_result {
+                            print_auto_commit_result(auto_commit_result);
                         }
-                        eprintln!("Feature: \"{}\" — mark as complete? [y/N] ", unit.title);
-                        let mut input = String::new();
-                        std::io::stdin().read_line(&mut input).unwrap_or(0);
-                        if !input.trim().eq_ignore_ascii_case("y") {
-                            println!("Skipped feature \"{}\"", unit.title);
-                            continue;
-                        }
-                        // User confirmed — close with force to bypass the feature check
-                        let outcome = ops_close::close(
-                            mana_dir,
-                            id,
-                            CloseOpts {
-                                reason: reason.clone(),
-                                force: true,
-                            },
-                        );
-                        match outcome {
-                            Ok(CloseOutcome::Closed(result)) => {
-                                println!("Closed unit {}: {}", id, result.unit.title);
-                                any_closed = true;
-                            }
-                            _ => {
-                                eprintln!("Failed to close feature unit {}", id);
-                            }
-                        }
+                        any_closed = true;
+                    }
+                    Ok(other) => {
+                        eprintln!("Failed to close feature unit {}: {:?}", unit_id, other);
+                    }
+                    Err(err) => {
+                        eprintln!("Failed to close feature unit {}: {}", unit_id, err);
                     }
                 }
             }
@@ -176,7 +274,9 @@ pub fn cmd_close(
                 unit_id,
                 total_attempts,
                 max,
+                warnings,
             } => {
+                print_close_warnings(&unit_id, &warnings);
                 eprintln!(
                     "⚡ Circuit breaker tripped for unit {} \
                      (subtree total {} >= max_loops {})",
@@ -188,8 +288,10 @@ pub fn cmd_close(
                     unit_id
                 );
             }
-            CloseOutcome::MergeConflict => {
-                // Already printed by the core function
+            CloseOutcome::MergeConflict { files, warnings } => {
+                print_close_warnings(id, &warnings);
+                eprintln!("Merge conflict in files: {:?}", files);
+                eprintln!("Resolve conflicts and run `mana close {}` again", id);
             }
         }
     }

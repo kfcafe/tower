@@ -69,6 +69,31 @@ export interface RuntimeEvent {
   type: "AgentExited";
   agent_id: string;
   exit_code?: number;
+} | {
+  type: "ArtifactGenerated";
+  artifact_id: string;
+  unit_id: string;
+  artifact_type: string;
+  path: string;
+  timestamp: string;
+} | {
+  type: "ReviewRequested";
+  review_id: string;
+  unit_id: string;
+  review_type: string;
+  timestamp: string;
+} | {
+  type: "ReviewCompleted";
+  review_id: string;
+  decision: string;
+  notes?: string;
+  timestamp: string;
+} | {
+  type: "VerificationResult";
+  unit_id: string;
+  verification_id: string;
+  result: string;
+  timestamp: string;
 }
 
 /// Runtime monitoring service
@@ -265,4 +290,321 @@ export function getPriorityColor(priority: WorkPriority): string {
     default:
       return "#888888"; // gray
   }
+}
+
+/// Review and artifact data types
+export interface ReviewData {
+  id: string;
+  unit_id: string;
+  review_type: string;
+  status: string;
+  created_at: string;
+  decision?: string;
+  notes?: string;
+  checklist?: ReviewChecklistItem[];
+}
+
+export interface ReviewChecklistItem {
+  description: string;
+  checked: boolean;
+  notes?: string;
+  required: boolean;
+}
+
+export interface ArtifactData {
+  id: string;
+  unit_id: string;
+  artifact_type: string;
+  path: string;
+  size: number;
+  created_at: string;
+  reviewed: boolean;
+  review_status?: string;
+  metadata?: Record<string, string>;
+}
+
+export interface VerificationData {
+  id: string;
+  unit_id: string;
+  result: string;
+  details: VerificationDetails;
+  timestamp: string;
+}
+
+export interface VerificationDetails {
+  checks: VerificationCheck[];
+  summary: string;
+  verified_artifacts: string[];
+  issues: VerificationIssue[];
+}
+
+export interface VerificationCheck {
+  name: string;
+  status: string;
+  description: string;
+  duration: number; // seconds
+  output?: string;
+}
+
+export interface VerificationIssue {
+  severity: string;
+  message: string;
+  file?: string;
+  line?: number;
+  suggestion?: string;
+}
+
+/// Review monitoring service
+export class ReviewMonitor {
+  private reviewData: ReviewData[] = [];
+  private eventListeners: ((reviews: ReviewData[]) => void)[] = [];
+  private updateInterval: number | null = null;
+
+  constructor() {
+    this.startPolling();
+  }
+
+  /// Subscribe to review updates
+  subscribe(listener: (reviews: ReviewData[]) => void): () => void {
+    this.eventListeners.push(listener);
+    // Send current data immediately
+    listener(this.reviewData);
+    return () => {
+      const index = this.eventListeners.indexOf(listener);
+      if (index > -1) {
+        this.eventListeners.splice(index, 1);
+      }
+    };
+  }
+
+  /// Get current review data
+  getCurrentReviews(): ReviewData[] {
+    return [...this.reviewData];
+  }
+
+  /// Start polling for review updates
+  private startPolling() {
+    this.updateInterval = window.setInterval(async () => {
+      try {
+        const newReviews = await this.fetchReviews();
+        if (JSON.stringify(newReviews) !== JSON.stringify(this.reviewData)) {
+          this.reviewData = newReviews;
+          this.notifyListeners();
+        }
+      } catch (error) {
+        console.warn("Failed to fetch review data:", error);
+      }
+    }, 2000); // Poll every 2 seconds
+  }
+
+  /// Stop polling
+  destroy() {
+    if (this.updateInterval) {
+      clearInterval(this.updateInterval);
+      this.updateInterval = null;
+    }
+    this.eventListeners.length = 0;
+  }
+
+  /// Notify all listeners
+  private notifyListeners() {
+    this.eventListeners.forEach(listener => {
+      try {
+        listener(this.reviewData);
+      } catch (error) {
+        console.error("Error in review event listener:", error);
+      }
+    });
+  }
+
+  /// Fetch review data from backend (mock for now)
+  private async fetchReviews(): Promise<ReviewData[]> {
+    // TODO: Replace with actual Tauri IPC call
+    // For now, simulate review data
+    const now = new Date().toISOString();
+    
+    return [
+      {
+        id: "review-1",
+        unit_id: "unit-1", 
+        review_type: "Code",
+        status: "Pending",
+        created_at: now,
+        checklist: [
+          {
+            description: "Code follows project style guidelines",
+            checked: false,
+            required: true
+          },
+          {
+            description: "No obvious security vulnerabilities",
+            checked: false,
+            required: true
+          }
+        ]
+      },
+      {
+        id: "review-2",
+        unit_id: "unit-2",
+        review_type: "Documentation",
+        status: "Completed",
+        created_at: now,
+        decision: "Approve",
+        notes: "Documentation is clear and comprehensive"
+      }
+    ];
+  }
+}
+
+/// Artifact monitoring service
+export class ArtifactMonitor {
+  private artifactData: ArtifactData[] = [];
+  private eventListeners: ((artifacts: ArtifactData[]) => void)[] = [];
+  private updateInterval: number | null = null;
+
+  constructor() {
+    this.startPolling();
+  }
+
+  /// Subscribe to artifact updates
+  subscribe(listener: (artifacts: ArtifactData[]) => void): () => void {
+    this.eventListeners.push(listener);
+    // Send current data immediately
+    listener(this.artifactData);
+    return () => {
+      const index = this.eventListeners.indexOf(listener);
+      if (index > -1) {
+        this.eventListeners.splice(index, 1);
+      }
+    };
+  }
+
+  /// Get current artifact data
+  getCurrentArtifacts(): ArtifactData[] {
+    return [...this.artifactData];
+  }
+
+  /// Start polling for artifact updates
+  private startPolling() {
+    this.updateInterval = window.setInterval(async () => {
+      try {
+        const newArtifacts = await this.fetchArtifacts();
+        if (JSON.stringify(newArtifacts) !== JSON.stringify(this.artifactData)) {
+          this.artifactData = newArtifacts;
+          this.notifyListeners();
+        }
+      } catch (error) {
+        console.warn("Failed to fetch artifact data:", error);
+      }
+    }, 2000); // Poll every 2 seconds
+  }
+
+  /// Stop polling
+  destroy() {
+    if (this.updateInterval) {
+      clearInterval(this.updateInterval);
+      this.updateInterval = null;
+    }
+    this.eventListeners.length = 0;
+  }
+
+  /// Notify all listeners
+  private notifyListeners() {
+    this.eventListeners.forEach(listener => {
+      try {
+        listener(this.artifactData);
+      } catch (error) {
+        console.error("Error in artifact event listener:", error);
+      }
+    });
+  }
+
+  /// Fetch artifact data from backend (mock for now)
+  private async fetchArtifacts(): Promise<ArtifactData[]> {
+    // TODO: Replace with actual Tauri IPC call
+    // For now, simulate artifact data
+    const now = new Date().toISOString();
+    
+    return [
+      {
+        id: "artifact-1",
+        unit_id: "unit-1",
+        artifact_type: "CodeFile",
+        path: "src/lib.rs",
+        size: 1024 * 50, // 50KB
+        created_at: now,
+        reviewed: true,
+        review_status: "Approve",
+        metadata: {
+          language: "rust"
+        }
+      },
+      {
+        id: "artifact-2",
+        unit_id: "unit-2",
+        artifact_type: "Documentation", 
+        path: "docs/api.md",
+        size: 1024 * 25, // 25KB
+        created_at: now,
+        reviewed: false
+      },
+      {
+        id: "artifact-3",
+        unit_id: "unit-1",
+        artifact_type: "Test",
+        path: "tests/integration.rs",
+        size: 1024 * 15, // 15KB
+        created_at: now,
+        reviewed: false
+      }
+    ];
+  }
+}
+
+/// Global monitor instances
+let globalReviewMonitor: ReviewMonitor | null = null;
+let globalArtifactMonitor: ArtifactMonitor | null = null;
+
+/// Get or create the global review monitor
+export function getReviewMonitor(): ReviewMonitor {
+  if (!globalReviewMonitor) {
+    globalReviewMonitor = new ReviewMonitor();
+  }
+  return globalReviewMonitor;
+}
+
+/// Get or create the global artifact monitor
+export function getArtifactMonitor(): ArtifactMonitor {
+  if (!globalArtifactMonitor) {
+    globalArtifactMonitor = new ArtifactMonitor();
+  }
+  return globalArtifactMonitor;
+}
+
+/// Create a reactive signal for review state
+export function createReviewState(): [Accessor<ReviewData[] | null>, ReviewMonitor] {
+  const monitor = getReviewMonitor();
+  const [state, setState] = createSignal<ReviewData[] | null>(monitor.getCurrentReviews());
+
+  const unsubscribe = monitor.subscribe((reviews) => {
+    setState(reviews);
+  });
+
+  onCleanup(unsubscribe);
+
+  return [state, monitor];
+}
+
+/// Create a reactive signal for artifact state
+export function createArtifactState(): [Accessor<ArtifactData[] | null>, ArtifactMonitor] {
+  const monitor = getArtifactMonitor();
+  const [state, setState] = createSignal<ArtifactData[] | null>(monitor.getCurrentArtifacts());
+
+  const unsubscribe = monitor.subscribe((artifacts) => {
+    setState(artifacts);
+  });
+
+  onCleanup(unsubscribe);
+
+  return [state, monitor];
 }

@@ -2,6 +2,7 @@ project: wizard
 next_id: 2
 auto_close_parent: true
 run: '../target/debug/imp --system-prompt "" run {id} && mana close {id}'
+verify_timeout: 300
 max_loops: 10
 max_concurrent: 4
 poll_interval: 30

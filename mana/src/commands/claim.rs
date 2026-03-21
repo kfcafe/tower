@@ -1,39 +1,7 @@
 use std::path::Path;
-use std::process::Command as ShellCommand;
 
-use anyhow::{anyhow, Context, Result};
-use chrono::Utc;
-
-use crate::config::resolve_identity;
-use crate::discovery::find_unit_file;
-use crate::index::Index;
-use crate::unit::{AttemptOutcome, AttemptRecord, Status, Unit};
-
-/// Try to get the current git HEAD SHA. Returns None if not in a git repo.
-fn git_head_sha(working_dir: &Path) -> Option<String> {
-    ShellCommand::new("git")
-        .args(["rev-parse", "HEAD"])
-        .current_dir(working_dir)
-        .output()
-        .ok()
-        .filter(|o| o.status.success())
-        .and_then(|o| String::from_utf8(o.stdout).ok())
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
-}
-
-/// Run the verify command and return whether it passed (exit 0).
-fn run_verify_check(verify_cmd: &str, project_root: &Path) -> Result<bool> {
-    let output = ShellCommand::new("sh")
-        .args(["-c", verify_cmd])
-        .current_dir(project_root)
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .with_context(|| format!("Failed to execute verify command: {}", verify_cmd))?;
-
-    Ok(output.success())
-}
+use anyhow::Result;
+use mana_core::ops::claim as ops_claim;
 
 /// Claim a unit for work.
 ///
@@ -45,86 +13,19 @@ fn run_verify_check(verify_cmd: &str, project_root: &Path) -> Result<bool> {
 /// If it fails, the claim is granted with `fail_first: true` and the current
 /// git HEAD SHA is stored as `checkpoint`.
 pub fn cmd_claim(mana_dir: &Path, id: &str, by: Option<String>, force: bool) -> Result<()> {
-    let bean_path = find_unit_file(mana_dir, id).map_err(|_| anyhow!("Unit not found: {}", id))?;
+    let result = ops_claim::claim(mana_dir, id, ops_claim::ClaimParams { by, force })?;
 
-    let mut unit =
-        Unit::from_file(&bean_path).with_context(|| format!("Failed to load unit: {}", id))?;
-
-    if unit.status != Status::Open {
-        return Err(anyhow!(
-            "Unit {} is {} -- only open units can be claimed",
-            id,
-            unit.status
-        ));
-    }
-
-    // Warn if unit has no verify command (GOAL vs SPEC)
-    let has_verify = unit.verify.as_ref().is_some_and(|v| !v.trim().is_empty());
-    if !has_verify {
+    if result.is_goal {
         eprintln!(
             "Warning: Claiming GOAL (no verify). Consider decomposing with: mana create \"spec\" --parent {} --verify \"test\"",
             id
         );
     }
 
-    // Verify-on-claim: run verify before granting claim (TDD enforcement)
-    // Skip when fail_first is false (unit created with -p / pass-ok)
-    if has_verify && !force && unit.fail_first {
-        let project_root = mana_dir
-            .parent()
-            .ok_or_else(|| anyhow!("Cannot determine project root from units dir"))?;
-        let verify_cmd = unit.verify.as_ref().unwrap();
-
-        eprintln!("Running verify before claim: {}", verify_cmd);
-        let passed = run_verify_check(verify_cmd, project_root)?;
-
-        if passed {
-            return Err(anyhow!(
-                "Cannot claim unit {}: verify already passes\n\n\
-                 The verify command succeeded before any work was done.\n\
-                 This means either the test is bogus or the work is already complete.\n\n\
-                 Use --force to override.",
-                id
-            ));
-        }
-
-        // Verify failed — good, this proves the test is meaningful
-        unit.fail_first = true;
-        unit.checkpoint = git_head_sha(project_root);
-    }
-
-    // Resolve identity: explicit --by > resolved identity > "anonymous"
-    let resolved_by = by.or_else(|| resolve_identity(mana_dir));
-
-    let now = Utc::now();
-    unit.status = Status::InProgress;
-    unit.claimed_by = resolved_by.clone();
-    unit.claimed_at = Some(now);
-    unit.updated_at = now;
-
-    // Start a new attempt in the attempt log (for memory system tracking)
-    let attempt_num = unit.attempt_log.len() as u32 + 1;
-    unit.attempt_log.push(AttemptRecord {
-        num: attempt_num,
-        outcome: AttemptOutcome::Abandoned, // default until close/release updates it
-        notes: None,
-        agent: resolved_by.clone(),
-        started_at: Some(now),
-        finished_at: None,
-    });
-
-    unit.to_file(&bean_path)
-        .with_context(|| format!("Failed to save unit: {}", id))?;
-
-    let claimer = resolved_by.as_deref().unwrap_or("anonymous");
-    println!("Claimed unit {}: {} (by {})", id, unit.title, claimer);
-
-    // Rebuild index
-    let index = Index::build(mana_dir).with_context(|| "Failed to rebuild index")?;
-    index
-        .save(mana_dir)
-        .with_context(|| "Failed to save index")?;
-
+    println!(
+        "Claimed unit {}: {} (by {})",
+        id, result.unit.title, result.claimer
+    );
     Ok(())
 }
 
@@ -132,43 +33,17 @@ pub fn cmd_claim(mana_dir: &Path, id: &str, by: Option<String>, force: bool) -> 
 ///
 /// Clears claimed_by/claimed_at and sets status back to Open.
 pub fn cmd_release(mana_dir: &Path, id: &str) -> Result<()> {
-    let bean_path = find_unit_file(mana_dir, id).map_err(|_| anyhow!("Unit not found: {}", id))?;
-
-    let mut unit =
-        Unit::from_file(&bean_path).with_context(|| format!("Failed to load unit: {}", id))?;
-
-    let now = Utc::now();
-
-    // Finalize the current attempt as abandoned (if one is in progress)
-    if let Some(attempt) = unit.attempt_log.last_mut() {
-        if attempt.finished_at.is_none() {
-            attempt.outcome = AttemptOutcome::Abandoned;
-            attempt.finished_at = Some(now);
-        }
-    }
-
-    unit.claimed_by = None;
-    unit.claimed_at = None;
-    unit.status = Status::Open;
-    unit.updated_at = now;
-
-    unit.to_file(&bean_path)
-        .with_context(|| format!("Failed to save unit: {}", id))?;
-
-    println!("Released claim on unit {}: {}", id, unit.title);
-
-    // Rebuild index
-    let index = Index::build(mana_dir).with_context(|| "Failed to rebuild index")?;
-    index
-        .save(mana_dir)
-        .with_context(|| "Failed to save index")?;
-
+    let result = ops_claim::release(mana_dir, id)?;
+    println!("Released claim on unit {}: {}", id, result.unit.title);
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::index::Index;
+    use crate::unit::{AttemptOutcome, AttemptRecord, Status, Unit};
+    use chrono::Utc;
     use std::fs;
     use tempfile::TempDir;
 

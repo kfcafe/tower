@@ -1,5 +1,9 @@
 use super::*;
-use crate::unit::Status;
+use std::fs;
+
+use crate::config::Config;
+use crate::index::Index;
+use crate::unit::{OnFailAction, Status, Unit};
 use tempfile::TempDir;
 
 fn setup_beans_dir_with_config() -> (TempDir, std::path::PathBuf) {
@@ -163,7 +167,7 @@ fn create_increments_id() {
         acceptance: None,
         notes: None,
         design: None,
-        verify: Some("true".to_string()),
+        verify: Some("false".to_string()),
         priority: None,
         labels: None,
         assignee: None,
@@ -818,7 +822,7 @@ fn default_rejects_passing_verify() {
         acceptance: None,
         notes: None,
         design: None,
-        verify: Some("true".to_string()), // always passes
+        verify: Some("grep -q 'project: test' .mana/config.yaml".to_string()),
         priority: None,
         labels: None,
         assignee: None,
@@ -894,7 +898,7 @@ fn pass_ok_skips_fail_first_check() {
         acceptance: None,
         notes: None,
         design: None,
-        verify: Some("true".to_string()), // always passes — allowed with --pass-ok
+        verify: Some("grep -q 'project: test' .mana/config.yaml".to_string()),
         priority: None,
         labels: None,
         assignee: None,
@@ -1123,7 +1127,7 @@ fn create_with_claim_without_by() {
         acceptance: None,
         notes: None,
         design: None,
-        verify: Some("true".to_string()),
+        verify: Some("false".to_string()),
         priority: None,
         labels: None,
         assignee: None,
@@ -1581,7 +1585,7 @@ fn create_next_depends_on_latest() {
         acceptance: None,
         notes: None,
         design: None,
-        verify: Some("true".to_string()),
+        verify: Some("false".to_string()),
         priority: None,
         labels: None,
         assignee: None,
@@ -1608,7 +1612,7 @@ fn create_next_depends_on_latest() {
         acceptance: None,
         notes: None,
         design: None,
-        verify: Some("true".to_string()),
+        verify: Some("false".to_string()),
         priority: None,
         labels: None,
         assignee: None,
@@ -1650,7 +1654,7 @@ fn create_next_chain_three_beans() {
         acceptance: None,
         notes: None,
         design: None,
-        verify: Some("true".to_string()),
+        verify: Some("false".to_string()),
         priority: None,
         labels: None,
         assignee: None,
@@ -1677,7 +1681,7 @@ fn create_next_chain_three_beans() {
         acceptance: None,
         notes: None,
         design: None,
-        verify: Some("true".to_string()),
+        verify: Some("false".to_string()),
         priority: None,
         labels: None,
         assignee: None,
@@ -1704,7 +1708,7 @@ fn create_next_chain_three_beans() {
         acceptance: None,
         notes: None,
         design: None,
-        verify: Some("true".to_string()),
+        verify: Some("false".to_string()),
         priority: None,
         labels: None,
         assignee: None,
@@ -1752,7 +1756,7 @@ fn create_next_merges_explicit_deps() {
         acceptance: None,
         notes: None,
         design: None,
-        verify: Some("true".to_string()),
+        verify: Some("false".to_string()),
         priority: None,
         labels: None,
         assignee: None,
@@ -1778,7 +1782,7 @@ fn create_next_merges_explicit_deps() {
         acceptance: None,
         notes: None,
         design: None,
-        verify: Some("true".to_string()),
+        verify: Some("false".to_string()),
         priority: None,
         labels: None,
         assignee: None,
@@ -1805,7 +1809,7 @@ fn create_next_merges_explicit_deps() {
         acceptance: None,
         notes: None,
         design: None,
-        verify: Some("true".to_string()),
+        verify: Some("false".to_string()),
         priority: None,
         labels: None,
         assignee: None,
@@ -1848,7 +1852,7 @@ fn create_next_fails_with_no_beans() {
         acceptance: None,
         notes: None,
         design: None,
-        verify: Some("true".to_string()),
+        verify: Some("false".to_string()),
         priority: None,
         labels: None,
         assignee: None,

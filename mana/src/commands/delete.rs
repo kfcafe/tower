@@ -1,12 +1,7 @@
-use std::fs;
 use std::path::Path;
 
-use anyhow::Context;
 use anyhow::Result;
-
-use crate::discovery::find_unit_file;
-use crate::index::Index;
-use crate::unit::Unit;
+use mana_core::ops::delete as ops_delete;
 
 /// Delete a unit and clean up all references to it in other units' dependencies.
 ///
@@ -15,81 +10,18 @@ use crate::unit::Unit;
 /// 3. Scan all remaining units and remove deleted_id from their dependencies
 /// 4. Rebuild the index
 pub fn cmd_delete(mana_dir: &Path, id: &str) -> Result<()> {
-    let bean_path =
-        find_unit_file(mana_dir, id).with_context(|| format!("Unit not found: {}", id))?;
-
-    // Load the unit to get title before deleting
-    let unit =
-        Unit::from_file(&bean_path).with_context(|| format!("Failed to load unit: {}", id))?;
-    let title = unit.title.clone();
-
-    // Delete the unit file
-    fs::remove_file(&bean_path).with_context(|| format!("Failed to delete unit file: {}", id))?;
-
-    // Clean up dependency references
-    cleanup_dep_references(mana_dir, id)
-        .with_context(|| format!("Failed to clean up dependency references for: {}", id))?;
-
-    // Rebuild index
-    let index = Index::build(mana_dir).with_context(|| "Failed to rebuild index")?;
-    index
-        .save(mana_dir)
-        .with_context(|| "Failed to save index")?;
-
-    println!("Deleted unit {}: {}", id, title);
-    Ok(())
-}
-
-/// Helper: scan all units and remove deleted_id from their dependencies lists.
-fn cleanup_dep_references(mana_dir: &Path, deleted_id: &str) -> Result<()> {
-    let dir_entries = fs::read_dir(mana_dir)
-        .with_context(|| format!("Failed to read directory: {}", mana_dir.display()))?;
-
-    for entry in dir_entries {
-        let entry = entry?;
-        let path = entry.path();
-
-        let filename = path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or_default();
-
-        // Skip excluded files
-        if filename == "index.yaml" || filename == "config.yaml" || filename == "unit.yaml" {
-            continue;
-        }
-
-        // Check for both .md and .yaml unit files
-        let ext = path.extension().and_then(|e| e.to_str());
-        let is_bean_file = match ext {
-            Some("md") => filename.contains('-'), // New format: {id}-{slug}.md
-            Some("yaml") => true,                 // Legacy format: {id}.yaml
-            _ => false,
-        };
-
-        if !is_bean_file {
-            continue;
-        }
-
-        // Load the unit
-        if let Ok(mut unit) = Unit::from_file(&path) {
-            // Remove deleted_id from dependencies if present
-            let original_len = unit.dependencies.len();
-            unit.dependencies.retain(|dep| dep != deleted_id);
-
-            // Only write if we actually removed something
-            if unit.dependencies.len() < original_len {
-                unit.to_file(&path)?;
-            }
-        }
-    }
-
+    let result = ops_delete::delete(mana_dir, id)?;
+    println!("Deleted unit {}: {}", result.id, result.title);
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+
+    use crate::index::Index;
+    use crate::unit::Unit;
     use crate::util::title_to_slug;
     use tempfile::TempDir;
 

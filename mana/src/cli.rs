@@ -1144,13 +1144,13 @@ pub enum DepCommand {
 pub enum ConfigCommand {
     /// Get a configuration value
     Get {
-        /// Config key (run, plan, max_concurrent, poll_interval, auto_close_parent, max_loops, rules_file, file_locking, verify_timeout, extends, on_close, on_fail, post_plan, review.run, review.max_reopens)
+        /// Config key (run, plan, research, run_model, plan_model, review_model, research_model, max_concurrent, poll_interval, auto_close_parent, max_loops, rules_file, file_locking, verify_timeout, extends, on_close, on_fail, post_plan, review.run, review.max_reopens)
         key: String,
     },
 
     /// Set a configuration value
     Set {
-        /// Config key (run, plan, max_concurrent, poll_interval, auto_close_parent, max_loops, rules_file, file_locking, verify_timeout, extends, on_close, on_fail, post_plan, review.run, review.max_reopens)
+        /// Config key (run, plan, research, run_model, plan_model, review_model, research_model, max_concurrent, poll_interval, auto_close_parent, max_loops, rules_file, file_locking, verify_timeout, extends, on_close, on_fail, post_plan, review.run, review.max_reopens)
         key: String,
 
         /// New value

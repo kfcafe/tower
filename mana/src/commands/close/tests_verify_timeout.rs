@@ -2,11 +2,15 @@ use super::*;
 use crate::unit::{RunResult, Status, Unit};
 use crate::util::title_to_slug;
 use std::fs;
-use tempfile::TempDir;
+use tempfile::{Builder, TempDir};
 
 fn setup_test_beans_dir() -> (TempDir, std::path::PathBuf) {
-    let dir = TempDir::new().unwrap();
-    let mana_dir = dir.path().join(".mana");
+    let dir = Builder::new()
+        .prefix("mana-close-verify-timeout-")
+        .tempdir()
+        .unwrap();
+    let project_root = fs::canonicalize(dir.path()).unwrap();
+    let mana_dir = project_root.join(".mana");
     fs::create_dir(&mana_dir).unwrap();
     (dir, mana_dir)
 }

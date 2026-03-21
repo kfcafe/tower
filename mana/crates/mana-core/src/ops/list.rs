@@ -14,6 +14,7 @@ pub struct ListParams {
     pub parent: Option<String>,
     pub label: Option<String>,
     pub assignee: Option<String>,
+    pub current_user: Option<String>,
     pub include_closed: bool,
 }
 
@@ -54,6 +55,21 @@ pub fn list(mana_dir: &Path, params: &ListParams) -> Result<Vec<IndexEntry>> {
         }
         if let Some(ref label) = params.label {
             if !entry.labels.contains(label) {
+                return false;
+            }
+        }
+        if let Some(ref assignee) = params.assignee {
+            if entry.assignee.as_deref() != Some(assignee.as_str()) {
+                return false;
+            }
+        }
+        if let Some(ref user) = params.current_user {
+            let claimed_match = entry
+                .claimed_by
+                .as_ref()
+                .is_some_and(|c| c == user || c.starts_with(&format!("{}/", user)));
+            let assignee_match = entry.assignee.as_deref() == Some(user.as_str());
+            if !claimed_match && !assignee_match {
                 return false;
             }
         }
@@ -135,6 +151,8 @@ mod tests {
                 assignee: None,
                 add_label: None,
                 remove_label: None,
+                decisions: vec![],
+                resolve_decisions: vec![],
             },
         )
         .unwrap();
@@ -179,5 +197,57 @@ mod tests {
         .unwrap();
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].id, "1.1");
+    }
+
+    #[test]
+    fn list_filter_assignee() {
+        let (_dir, bd) = setup();
+        let mut alice = minimal_params("Alice");
+        alice.assignee = Some("alice".to_string());
+        create::create(&bd, alice).unwrap();
+        let mut bob = minimal_params("Bob");
+        bob.assignee = Some("bob".to_string());
+        create::create(&bd, bob).unwrap();
+
+        let entries = list(
+            &bd,
+            &ListParams {
+                assignee: Some("alice".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].title, "Alice");
+    }
+
+    #[test]
+    fn list_filter_current_user_matches_claimed_or_assigned() {
+        let (_dir, bd) = setup();
+        let mut claimed = minimal_params("Claimed");
+        claimed.assignee = Some("other".to_string());
+        create::create(&bd, claimed).unwrap();
+        let mut assigned = minimal_params("Assigned");
+        assigned.assignee = Some("alice".to_string());
+        create::create(&bd, assigned).unwrap();
+
+        let first_path = crate::discovery::find_unit_file(&bd, "1").unwrap();
+        let mut first_unit = crate::unit::Unit::from_file(&first_path).unwrap();
+        first_unit.claimed_by = Some("alice/session".to_string());
+        first_unit.to_file(&first_path).unwrap();
+        let index = Index::build(&bd).unwrap();
+        index.save(&bd).unwrap();
+
+        let entries = list(
+            &bd,
+            &ListParams {
+                current_user: Some("alice".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        assert_eq!(entries.len(), 2);
     }
 }

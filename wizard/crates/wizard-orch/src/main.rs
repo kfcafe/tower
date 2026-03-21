@@ -3,7 +3,7 @@ use std::process;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    
+
     if args.len() < 2 {
         print_usage();
         return;
@@ -49,10 +49,10 @@ fn status_command() -> Result<(), Box<dyn std::error::Error>> {
     println!("Project:     {}", project_snapshot.project_name);
     println!("Total units: {}", project_snapshot.unit_count);
     println!("Open units:  {}", project_snapshot.open_unit_count);
-    
+
     let completed_units = project_snapshot.unit_count - project_snapshot.open_unit_count;
     println!("Completed:   {}", completed_units);
-    
+
     if project_snapshot.unit_count > 0 {
         let completion_rate = (completed_units as f64 / project_snapshot.unit_count as f64) * 100.0;
         println!("Progress:    {:.1}%", completion_rate);

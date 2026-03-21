@@ -1,13 +1,7 @@
 use std::path::Path;
 
-use anyhow::{anyhow, Context, Result};
-use chrono::Utc;
-
-use crate::discovery::find_unit_file;
-use crate::hooks::{execute_hook, HookEvent};
-use crate::index::Index;
-use crate::unit::Unit;
-use crate::util::parse_status;
+use anyhow::Result;
+use mana_core::ops::update as ops_update;
 
 /// Update a unit's fields based on provided flags.
 ///
@@ -32,136 +26,37 @@ pub fn cmd_update(
     decisions: Vec<String>,
     resolve_decisions: Vec<String>,
 ) -> Result<()> {
-    // Validate priority if provided
-    if let Some(p) = priority {
-        crate::unit::validate_priority(p)?;
-    }
+    let result = ops_update::update(
+        mana_dir,
+        id,
+        ops_update::UpdateParams {
+            title,
+            description,
+            acceptance,
+            notes,
+            design,
+            status,
+            priority,
+            assignee,
+            add_label,
+            remove_label,
+            decisions,
+            resolve_decisions,
+        },
+    )?;
 
-    // Load the unit using find_unit_file
-    let bean_path =
-        find_unit_file(mana_dir, id).with_context(|| format!("Unit not found: {}", id))?;
-
-    let mut unit =
-        Unit::from_file(&bean_path).with_context(|| format!("Failed to load unit: {}", id))?;
-
-    // Get project root for hooks (parent of .mana)
-    let project_root = mana_dir
-        .parent()
-        .ok_or_else(|| anyhow!("Cannot determine project root from units dir"))?;
-
-    // Call pre-update hook (blocking - abort if it fails)
-    let pre_passed = execute_hook(HookEvent::PreUpdate, &unit, project_root, None)
-        .context("Pre-update hook execution failed")?;
-
-    if !pre_passed {
-        return Err(anyhow!("Pre-update hook rejected unit update"));
-    }
-
-    // Apply updates
-    if let Some(new_title) = title {
-        unit.title = new_title;
-    }
-
-    if let Some(new_description) = description {
-        unit.description = Some(new_description);
-    }
-
-    if let Some(new_acceptance) = acceptance {
-        unit.acceptance = Some(new_acceptance);
-    }
-
-    if let Some(new_notes) = notes {
-        // Append notes with timestamp separator
-        let timestamp = Utc::now().to_rfc3339();
-        if let Some(existing) = unit.notes {
-            unit.notes = Some(format!("{}\n\n---\n{}\n{}", existing, timestamp, new_notes));
-        } else {
-            unit.notes = Some(format!("---\n{}\n{}", timestamp, new_notes));
-        }
-    }
-
-    if let Some(new_design) = design {
-        unit.design = Some(new_design);
-    }
-
-    if let Some(new_status) = status {
-        unit.status =
-            parse_status(&new_status).ok_or_else(|| anyhow!("Invalid status: {}", new_status))?;
-    }
-
-    if let Some(new_priority) = priority {
-        unit.priority = new_priority;
-    }
-
-    if let Some(new_assignee) = assignee {
-        unit.assignee = Some(new_assignee);
-    }
-
-    if let Some(label) = add_label {
-        if !unit.labels.contains(&label) {
-            unit.labels.push(label);
-        }
-    }
-
-    if let Some(label) = remove_label {
-        unit.labels.retain(|l| l != &label);
-    }
-
-    // Add new decisions
-    for decision in decisions {
-        unit.decisions.push(decision);
-    }
-
-    // Resolve decisions by index or text match
-    for resolve in &resolve_decisions {
-        if let Ok(idx) = resolve.parse::<usize>() {
-            if idx < unit.decisions.len() {
-                unit.decisions.remove(idx);
-            } else {
-                return Err(anyhow!(
-                    "Decision index {} out of range (unit has {} decisions)",
-                    idx,
-                    unit.decisions.len()
-                ));
-            }
-        } else {
-            let before = unit.decisions.len();
-            unit.decisions.retain(|d| d != resolve);
-            if unit.decisions.len() == before {
-                return Err(anyhow!("No decision matching '{}' found", resolve));
-            }
-        }
-    }
-
-    // Update timestamp
-    unit.updated_at = Utc::now();
-
-    // Write back to the discovered path (preserves slug)
-    unit.to_file(&bean_path)
-        .with_context(|| format!("Failed to save unit: {}", id))?;
-
-    // Rebuild index
-    let index = Index::build(mana_dir).with_context(|| "Failed to rebuild index")?;
-    index
-        .save(mana_dir)
-        .with_context(|| "Failed to save index")?;
-
-    println!("Updated unit {}: {}", id, unit.title);
-
-    // Call post-update hook (non-blocking - log warning if it fails)
-    if let Err(e) = execute_hook(HookEvent::PostUpdate, &unit, project_root, None) {
-        eprintln!("Warning: post-update hook failed: {}", e);
-    }
-
+    println!("Updated unit {}: {}", id, result.unit.title);
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::unit::Status;
-    use crate::util::title_to_slug;
     use std::fs;
+
+    use crate::index::Index;
+    use crate::unit::{Status, Unit};
+    use crate::util::title_to_slug;
     use tempfile::TempDir;
 
     fn setup_test_beans_dir() -> (TempDir, std::path::PathBuf) {

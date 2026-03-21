@@ -74,6 +74,14 @@ pub use crate::unit::validate_priority;
 pub use crate::error::{self, ManaError as Error};
 
 // ---------------------------------------------------------------------------
+// Operation modules
+// ---------------------------------------------------------------------------
+
+pub use crate::ops::{
+    claim, close, context, create, delete, dep, fact, list, plan, show, update, verify,
+};
+
+// ---------------------------------------------------------------------------
 // Query functions
 // ---------------------------------------------------------------------------
 

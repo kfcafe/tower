@@ -1257,6 +1257,27 @@ All work in the project follows a standard workflow:
 4. **Verify** — `mana verify <id>` to test without closing
 5. **Close** — `mana close <id>` when verify passes
 
+### Project Research Mode (`mana plan` with no ID)
+
+When you need fresh work rather than a split of an existing unit, run `mana plan` with no ID.
+
+What happens:
+- Mana detects the project stack from marker files such as `Cargo.toml`, `package.json`, `pyproject.toml`, or `go.mod`
+- It runs best-effort static checks for the detected stack and collects the output
+- It creates a parent research unit such as `Project research — 2026-03-21`
+- It spawns the configured research agent, which should create child units for concrete findings
+
+Example config:
+
+```yaml
+research: "pi -p 'Analyze this project for bugs, missing tests, refactors, perf issues, and security gaps. For each finding run: mana create \"category: description\" --parent {parent_id} --verify \"test command\"'"
+```
+
+Template notes:
+- Use `{parent_id}` in `research` templates so findings attach to the research parent
+- If `research` is not configured, Mana falls back to the normal `plan` template
+- `mana plan --dry-run` previews the static analysis output and the built-in research prompt without creating units
+
 ---
 
 ## The Beanstalk Vision: Future Toolchain
@@ -1318,7 +1339,7 @@ Mana is evolving from a task tracker into a comprehensive orchestration platform
 ### Current Implementation Status
 
 Already available:
-- `mana run` / `mana plan` — Built-in agent orchestration and subtask generation
+- `mana run` / `mana plan` — Built-in agent orchestration, unit decomposition, and project-level research
 - `mana agents` / `mana logs` — Agent monitoring and log viewing
 - `mana init --agent` — Guided agent setup wizard with presets
 - `mana claim` / `mana verify` — Atomic task claiming and verification without closing
@@ -1388,7 +1409,7 @@ If all checked, the unit is ready for an agent to claim.
 - `mana context <id>` — Complete agent briefing (single source of truth)
 - `mana run [id]` — Dispatch ready units to agents
 - `mana run --loop` — Continuous dispatch mode
-- `mana plan [id]` — Decompose large units into children
+- `mana plan [id]` — With an ID, decompose a large unit; without an ID, run project research and create grouped findings
 - `mana agents` / `mana logs <id>` — Monitor agents and view output
 - `mana init --agent <preset>` — Guided agent setup
 - `mana claim <id>` — Atomically claim unit for work
@@ -1398,4 +1419,4 @@ If all checked, the unit is ready for an agent to claim.
 
 ---
 
-*Last updated: 2026-03-01*
+*Last updated: 2026-03-21*

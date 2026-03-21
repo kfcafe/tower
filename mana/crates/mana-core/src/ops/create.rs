@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{anyhow, Context, Result};
 
 use crate::config::Config;
+use crate::hooks::{execute_hook, HookEvent};
 use crate::index::Index;
 use crate::unit::{validate_priority, OnFailAction, Unit};
 use crate::util::title_to_slug;
@@ -28,6 +29,7 @@ pub struct CreateParams {
     pub fail_first: bool,
     pub feature: bool,
     pub verify_timeout: Option<u64>,
+    pub decisions: Vec<String>,
 }
 
 /// Result of creating a unit.
@@ -74,11 +76,27 @@ pub fn create(mana_dir: &Path, params: CreateParams) -> Result<CreateResult> {
     unit.produces = params.produces;
     unit.requires = params.requires;
     unit.paths = params.paths;
+    unit.decisions = params.decisions;
+
+    let project_dir = mana_dir
+        .parent()
+        .ok_or_else(|| anyhow!("Failed to determine project directory"))?;
+
+    let pre_passed = execute_hook(HookEvent::PreCreate, &unit, project_dir, None)
+        .context("Pre-create hook execution failed")?;
+    if !pre_passed {
+        return Err(anyhow!("Pre-create hook rejected unit creation"));
+    }
 
     let bean_path = mana_dir.join(format!("{}-{}.md", bean_id, slug));
     unit.to_file(&bean_path)?;
     let index = Index::build(mana_dir)?;
     index.save(mana_dir)?;
+
+    if let Err(e) = execute_hook(HookEvent::PostCreate, &unit, project_dir, None) {
+        eprintln!("Warning: post-create hook failed: {}", e);
+    }
+
     Ok(CreateResult {
         unit,
         path: bean_path,
@@ -228,6 +246,7 @@ pub mod tests {
             fail_first: false,
             feature: false,
             verify_timeout: None,
+            decisions: vec![],
         }
     }
 

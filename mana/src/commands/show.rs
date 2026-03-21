@@ -1,9 +1,9 @@
 use std::path::Path;
 
 use anyhow::Result;
+use mana_core::ops::show as ops_show;
 use termimad::MadSkin;
 
-use crate::discovery::find_unit_file;
 use crate::unit::{RunRecord, Unit};
 
 /// Default number of history entries to show without `--history`.
@@ -18,9 +18,8 @@ const MAX_OUTPUT_LINES: usize = 50;
 /// - --short: one-line summary "{id}. {title} [{status}]"
 /// - --history: show all history entries (default: last 10)
 pub fn cmd_show(id: &str, json: bool, short: bool, history: bool, mana_dir: &Path) -> Result<()> {
-    let bean_path = find_unit_file(mana_dir, id)?;
-
-    let unit = Unit::from_file(&bean_path)?;
+    let result = ops_show::get(mana_dir, id)?;
+    let unit = result.unit;
 
     if short {
         println!("{}", format_short(&unit));
@@ -28,7 +27,6 @@ pub fn cmd_show(id: &str, json: bool, short: bool, history: bool, mana_dir: &Pat
         let json_str = serde_json::to_string_pretty(&unit)?;
         println!("{}", json_str);
     } else {
-        // Default: beautiful markdown rendering
         render_bean(&unit, history)?;
     }
 

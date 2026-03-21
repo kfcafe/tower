@@ -391,7 +391,7 @@ mod tests {
             description: None,
             acceptance: None,
             notes: None,
-            verify: Some("true".to_string()),
+            verify: Some("false".to_string()),
             priority: None,
             by: None,
             produces: None,
@@ -485,7 +485,7 @@ mod tests {
             description: None,
             acceptance: None,
             notes: None,
-            verify: Some("true".to_string()), // always passes
+            verify: Some("grep -q 'project: test' .mana/config.yaml".to_string()),
             priority: None,
             by: None,
             produces: None,
@@ -545,7 +545,7 @@ mod tests {
             description: None,
             acceptance: None,
             notes: None,
-            verify: Some("true".to_string()), // always passes — allowed with --pass-ok
+            verify: Some("grep -q 'project: test' .mana/config.yaml".to_string()),
             priority: None,
             by: None,
             produces: None,

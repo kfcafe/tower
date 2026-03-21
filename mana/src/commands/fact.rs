@@ -1,15 +1,7 @@
 use std::path::Path;
 
 use anyhow::{anyhow, Result};
-use chrono::{Duration, Utc};
-
-use crate::commands::create::{cmd_create, CreateArgs};
-use crate::discovery::find_unit_file;
-use crate::index::Index;
-use crate::unit::Unit;
-
-/// Default TTL for facts: 30 days.
-const DEFAULT_TTL_DAYS: i64 = 30;
+use mana_core::ops::fact;
 
 /// Create a verified fact (convenience wrapper around create with bean_type=fact).
 ///
@@ -31,62 +23,20 @@ pub fn cmd_fact(
         ));
     }
 
-    // Create the unit via normal create flow
-    let bean_id = cmd_create(
+    let result = fact::create_fact(
         mana_dir,
-        CreateArgs {
+        fact::FactParams {
             title,
+            verify,
             description,
-            acceptance: None,
-            notes: None,
-            design: None,
-            verify: Some(verify),
-            priority: Some(3), // facts are lower priority than tasks
-            labels: Some("fact".to_string()),
-            assignee: None,
-            deps: None,
-            parent: None,
-            produces: None,
-            requires: None,
-            paths: None,
-            on_fail: None,
+            paths,
+            ttl_days,
             pass_ok,
-            claim: false,
-            by: None,
-            verify_timeout: None,
-            feature: false,
-            decisions: Vec::new(),
-            force: true, // facts have unique verify commands, skip title dupe check
         },
     )?;
 
-    // Now patch the unit to set fact-specific fields
-    let bean_path = find_unit_file(mana_dir, &bean_id)?;
-    let mut unit = Unit::from_file(&bean_path)?;
-
-    unit.bean_type = "fact".to_string();
-
-    // Set TTL
-    let ttl = ttl_days.unwrap_or(DEFAULT_TTL_DAYS);
-    unit.stale_after = Some(Utc::now() + Duration::days(ttl));
-
-    // Set paths for relevance matching
-    if let Some(paths_str) = paths {
-        unit.paths = paths_str
-            .split(',')
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty())
-            .collect();
-    }
-
-    unit.to_file(&bean_path)?;
-
-    // Rebuild index
-    let index = Index::build(mana_dir)?;
-    index.save(mana_dir)?;
-
-    eprintln!("Created fact {}: {}", bean_id, unit.title);
-    Ok(bean_id)
+    eprintln!("Created fact {}: {}", result.bean_id, result.unit.title);
+    Ok(result.bean_id)
 }
 
 /// Verify all facts and report staleness.
@@ -98,177 +48,45 @@ pub fn cmd_fact(
 /// Suspect propagation: facts that require artifacts from failing/stale facts
 /// are marked as suspect (up to depth 3).
 pub fn cmd_verify_facts(mana_dir: &Path) -> Result<()> {
-    use std::collections::{HashMap, HashSet};
-    use std::process::Command as ShellCommand;
+    let result = fact::verify_facts(mana_dir)?;
 
-    let project_root = mana_dir
-        .parent()
-        .ok_or_else(|| anyhow!("Cannot determine project root from units dir"))?;
-
-    // Find all fact units (both active and archived)
-    let index = Index::load_or_rebuild(mana_dir)?;
-    let archived = Index::collect_archived(mana_dir).unwrap_or_default();
-
-    let now = Utc::now();
-    let mut stale_count = 0;
-    let mut failing_count = 0;
-    let mut verified_count = 0;
-    let mut total_facts = 0;
-    let mut suspect_count = 0;
-
-    // Collect all facts and their states for suspect propagation
-    let mut invalid_artifacts: HashSet<String> = HashSet::new();
-    let mut fact_requires: HashMap<String, Vec<String>> = HashMap::new();
-    let mut fact_titles: HashMap<String, String> = HashMap::new();
-
-    // Check active units
-    for entry in index.units.iter().chain(archived.iter()) {
-        let bean_path = if entry.status == crate::unit::Status::Closed {
-            crate::discovery::find_archived_unit(mana_dir, &entry.id).ok()
-        } else {
-            find_unit_file(mana_dir, &entry.id).ok()
-        };
-
-        let bean_path = match bean_path {
-            Some(p) => p,
-            None => continue,
-        };
-
-        let mut unit = match Unit::from_file(&bean_path) {
-            Ok(b) => b,
-            Err(_) => continue,
-        };
-
-        if unit.bean_type != "fact" {
-            continue;
+    for entry in &result.entries {
+        if entry.stale {
+            eprintln!("⚠ STALE: [{}] \"{}\"", entry.id, entry.title);
         }
 
-        total_facts += 1;
-        fact_titles.insert(unit.id.clone(), unit.title.clone());
-        if !unit.requires.is_empty() {
-            fact_requires.insert(unit.id.clone(), unit.requires.clone());
-        }
-
-        // Check staleness
-        let is_stale = unit.stale_after.map(|sa| now > sa).unwrap_or(false);
-
-        if is_stale {
-            stale_count += 1;
-            eprintln!("⚠ STALE: [{}] \"{}\"", unit.id, unit.title);
-            // Stale facts invalidate their produced artifacts
-            for prod in &unit.produces {
-                invalid_artifacts.insert(prod.clone());
+        match (entry.verify_passed, entry.error.as_deref()) {
+            (Some(true), _) => println!("  ✓ [{}] \"{}\"", entry.id, entry.title),
+            (Some(false), Some(error)) => {
+                eprintln!("  ✗ ERROR: [{}] \"{}\" — {}", entry.id, entry.title, error)
             }
-        }
-
-        // Re-run verify command
-        if let Some(ref verify_cmd) = unit.verify {
-            let output = ShellCommand::new("sh")
-                .args(["-c", verify_cmd])
-                .current_dir(project_root)
-                .output();
-
-            match output {
-                Ok(o) if o.status.success() => {
-                    verified_count += 1;
-                    unit.last_verified = Some(now);
-                    // Reset stale_after from now
-                    if unit.stale_after.is_some() {
-                        unit.stale_after = Some(now + Duration::days(DEFAULT_TTL_DAYS));
-                    }
-                    unit.to_file(&bean_path)?;
-                    println!("  ✓ [{}] \"{}\"", unit.id, unit.title);
-                }
-                Ok(_) => {
-                    failing_count += 1;
-                    // Failing facts invalidate their produced artifacts
-                    for prod in &unit.produces {
-                        invalid_artifacts.insert(prod.clone());
-                    }
-                    eprintln!(
-                        "  ✗ FAILING: [{}] \"{}\" — verify command returned non-zero",
-                        unit.id, unit.title
-                    );
-                }
-                Err(e) => {
-                    failing_count += 1;
-                    for prod in &unit.produces {
-                        invalid_artifacts.insert(prod.clone());
-                    }
-                    eprintln!("  ✗ ERROR: [{}] \"{}\" — {}", unit.id, unit.title, e);
-                }
-            }
+            (Some(false), None) => eprintln!(
+                "  ✗ FAILING: [{}] \"{}\" — verify command returned non-zero",
+                entry.id, entry.title
+            ),
+            (None, _) => {}
         }
     }
 
-    // Suspect propagation: facts requiring invalid artifacts are suspect (depth limit 3)
-    if !invalid_artifacts.is_empty() {
-        let mut suspect_ids: HashSet<String> = HashSet::new();
-        let mut current_invalid = invalid_artifacts.clone();
-
-        for _depth in 0..3 {
-            let mut newly_invalid: HashSet<String> = HashSet::new();
-
-            for (fact_id, requires) in &fact_requires {
-                if suspect_ids.contains(fact_id) {
-                    continue;
-                }
-                for req in requires {
-                    if current_invalid.contains(req) {
-                        suspect_ids.insert(fact_id.clone());
-                        // This suspect fact's produced artifacts also become invalid
-                        // (for the next depth iteration)
-                        if let Some(entry) = index
-                            .units
-                            .iter()
-                            .chain(archived.iter())
-                            .find(|e| e.id == *fact_id)
-                        {
-                            let bean_path = if entry.status == crate::unit::Status::Closed {
-                                crate::discovery::find_archived_unit(mana_dir, &entry.id).ok()
-                            } else {
-                                find_unit_file(mana_dir, &entry.id).ok()
-                            };
-                            if let Some(bp) = bean_path {
-                                if let Ok(b) = Unit::from_file(&bp) {
-                                    for prod in &b.produces {
-                                        newly_invalid.insert(prod.clone());
-                                    }
-                                }
-                            }
-                        }
-                        break;
-                    }
-                }
-            }
-
-            if newly_invalid.is_empty() {
-                break;
-            }
-            current_invalid = newly_invalid;
-        }
-
-        for suspect_id in &suspect_ids {
-            suspect_count += 1;
-            let title = fact_titles
-                .get(suspect_id)
-                .map(|s| s.as_str())
-                .unwrap_or("?");
-            eprintln!(
-                "  ⚠ SUSPECT: [{}] \"{}\" — requires artifact from invalid fact",
-                suspect_id, title
-            );
-        }
+    for (id, title) in &result.suspect_entries {
+        eprintln!(
+            "  ⚠ SUSPECT: [{}] \"{}\" — requires artifact from invalid fact",
+            id, title
+        );
     }
 
     println!();
     println!(
         "Facts: {} total, {} verified, {} stale, {} failing, {} suspect",
-        total_facts, verified_count, stale_count, failing_count, suspect_count
+        result.total_facts,
+        result.verified_count,
+        result.stale_count,
+        result.failing_count,
+        result.suspect_count
     );
 
-    if failing_count > 0 {
-        std::process::exit(1);
+    if result.failing_count > 0 {
+        anyhow::bail!("{} fact(s) failed verification", result.failing_count);
     }
 
     Ok(())
@@ -277,8 +95,13 @@ pub fn cmd_verify_facts(mana_dir: &Path) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::Config;
     use std::fs;
+
+    use chrono::Utc;
+
+    use crate::config::Config;
+    use crate::discovery::find_unit_file;
+    use crate::unit::Unit;
     use tempfile::TempDir;
 
     fn setup_beans_dir_with_config() -> (TempDir, std::path::PathBuf) {

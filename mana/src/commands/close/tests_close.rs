@@ -2,11 +2,16 @@ use super::*;
 use crate::unit::OnCloseAction;
 use crate::unit::OnFailAction;
 use crate::util::title_to_slug;
-use tempfile::TempDir;
+use tempfile::{Builder, TempDir};
+
+fn new_close_temp_dir(prefix: &str) -> TempDir {
+    Builder::new().prefix(prefix).tempdir().unwrap()
+}
 
 fn setup_test_beans_dir() -> (TempDir, std::path::PathBuf) {
-    let dir = TempDir::new().unwrap();
-    let mana_dir = dir.path().join(".mana");
+    let dir = new_close_temp_dir("mana-close-test-");
+    let project_root = fs::canonicalize(dir.path()).unwrap();
+    let mana_dir = project_root.join(".mana");
     fs::create_dir(&mana_dir).unwrap();
     (dir, mana_dir)
 }
@@ -709,8 +714,9 @@ fn test_post_close_hook_failure_does_not_prevent_close() {
 // =====================================================================
 
 fn setup_test_beans_dir_with_config() -> (TempDir, std::path::PathBuf) {
-    let dir = TempDir::new().unwrap();
-    let mana_dir = dir.path().join(".mana");
+    let dir = new_close_temp_dir("mana-close-config-");
+    let project_root = fs::canonicalize(dir.path()).unwrap();
+    let mana_dir = project_root.join(".mana");
     fs::create_dir(&mana_dir).unwrap();
 
     let config = crate::config::Config {
@@ -824,8 +830,9 @@ fn test_no_auto_close_when_children_still_open() {
 
 #[test]
 fn test_auto_close_disabled_via_config() {
-    let dir = TempDir::new().unwrap();
-    let mana_dir = dir.path().join(".mana");
+    let dir = new_close_temp_dir("mana-close-auto-close-disabled-");
+    let project_root = fs::canonicalize(dir.path()).unwrap();
+    let mana_dir = project_root.join(".mana");
     fs::create_dir(&mana_dir).unwrap();
 
     let config = crate::config::Config {
@@ -1920,8 +1927,9 @@ fn output_capture_mixed_stdout_stderr() {
 // =====================================================================
 
 fn setup_beans_dir_with_max_loops(max_loops: u32) -> (TempDir, std::path::PathBuf) {
-    let dir = TempDir::new().unwrap();
-    let mana_dir = dir.path().join(".mana");
+    let dir = new_close_temp_dir("mana-close-max-loops-");
+    let project_root = fs::canonicalize(dir.path()).unwrap();
+    let mana_dir = project_root.join(".mana");
     fs::create_dir(&mana_dir).unwrap();
 
     let config = crate::config::Config {
@@ -2340,7 +2348,7 @@ mod worktree_merge_tests {
     /// The `detect_worktree` and `commit_worktree_changes` functions now accept explicit
     /// path arguments, so tests no longer need `std::env::set_current_dir`.
     fn setup_git_worktree() -> (TempDir, PathBuf, PathBuf) {
-        let dir = TempDir::new().unwrap();
+        let dir = new_close_temp_dir("mana-close-worktree-");
         let base = std::fs::canonicalize(dir.path()).unwrap();
         let main_dir = base.join("main");
         let worktree_dir = base.join("worktree");
@@ -2430,7 +2438,7 @@ mod worktree_merge_tests {
 
     #[test]
     fn test_close_in_main_worktree_skips_merge() {
-        let dir = TempDir::new().unwrap();
+        let dir = new_close_temp_dir("mana-close-main-worktree-");
         let base = std::fs::canonicalize(dir.path()).unwrap();
         let repo_dir = base.join("repo");
         fs::create_dir(&repo_dir).unwrap();
@@ -2463,7 +2471,7 @@ mod worktree_merge_tests {
 
     #[test]
     fn test_close_outside_git_repo_works() {
-        let dir = TempDir::new().unwrap();
+        let dir = new_close_temp_dir("mana-close-no-git-");
         let base = std::fs::canonicalize(dir.path()).unwrap();
         let mana_dir = base.join(".mana");
         fs::create_dir(&mana_dir).unwrap();
