@@ -31,6 +31,8 @@ pub struct CreateParams {
     pub feature: bool,
     pub verify_timeout: Option<u64>,
     pub decisions: Vec<String>,
+    /// Skip verify lint errors (allow anti-pattern verify commands)
+    pub force: bool,
 }
 
 /// Result of creating a unit.
@@ -43,6 +45,32 @@ pub struct CreateResult {
 pub fn create(mana_dir: &Path, params: CreateParams) -> Result<CreateResult> {
     if let Some(priority) = params.priority {
         validate_priority(priority)?;
+    }
+
+    // Lint the verify command for anti-patterns
+    if let Some(ref verify_cmd) = params.verify {
+        let findings = lint_verify(verify_cmd);
+        if !findings.is_empty() {
+            let has_errors = findings
+                .iter()
+                .any(|f| f.level == VerifyLintLevel::Error);
+
+            // Print warnings to stderr regardless
+            for finding in &findings {
+                let prefix = match finding.level {
+                    VerifyLintLevel::Error => "error",
+                    VerifyLintLevel::Warning => "warning",
+                };
+                eprintln!("[verify-lint {}] {}", prefix, finding.message);
+            }
+
+            // Block on errors unless force is set
+            if has_errors && !params.force {
+                return Err(anyhow!(
+                    "Verify command has lint errors. Use --force to override."
+                ));
+            }
+        }
     }
 
     let mut config = Config::load(mana_dir)?;
@@ -248,6 +276,7 @@ pub mod tests {
             feature: false,
             verify_timeout: None,
             decisions: vec![],
+            force: false,
         }
     }
 

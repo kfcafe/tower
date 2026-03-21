@@ -117,7 +117,8 @@ pub fn cmd_create(mana_dir: &Path, args: CreateArgs) -> Result<String> {
         );
     }
 
-    lint_verify_command(args.verify.as_deref(), args.force)?;
+    // Verify lint is handled by mana_core::ops::create::create() at the library level.
+    // All consumers (CLI, imp, MCP) get it automatically.
 
     if !args.pass_ok {
         if let Some(verify_cmd) = args.verify.as_ref() {
@@ -190,6 +191,7 @@ pub fn cmd_create(mana_dir: &Path, args: CreateArgs) -> Result<String> {
         feature: args.feature,
         verify_timeout: args.verify_timeout,
         decisions: args.decisions,
+        force: args.force,
     };
 
     let result = create::create(mana_dir, params)?;

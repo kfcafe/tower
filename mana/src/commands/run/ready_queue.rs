@@ -263,6 +263,7 @@ pub(super) fn run_ready_queue_direct(
             let tx = tx.clone();
             let timeout_min = timeout_minutes;
             let idle_min = idle_timeout_minutes;
+            let config_run_model = cfg.run_model.clone();
 
             std::thread::spawn(move || {
                 let result = run_single_direct(
@@ -395,6 +396,7 @@ pub(super) fn run_single_direct(
     sb: &SizedBean,
     timeout_minutes: u32,
     idle_timeout_minutes: u32,
+    config_run_model: Option<&str>,
     json_stream: bool,
     file_locking: bool,
 ) -> AgentResult {

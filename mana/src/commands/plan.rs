@@ -145,8 +145,10 @@ fn spawn_research(
     }
 
     if let Some(ref template) = config.plan {
-        // Use plan template with a research-oriented invocation
-        let cmd = substitute_template_with_model(template, parent_id, config.plan_model.as_deref());
+        // Use plan template with a research-oriented invocation.
+        // Research uses its own model routing, even when falling back to the plan template.
+        let cmd =
+            substitute_template_with_model(template, parent_id, config.research_model.as_deref());
         eprintln!("Spawning research (via plan template): {}", cmd);
         return run_shell_command(&cmd, parent_id, args.auto);
     }
@@ -157,8 +159,7 @@ fn spawn_research(
     eprintln!("Running static analysis...");
     let prompt = build_research_prompt(project_root, parent_id, mana_cmd);
 
-    let escaped_prompt = shell_escape(&prompt);
-    let cmd = format!("pi {}", escaped_prompt);
+    let cmd = build_builtin_research_command(&prompt, config.research_model.as_deref());
 
     eprintln!("Spawning built-in research agent...");
     run_shell_command(&cmd, parent_id, args.auto)
@@ -172,11 +173,13 @@ fn spawn_plan(
     unit: &Unit,
     args: &PlanArgs,
 ) -> Result<()> {
+    let effective_model = unit.model.as_deref().or(config.plan_model.as_deref());
+
     if let Some(ref template) = config.plan {
-        return spawn_template(template, id, args, config.plan_model.as_deref());
+        return spawn_template(template, id, args, effective_model);
     }
 
-    spawn_builtin(mana_dir, id, unit, args)
+    spawn_builtin(mana_dir, id, unit, args, effective_model)
 }
 
 #[must_use]
@@ -219,15 +222,43 @@ fn build_research_template_command(template: &str, parent_id: &str, model: Optio
     }
 }
 
+#[must_use]
+fn build_builtin_plan_command(bean_path: &str, prompt: &str, model: Option<&str>) -> String {
+    let escaped_prompt = shell_escape(prompt);
+    match model {
+        Some(model) => format!(
+            "pi --model {} @{} {}",
+            shell_escape(model),
+            bean_path,
+            escaped_prompt
+        ),
+        None => format!("pi @{} {}", bean_path, escaped_prompt),
+    }
+}
+
+#[must_use]
+fn build_builtin_research_command(prompt: &str, model: Option<&str>) -> String {
+    let escaped_prompt = shell_escape(prompt);
+    match model {
+        Some(model) => format!("pi --model {} {}", shell_escape(model), escaped_prompt),
+        None => format!("pi {}", escaped_prompt),
+    }
+}
+
 /// Build a decomposition prompt and spawn `pi` with it directly.
-fn spawn_builtin(mana_dir: &Path, id: &str, unit: &Unit, args: &PlanArgs) -> Result<()> {
+fn spawn_builtin(
+    mana_dir: &Path,
+    id: &str,
+    unit: &Unit,
+    args: &PlanArgs,
+    model: Option<&str>,
+) -> Result<()> {
     let prompt = build_decomposition_prompt(id, unit, args.strategy.as_deref());
 
     let bean_path = find_unit_file(mana_dir, id)?;
     let bean_path_str = bean_path.display().to_string();
 
-    let escaped_prompt = shell_escape(&prompt);
-    let cmd = format!("pi @{} {}", bean_path_str, escaped_prompt);
+    let cmd = build_builtin_plan_command(&bean_path_str, &prompt, model);
 
     if args.dry_run {
         eprintln!("Would spawn: {}", cmd);

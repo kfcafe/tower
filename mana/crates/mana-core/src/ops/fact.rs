@@ -85,6 +85,7 @@ pub fn create_fact(mana_dir: &Path, params: FactParams) -> Result<FactResult> {
             feature: false,
             verify_timeout: None,
             decisions: vec![],
+            force: false,
         },
     )?;
 

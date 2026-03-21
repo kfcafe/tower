@@ -115,6 +115,9 @@ pub(super) fn plan_dispatch(
         if let Some(warning) = check_scope_warning(entry) {
             warnings.push((entry.id.clone(), warning));
         }
+        let unit_path = crate::discovery::find_unit_file(mana_dir, &entry.id)?;
+        let unit = crate::unit::Unit::from_file(&unit_path)?;
+
         dispatch_beans.push(SizedBean {
             id: entry.id.clone(),
             title: entry.title.clone(),
@@ -125,7 +128,7 @@ pub(super) fn plan_dispatch(
             produces: entry.produces.clone(),
             requires: entry.requires.clone(),
             paths: entry.paths.clone(),
-            model: None,
+            model: unit.model.clone(),
         });
     }
 
@@ -323,6 +326,23 @@ mod tests {
         assert_eq!(plan.waves.len(), 1);
         assert_eq!(plan.waves[0].units.len(), 1);
         assert_eq!(plan.waves[0].units[0].id, "1");
+    }
+
+    #[test]
+    fn plan_dispatch_includes_unit_model_override() {
+        let (_dir, mana_dir) = make_beans_dir();
+        write_config(&mana_dir, Some("echo {id}"));
+
+        let mut unit = crate::unit::Unit::new("1", "Task one");
+        unit.verify = Some("echo ok".to_string());
+        unit.model = Some("opus".to_string());
+        unit.to_file(mana_dir.join("1-task-one.md")).unwrap();
+
+        let config = Config::load_with_extends(&mana_dir).unwrap();
+        let plan = plan_dispatch(&mana_dir, &config, Some("1"), false, false).unwrap();
+
+        assert_eq!(plan.waves.len(), 1);
+        assert_eq!(plan.waves[0].units[0].model.as_deref(), Some("opus"));
     }
 
     #[test]
