@@ -1106,12 +1106,16 @@ pub fn runtime_snapshot() -> RuntimeSnapshot {
 mod tests {
     use super::*;
     use std::fs;
-    use std::sync::{Arc, Mutex};
+    use std::sync::{Arc, LazyLock, Mutex};
     use std::time::Duration;
     use tempfile::TempDir;
 
+    static CURRENT_DIR_TEST_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+
     #[test]
     fn test_load_project_snapshot_integration() {
+        let _guard = CURRENT_DIR_TEST_LOCK.lock().unwrap();
+
         // Create a temporary directory structure
         let temp_dir = TempDir::new().unwrap();
         let project_dir = temp_dir.path().join("test-project");
@@ -1449,6 +1453,7 @@ mod tests {
 
     #[test]
     fn test_global_review_functions() {
+        let _guard = CURRENT_DIR_TEST_LOCK.lock().unwrap();
         let temp_dir = TempDir::new().unwrap();
         let project_dir = temp_dir.path().join("global-review-project");
         let mana_dir = project_dir.join(".mana");
