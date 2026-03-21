@@ -206,6 +206,11 @@ pub(super) fn run_ready_queue_direct(
                 break;
             }
 
+            // Don't spawn new agents if shutdown was requested
+            if super::shutdown_requested() {
+                break;
+            }
+
             remaining.remove(&sb.id);
             running_count += 1;
             let round = wave_map.get(&sb.id).copied().unwrap_or(1);
@@ -267,8 +272,41 @@ pub(super) fn run_ready_queue_direct(
         // If nothing is running (but we just started some), loop to check for
         // more readiness after spawning
         if running_count > 0 {
-            // Wait for any one agent to complete
-            let result = rx.recv().expect("channel closed unexpectedly");
+            // Wait for any one agent to complete, with periodic shutdown checks
+            let result = loop {
+                if super::shutdown_requested() {
+                    if !json_stream {
+                        eprintln!("\nShutdown signal received, killing agents...");
+                    }
+                    super::kill_all_children();
+                    // Wait briefly for agents to finish, then force kill
+                    let deadline = Instant::now() + Duration::from_secs(5);
+                    while running_count > 0 && Instant::now() < deadline {
+                        match rx.recv_timeout(Duration::from_millis(100)) {
+                            Ok(r) => {
+                                running_count -= 1;
+                                if !json_stream {
+                                    print_result_line(&r);
+                                }
+                                results.push(r);
+                            }
+                            Err(mpsc::RecvTimeoutError::Timeout) => {}
+                            Err(mpsc::RecvTimeoutError::Disconnected) => break,
+                        }
+                    }
+                    if running_count > 0 {
+                        super::force_kill_all_children();
+                    }
+                    return Ok((results, true));
+                }
+                match rx.recv_timeout(Duration::from_millis(200)) {
+                    Ok(result) => break result,
+                    Err(mpsc::RecvTimeoutError::Timeout) => continue,
+                    Err(mpsc::RecvTimeoutError::Disconnected) => {
+                        return Ok((results, any_failed));
+                    }
+                }
+            };
             running_count -= 1;
 
             let success = result.success;
@@ -448,6 +486,10 @@ pub(super) fn run_single_direct(
             };
         }
     };
+
+    // Register child PID for signal-based cleanup
+    let child_pid = child.id();
+    super::register_child_pid(child_pid);
 
     // Take stdout for monitoring
     let stdout = match child.stdout.take() {
