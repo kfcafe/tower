@@ -85,6 +85,9 @@ pub enum StreamEvent {
     DryRun {
         parent_id: String,
         rounds: Vec<RoundPlan>,
+        /// IDs of units on the critical path, in order.
+        #[serde(skip_serializing_if = "Vec::is_empty")]
+        critical_path: Vec<String>,
     },
     Error {
         message: String,
@@ -104,6 +107,12 @@ pub struct BeanInfo {
 pub struct RoundPlan {
     pub round: usize,
     pub units: Vec<BeanInfo>,
+    /// Maximum number of units that can actually run concurrently (accounting for file conflicts).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub effective_concurrency: Option<usize>,
+    /// File conflicts within this round: each entry is (file_path, [conflicting_unit_ids]).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub conflicts: Vec<(String, Vec<String>)>,
 }
 
 /// Describes a file overlap between two units that may run concurrently.
@@ -219,6 +228,8 @@ mod tests {
                         title: "a".into(),
                         round: 1,
                     }],
+                    effective_concurrency: None,
+                    conflicts: vec![],
                 },
                 RoundPlan {
                     round: 2,
@@ -227,8 +238,11 @@ mod tests {
                         title: "b".into(),
                         round: 2,
                     }],
+                    effective_concurrency: None,
+                    conflicts: vec![],
                 },
             ],
+            critical_path: vec![],
         };
         let json: serde_json::Value = serde_json::to_value(&event).unwrap();
         assert_eq!(json["type"], "dry_run");
@@ -263,6 +277,8 @@ mod tests {
                         title: "first".into(),
                         round: 1,
                     }],
+                    effective_concurrency: None,
+                    conflicts: vec![],
                 },
                 RoundPlan {
                     round: 2,
@@ -271,6 +287,8 @@ mod tests {
                         title: "second".into(),
                         round: 2,
                     }],
+                    effective_concurrency: None,
+                    conflicts: vec![],
                 },
             ],
             file_overlaps: vec![FileOverlapInfo {
