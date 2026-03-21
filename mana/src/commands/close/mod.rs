@@ -12,11 +12,11 @@ use mana_core::ops::close::{self as ops_close, CloseOpts, CloseOutcome, OnFailAc
 
 // These imports are used by test modules via `use super::*`
 #[allow(unused_imports)]
-use chrono::Utc;
-#[allow(unused_imports)]
 use crate::index::Index;
 #[allow(unused_imports)]
 use crate::unit::{RunResult, Status};
+#[allow(unused_imports)]
+use chrono::Utc;
 #[allow(unused_imports)]
 use mana_core::ops::close::truncate_to_char_boundary;
 
@@ -64,10 +64,7 @@ pub fn cmd_close(
                         crate::discovery::find_archived_unit(mana_dir, parent_id)
                     {
                         if let Ok(parent) = Unit::from_file(&archived_path) {
-                            println!(
-                                "Auto-closed parent unit {}: {}",
-                                parent_id, parent.title
-                            );
+                            println!("Auto-closed parent unit {}: {}", parent_id, parent.title);
                         }
                     }
                 }
@@ -82,10 +79,7 @@ pub fn cmd_close(
                 println!();
                 println!("Command: {}", result.verify_command);
                 if result.timed_out {
-                    println!(
-                        "Timed out after {}s",
-                        result.timeout_secs.unwrap_or(0)
-                    );
+                    println!("Timed out after {}s", result.timeout_secs.unwrap_or(0));
                 } else if let Some(code) = result.exit_code {
                     println!("Exit code: {}", code);
                 }
@@ -96,10 +90,7 @@ pub fn cmd_close(
                     }
                 }
                 println!();
-                println!(
-                    "Attempt {}. Unit remains open.",
-                    result.unit.attempts
-                );
+                println!("Attempt {}. Unit remains open.", result.unit.attempts);
                 println!("Tip: Run `mana verify {}` to test without closing.", id);
                 println!("Tip: Use `mana close {} --force` to skip verify.", id);
 
@@ -124,10 +115,8 @@ pub fn cmd_close(
                         }
                         OnFailActionTaken::Escalated => {
                             // Load unit to get on_fail details
-                            if let Some(crate::unit::OnFailAction::Escalate {
-                                priority,
-                                message,
-                            }) = &result.unit.on_fail
+                            if let Some(crate::unit::OnFailAction::Escalate { priority, message }) =
+                                &result.unit.on_fail
                             {
                                 if let Some(p) = priority {
                                     println!("on_fail: escalated priority → P{}", p);
@@ -152,16 +141,10 @@ pub fn cmd_close(
                     if let Ok(unit) = Unit::from_file(&path) {
                         use std::io::IsTerminal;
                         if !std::io::stdin().is_terminal() {
-                            println!(
-                                "Feature \"{}\" requires human review to close.",
-                                unit.title
-                            );
+                            println!("Feature \"{}\" requires human review to close.", unit.title);
                             continue;
                         }
-                        eprintln!(
-                            "Feature: \"{}\" — mark as complete? [y/N] ",
-                            unit.title
-                        );
+                        eprintln!("Feature: \"{}\" — mark as complete? [y/N] ", unit.title);
                         let mut input = String::new();
                         std::io::stdin().read_line(&mut input).unwrap_or(0);
                         if !input.trim().eq_ignore_ascii_case("y") {

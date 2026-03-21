@@ -110,6 +110,11 @@ pub struct Config {
     /// Skipped in worktree mode (worktree already commits).
     #[serde(default, skip_serializing_if = "is_false_bool")]
     pub auto_commit: bool,
+    /// Shell command template for project-level research (`mana plan` with no ID).
+    /// Uses `{parent_id}` as placeholder for the parent unit that groups findings.
+    /// Falls back to `plan` template with a research-oriented prompt if unset.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub research: Option<String>,
 }
 
 fn default_auto_close_parent() -> bool {
