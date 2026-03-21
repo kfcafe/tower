@@ -121,6 +121,18 @@ Current workspace members:
 
 `wizard/` now has initial crate scaffolding, but the desktop app itself is still architecture-first and early.
 
+## Build optimization
+
+The workspace uses sccache and incremental compilation (see `.cargo/config.toml`).
+
+Rules for agents:
+- use `cargo check -p <crate>` scoped to the smallest crate, not `cargo check` on the whole workspace
+- use pre-built binaries instead of `cargo run -p <crate>` when available (e.g. `../target/debug/imp` instead of `cargo run --manifest-path ../Cargo.toml -p imp-cli`)
+- prefer `cargo check` over `cargo build` in verify gates unless a binary is genuinely needed
+- avoid running multiple `cargo` commands in parallel — they fight over the workspace build lock
+- when splitting large files into modules, keep the binary crate thin and logic in the library crate
+- keep `wizard-proto` types-only and stable to avoid cascading recompilation across consumers
+
 ## Current migration status
 
 Tower is implemented as a **copy-first umbrella root**.

@@ -19,8 +19,9 @@ pub enum DiffOutput {
 /// Show git diff of what changed for a specific bean.
 ///
 /// Strategy:
-/// 1. Look for commits with "Close unit {id}" or "unit {id}" in the message
-///    (from auto_commit). If found, show combined diff for those commits.
+/// 1. Look for commits with `bean-{id}` in the message (preferred auto-commit
+///    convention), plus legacy `Close unit {id}` messages. If found, show the
+///    combined diff for those commits.
 /// 2. Fall back to timestamp-based diffing: find the commit closest to
 ///    claimed_at and diff to closed_at (or HEAD if still open).
 /// 3. If the unit has a checkpoint SHA, use that as the base.
@@ -84,7 +85,8 @@ fn is_git_repo(dir: &Path) -> bool {
 
 /// Find commits whose message references a unit ID.
 ///
-/// Looks for the auto_commit convention: "Close unit {id}: ..." or "unit {id}"
+/// Looks for the preferred auto-commit convention `bean-{id}` plus legacy
+/// `Close unit {id}: ...` messages for backward compatibility.
 fn find_commits_for_unit(project_root: &Path, id: &str) -> Result<Vec<String>> {
     // Search for commits mentioning this unit ID in the message
     let patterns = [
@@ -306,7 +308,7 @@ mod tests {
         // Create a commit with the auto_commit convention
         fs::write(project_root.join("feature.txt"), "new feature").unwrap();
         run_git(project_root, &["add", "-A"]);
-        run_git(project_root, &["commit", "-m", "Close unit 5: add feature"]);
+        run_git(project_root, &["commit", "-m", "feat(bean-5): add feature"]);
 
         let commits = find_commits_for_unit(project_root, "5").unwrap();
         assert_eq!(commits.len(), 1);
@@ -326,7 +328,7 @@ mod tests {
         // Commit for unit 5 should NOT match unit 50
         fs::write(project_root.join("f.txt"), "content").unwrap();
         run_git(project_root, &["add", "-A"]);
-        run_git(project_root, &["commit", "-m", "Close unit 5: something"]);
+        run_git(project_root, &["commit", "-m", "feat(bean-5): something"]);
 
         let commits = find_commits_for_unit(project_root, "50").unwrap();
         assert!(commits.is_empty());
@@ -362,7 +364,7 @@ mod tests {
         // Make a change and commit with auto_commit convention
         fs::write(project_root.join("login.rs"), "fn login() {}").unwrap();
         run_git(project_root, &["add", "-A"]);
-        run_git(project_root, &["commit", "-m", "Close unit 3: Add login"]);
+        run_git(project_root, &["commit", "-m", "feat(bean-3): Add login"]);
 
         // Should succeed (output goes to stdout)
         let result = cmd_diff(&mana_dir, "3", DiffOutput::Stat, true);

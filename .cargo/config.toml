@@ -6,7 +6,12 @@
 # Eliminates redundant recompilation of unchanged dependencies.
 rustc-wrapper = "sccache"
 
-[target.aarch64-apple-darwin]
-# mold: fast linker (5-10x faster than default for incremental builds).
-linker = "clang"
-rustflags = ["-C", "link-arg=-fuse-ld=/opt/homebrew/bin/mold"]
+# Ensure incremental compilation is always on for dev builds.
+incremental = true
+
+# Note: mold linker is Linux-only. On macOS/arm64 the Apple linker
+# is already the fastest option. If the project moves to Linux CI,
+# add:
+#   [target.x86_64-unknown-linux-gnu]
+#   linker = "clang"
+#   rustflags = ["-C", "link-arg=-fuse-ld=mold"]

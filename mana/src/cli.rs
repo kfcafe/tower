@@ -975,7 +975,8 @@ Examples:
     /// Show git diff of what an agent changed for a bean
     ///
     /// Finds commits associated with a unit and shows their diff. Works with:
-    /// - Auto-commit: finds commits with "Close unit {id}" in the message
+    /// - Auto-commit: finds commits with `bean-{id}` in the message
+    ///   (plus legacy `Close unit {id}` commits)
     /// - Checkpoint: uses the checkpoint SHA recorded at claim time
     /// - Timestamps: falls back to diffing between claim and close times
     ///
