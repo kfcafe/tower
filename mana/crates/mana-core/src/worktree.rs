@@ -404,7 +404,8 @@ branch refs/heads/feature-x
     fn detect_worktree_runs_without_panic() {
         // This test just ensures the function doesn't panic
         // The actual result depends on the environment
-        let result = detect_worktree();
+        let cwd = std::env::current_dir().unwrap();
+        let result = detect_worktree(&cwd);
         assert!(result.is_ok());
     }
 
@@ -504,7 +505,8 @@ CONFLICT (content): Merge conflict in file2.txt
             // This test verifies the function signature and return type
             // by calling it - it will likely fail (not in git repo) but
             // shouldn't panic
-            let result = commit_worktree_changes("test message");
+            let cwd = std::env::current_dir().unwrap();
+            let result = commit_worktree_changes(&cwd, "test message");
             // Result should be Ok or Err, not panic
             let _ = result;
         }

@@ -11,7 +11,7 @@ use crate::worktree;
 /// belongs to the given project root. Returns None if we're not in a worktree,
 /// or if the detected worktree doesn't match the project.
 pub(crate) fn detect_valid_worktree(project_root: &Path) -> Option<worktree::WorktreeInfo> {
-    let info = worktree::detect_worktree().unwrap_or(None)?;
+    let info = worktree::detect_worktree(project_root).unwrap_or(None)?;
 
     let canonical_root =
         std::fs::canonicalize(project_root).unwrap_or_else(|_| project_root.to_path_buf());
@@ -27,8 +27,11 @@ pub(crate) fn detect_valid_worktree(project_root: &Path) -> Option<worktree::Wor
 /// Returns Ok(true) if merge succeeded or there was nothing to merge.
 /// Returns Ok(false) if there was a conflict (caller should abort the close).
 pub(crate) fn handle_merge(wt_info: &worktree::WorktreeInfo, unit: &Unit) -> Result<bool> {
-    // Commit any uncommitted changes
-    worktree::commit_worktree_changes(&format!("Close unit {}: {}", unit.id, unit.title))?;
+    // Commit any uncommitted changes in the worktree directory
+    worktree::commit_worktree_changes(
+        &wt_info.worktree_path,
+        &format!("Close unit {}: {}", unit.id, unit.title),
+    )?;
 
     // Merge to main
     match worktree::merge_to_main(wt_info, &unit.id)? {

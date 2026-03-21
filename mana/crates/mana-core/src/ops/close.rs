@@ -940,7 +940,7 @@ fn run_on_fail_hook(
 
 /// Detect and validate worktree context.
 fn detect_valid_worktree(project_root: &Path) -> Option<crate::worktree::WorktreeInfo> {
-    let info = crate::worktree::detect_worktree().unwrap_or(None)?;
+    let info = crate::worktree::detect_worktree(project_root).unwrap_or(None)?;
 
     let canonical_root =
         std::fs::canonicalize(project_root).unwrap_or_else(|_| project_root.to_path_buf());
@@ -953,7 +953,10 @@ fn detect_valid_worktree(project_root: &Path) -> Option<crate::worktree::Worktre
 
 /// Commit worktree changes and merge to main. Returns false on conflict.
 fn handle_worktree_merge(wt_info: &crate::worktree::WorktreeInfo, unit: &Unit) -> Result<bool> {
-    crate::worktree::commit_worktree_changes(&format!("Close unit {}: {}", unit.id, unit.title))?;
+    crate::worktree::commit_worktree_changes(
+        &wt_info.worktree_path,
+        &format!("Close unit {}: {}", unit.id, unit.title),
+    )?;
 
     match crate::worktree::merge_to_main(wt_info, &unit.id)? {
         crate::worktree::MergeResult::Success | crate::worktree::MergeResult::NothingToCommit => {

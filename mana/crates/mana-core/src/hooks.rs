@@ -167,6 +167,7 @@ pub fn execute_hook(
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
+        .current_dir(project_dir)
         .spawn()
         .with_context(|| format!("Failed to spawn hook {}", hook_path.display()))?;
 
