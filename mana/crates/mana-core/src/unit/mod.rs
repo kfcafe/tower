@@ -170,6 +170,10 @@ pub struct Unit {
     /// Empty list means no blocking decisions.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub decisions: Vec<String>,
+    /// Override model for this unit. Takes precedence over config-level model settings.
+    /// Used as `{model}` substitution in command templates.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
 }
 
 fn default_priority() -> u8 {
@@ -250,6 +254,7 @@ impl Unit {
             attempt_log: Vec::new(),
             created_by: None,
             decisions: Vec::new(),
+            model: None,
         })
     }
 
@@ -461,6 +466,7 @@ impl Unit {
             "stale_after" => self.stale_after = serde_json::from_str(json_value)?,
             "paths" => self.paths = serde_json::from_str(json_value)?,
             "decisions" => self.decisions = serde_json::from_str(json_value)?,
+            "model" => self.model = serde_json::from_str(json_value)?,
             _ => return Err(anyhow::anyhow!("Unknown field: {}", field)),
         }
         self.updated_at = Utc::now();

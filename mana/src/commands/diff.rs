@@ -90,6 +90,7 @@ fn find_commits_for_unit(project_root: &Path, id: &str) -> Result<Vec<String>> {
     let patterns = [
         format!("Close unit {}: ", id),
         format!("Close unit {}:", id),
+        format!("bean-{}", id),
     ];
 
     let mut commits = Vec::new();

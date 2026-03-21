@@ -18,7 +18,14 @@ pub fn cmd_config_get(mana_dir: &Path, key: &str) -> Result<()> {
         "poll_interval" => config.poll_interval.to_string(),
         "rules_file" => config.rules_file.unwrap_or_else(|| "RULES.md".to_string()),
         "auto_commit" => config.auto_commit.to_string(),
+        "commit_template" => config
+            .commit_template
+            .unwrap_or_else(|| "Close unit {id}: {title}".to_string()),
         "research" => config.research.unwrap_or_default(),
+        "run_model" => config.run_model.unwrap_or_default(),
+        "plan_model" => config.plan_model.unwrap_or_default(),
+        "review_model" => config.review_model.unwrap_or_default(),
+        "research_model" => config.research_model.unwrap_or_default(),
         "on_close" => config.on_close.unwrap_or_default(),
         "on_fail" => config.on_fail.unwrap_or_default(),
         "post_plan" => config.post_plan.unwrap_or_default(),
@@ -113,11 +120,46 @@ pub fn cmd_config_set(mana_dir: &Path, key: &str, value: &str) -> Result<()> {
                 )
             })?;
         }
+        "commit_template" => {
+            if value.is_empty() || value == "none" || value == "unset" {
+                config.commit_template = None;
+            } else {
+                config.commit_template = Some(value.to_string());
+            }
+        }
         "research" => {
             if value.is_empty() || value == "none" || value == "unset" {
                 config.research = None;
             } else {
                 config.research = Some(value.to_string());
+            }
+        }
+        "run_model" => {
+            if value.is_empty() || value == "none" || value == "unset" {
+                config.run_model = None;
+            } else {
+                config.run_model = Some(value.to_string());
+            }
+        }
+        "plan_model" => {
+            if value.is_empty() || value == "none" || value == "unset" {
+                config.plan_model = None;
+            } else {
+                config.plan_model = Some(value.to_string());
+            }
+        }
+        "review_model" => {
+            if value.is_empty() || value == "none" || value == "unset" {
+                config.review_model = None;
+            } else {
+                config.review_model = Some(value.to_string());
+            }
+        }
+        "research_model" => {
+            if value.is_empty() || value == "none" || value == "unset" {
+                config.research_model = None;
+            } else {
+                config.research_model = Some(value.to_string());
             }
         }
         "on_close" => {

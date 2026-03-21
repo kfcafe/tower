@@ -72,10 +72,29 @@ pub struct Spawner {
 // Template helpers
 // ---------------------------------------------------------------------------
 
-/// Replace `{id}` placeholders in a command template with the unit ID.
+/// Replace `{id}` and `{model}` placeholders in a command template.
+///
+/// If `model` is `Some`, replaces `{model}` with the value.
+/// If `model` is `None`, `{model}` is left as-is (backward compatible).
 #[must_use]
 pub fn substitute_template(template: &str, bean_id: &str) -> String {
     template.replace("{id}", bean_id)
+}
+
+/// Replace `{id}` and `{model}` placeholders in a command template.
+///
+/// Model substitution follows precedence: bean-level override > config-level > no substitution.
+#[must_use]
+pub fn substitute_template_with_model(
+    template: &str,
+    bean_id: &str,
+    model: Option<&str>,
+) -> String {
+    let result = template.replace("{id}", bean_id);
+    match model {
+        Some(m) => result.replace("{model}", m),
+        None => result,
+    }
 }
 
 /// Build the log file path for a unit spawn.
@@ -706,7 +725,12 @@ mod tests {
             user: None,
             user_email: None,
             auto_commit: false,
+            commit_template: None,
             research: None,
+            run_model: None,
+            plan_model: None,
+            review_model: None,
+            research_model: None,
             worktree: false,
         };
 
@@ -739,7 +763,12 @@ mod tests {
             user: None,
             user_email: None,
             auto_commit: false,
+            commit_template: None,
             research: None,
+            run_model: None,
+            plan_model: None,
+            review_model: None,
+            research_model: None,
             worktree: false,
         };
 

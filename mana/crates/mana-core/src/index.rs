@@ -15,6 +15,11 @@ use crate::util::{atomic_write, natural_cmp};
 // IndexEntry
 // ---------------------------------------------------------------------------
 
+/// Default for `created_at` when deserializing old index files that lack the field.
+fn default_created_at() -> DateTime<Utc> {
+    DateTime::UNIX_EPOCH
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct IndexEntry {
     pub id: String,
@@ -40,8 +45,9 @@ pub struct IndexEntry {
     #[serde(default)]
     pub has_verify: bool,
     /// The actual verify command string (so agents don't need bn show per-bean)
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub verify: Option<String>,
+    #[serde(default = "default_created_at")]
     pub created_at: DateTime<Utc>,
     /// Agent or user currently holding a claim on this unit (e.g., "spro:12345" for agent with PID)
     #[serde(skip_serializing_if = "Option::is_none")]

@@ -81,7 +81,12 @@ pub fn init(path: Option<&Path>, params: InitParams) -> Result<InitResult> {
         user: None,
         user_email: None,
         auto_commit: false,
-        research: None,
+        commit_template: None,
+            research: None,
+        run_model: None,
+        plan_model: None,
+        review_model: None,
+        research_model: None,
     };
 
     config.save(&mana_dir)?;

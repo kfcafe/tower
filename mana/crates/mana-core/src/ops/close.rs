@@ -305,7 +305,8 @@ pub fn close(mana_dir: &Path, id: &str, opts: CloseOpts) -> Result<CloseOutcome>
     if worktree_info.is_none() {
         let auto_commit_enabled = config.as_ref().map(|c| c.auto_commit).unwrap_or(false);
         if auto_commit_enabled {
-            auto_commit_on_close(project_root, id, &unit.title);
+            let template = config.as_ref().and_then(|c| c.commit_template.clone());
+            auto_commit_on_close(project_root, id, &unit.title, unit.parent.as_deref(), &unit.labels, template.as_deref());
         }
     }
 
@@ -977,9 +978,39 @@ fn cleanup_worktree(wt_info: &crate::worktree::WorktreeInfo) {
     }
 }
 
+/// Expand a commit template with placeholder values.
+///
+/// Supported placeholders: `{id}`, `{title}`, `{parent_id}`, `{labels}`.
+fn expand_commit_template(
+    template: &str,
+    id: &str,
+    title: &str,
+    parent_id: Option<&str>,
+    labels: &[String],
+) -> String {
+    template
+        .replace("{id}", id)
+        .replace("{title}", title)
+        .replace("{parent_id}", parent_id.unwrap_or(""))
+        .replace("{labels}", &labels.join(","))
+}
+
 /// Auto-commit changes on close (non-worktree mode).
-fn auto_commit_on_close(project_root: &Path, id: &str, title: &str) {
-    let message = format!("Close unit {}: {}", id, title);
+fn auto_commit_on_close(
+    project_root: &Path,
+    id: &str,
+    title: &str,
+    parent_id: Option<&str>,
+    labels: &[String],
+    template: Option<&str>,
+) {
+    let message = expand_commit_template(
+        template.unwrap_or("Close unit {id}: {title}"),
+        id,
+        title,
+        parent_id,
+        labels,
+    );
 
     let add_status = std::process::Command::new("git")
         .args(["add", "-A"])
@@ -1080,7 +1111,12 @@ mod tests {
             user: None,
             user_email: None,
             auto_commit: false,
+            commit_template: None,
             research: None,
+            run_model: None,
+            plan_model: None,
+            review_model: None,
+            research_model: None,
         }
         .save(&mana_dir)
         .unwrap();

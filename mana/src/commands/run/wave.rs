@@ -547,6 +547,7 @@ mod tests {
                 produces: vec![],
                 requires: vec![],
                 paths: vec![],
+                model: None,
             },
             SizedBean {
                 id: "2".to_string(),
@@ -558,6 +559,7 @@ mod tests {
                 produces: vec![],
                 requires: vec![],
                 paths: vec![],
+                model: None,
             },
         ];
         let waves = compute_waves(&units, &index);
@@ -579,6 +581,7 @@ mod tests {
                 produces: vec![],
                 requires: vec![],
                 paths: vec![],
+                model: None,
             },
             SizedBean {
                 id: "2".to_string(),
@@ -590,6 +593,7 @@ mod tests {
                 produces: vec![],
                 requires: vec![],
                 paths: vec![],
+                model: None,
             },
             SizedBean {
                 id: "3".to_string(),
@@ -601,6 +605,7 @@ mod tests {
                 produces: vec![],
                 requires: vec![],
                 paths: vec![],
+                model: None,
             },
         ];
         let waves = compute_waves(&units, &index);
@@ -625,6 +630,7 @@ mod tests {
                 produces: vec![],
                 requires: vec![],
                 paths: vec![],
+                model: None,
             },
             SizedBean {
                 id: "2".to_string(),
@@ -636,6 +642,7 @@ mod tests {
                 produces: vec![],
                 requires: vec![],
                 paths: vec![],
+                model: None,
             },
             SizedBean {
                 id: "3".to_string(),
@@ -647,6 +654,7 @@ mod tests {
                 produces: vec![],
                 requires: vec![],
                 paths: vec![],
+                model: None,
             },
             SizedBean {
                 id: "4".to_string(),
@@ -658,6 +666,7 @@ mod tests {
                 produces: vec![],
                 requires: vec![],
                 paths: vec![],
+                model: None,
             },
         ];
         let waves = compute_waves(&units, &index);
@@ -679,6 +688,7 @@ mod tests {
             produces: vec![],
             requires: vec![],
             paths: vec![],
+            model: None,
         }];
 
         let results = run_wave_template(&units, "echo {id}", None, 4, 30).unwrap();
@@ -699,6 +709,7 @@ mod tests {
             produces: vec![],
             requires: vec![],
             paths: vec![],
+            model: None,
         }];
 
         let results = run_wave_template(&units, "echo {id}", None, 4, 30).unwrap();
@@ -719,6 +730,7 @@ mod tests {
             produces: vec![],
             requires: vec![],
             paths: vec![],
+            model: None,
         }];
 
         let results = run_wave_template(&units, "false", None, 4, 30).unwrap();
@@ -740,6 +752,7 @@ mod tests {
             produces: produces.into_iter().map(|s| s.to_string()).collect(),
             requires: requires.into_iter().map(|s| s.to_string()).collect(),
             paths: vec![],
+            model: None,
         }
     }
 
@@ -862,6 +875,7 @@ mod tests {
             produces: vec![],
             requires: vec![],
             paths: paths.into_iter().map(|s| s.to_string()).collect(),
+            model: None,
         }
     }
 

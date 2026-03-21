@@ -757,7 +757,12 @@ mod tests {
             user: None,
             user_email: None,
             auto_commit: false,
+            commit_template: None,
             research: None,
+            run_model: None,
+            plan_model: None,
+            review_model: None,
+            research_model: None,
         };
         let mode = determine_spawn_mode(&config);
         assert_eq!(
@@ -792,7 +797,12 @@ mod tests {
             user: None,
             user_email: None,
             auto_commit: false,
+            commit_template: None,
             research: None,
+            run_model: None,
+            plan_model: None,
+            review_model: None,
+            research_model: None,
         };
         let mode = determine_spawn_mode(&config);
         assert_eq!(mode, SpawnMode::Direct);

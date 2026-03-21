@@ -808,6 +808,7 @@ mod tests {
             produces: produces.into_iter().map(|s| s.to_string()).collect(),
             requires: requires.into_iter().map(|s| s.to_string()).collect(),
             paths: vec![],
+            model: None,
         }
     }
 
@@ -1126,6 +1127,7 @@ mod tests {
             produces: vec![],
             requires: vec![],
             paths: paths.into_iter().map(|s| s.to_string()).collect(),
+            model: None,
         }
     }
 

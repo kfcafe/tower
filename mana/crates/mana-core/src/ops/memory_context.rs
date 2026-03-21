@@ -228,7 +228,12 @@ mod tests {
             user: None,
             user_email: None,
             auto_commit: false,
+            commit_template: None,
             research: None,
+            run_model: None,
+            plan_model: None,
+            review_model: None,
+            research_model: None,
         }
         .save(&mana_dir)
         .unwrap();

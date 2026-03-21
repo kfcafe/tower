@@ -27,6 +27,8 @@ pub struct SizedBean {
     pub produces: Vec<String>,
     pub requires: Vec<String>,
     pub paths: Vec<String>,
+    /// Per-unit model override from frontmatter.
+    pub model: Option<String>,
 }
 
 /// A unit that was excluded from dispatch due to scope issues.
@@ -123,6 +125,7 @@ pub(super) fn plan_dispatch(
             produces: entry.produces.clone(),
             requires: entry.requires.clone(),
             paths: entry.paths.clone(),
+            model: None,
         });
     }
 

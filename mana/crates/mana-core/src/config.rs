@@ -106,15 +106,31 @@ pub struct Config {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub user_email: Option<String>,
     /// Automatically commit all changes when a unit is closed (default: false).
-    /// Creates a commit with message "Close unit {id}: {title}".
+    /// Creates a commit with message based on `commit_template`.
     /// Skipped in worktree mode (worktree already commits).
     #[serde(default, skip_serializing_if = "is_false_bool")]
     pub auto_commit: bool,
+    /// Template for auto-commit messages. Placeholders: {id}, {title}, {parent_id}, {labels}.
+    /// Default: "Close unit {id}: {title}"
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub commit_template: Option<String>,
     /// Shell command template for project-level research (`mana plan` with no ID).
     /// Uses `{parent_id}` as placeholder for the parent unit that groups findings.
     /// Falls back to `plan` template with a research-oriented prompt if unset.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub research: Option<String>,
+    /// Model to use for implementing units (`mana run`). Substituted into `{model}` in templates.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub run_model: Option<String>,
+    /// Model to use for planning/splitting (`mana plan`). Substituted into `{model}` in templates.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plan_model: Option<String>,
+    /// Model to use for adversarial review (`mana run --review`). Substituted into `{model}` in templates.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub review_model: Option<String>,
+    /// Model to use for project research (`mana plan` with no args). Substituted into `{model}` in templates.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub research_model: Option<String>,
 }
 
 fn default_auto_close_parent() -> bool {
@@ -160,7 +176,12 @@ impl Default for Config {
             user: None,
             user_email: None,
             auto_commit: false,
+            commit_template: None,
             research: None,
+            run_model: None,
+            plan_model: None,
+            review_model: None,
+            research_model: None,
         }
     }
 }
@@ -271,8 +292,23 @@ impl Config {
             if !config.auto_commit {
                 config.auto_commit = parent.auto_commit;
             }
+            if config.commit_template.is_none() {
+                config.commit_template = parent.commit_template.clone();
+            }
             if config.research.is_none() {
                 config.research = parent.research.clone();
+            }
+            if config.run_model.is_none() {
+                config.run_model = parent.run_model.clone();
+            }
+            if config.plan_model.is_none() {
+                config.plan_model = parent.plan_model.clone();
+            }
+            if config.review_model.is_none() {
+                config.review_model = parent.review_model.clone();
+            }
+            if config.research_model.is_none() {
+                config.research_model = parent.research_model.clone();
             }
             // Never inherit: project, next_id, extends
         }
@@ -456,7 +492,12 @@ mod tests {
             user: None,
             user_email: None,
             auto_commit: false,
+            commit_template: None,
             research: None,
+            run_model: None,
+            plan_model: None,
+            review_model: None,
+            research_model: None,
         };
 
         config.save(dir.path()).unwrap();
@@ -488,7 +529,12 @@ mod tests {
             user: None,
             user_email: None,
             auto_commit: false,
+            commit_template: None,
             research: None,
+            run_model: None,
+            plan_model: None,
+            review_model: None,
+            research_model: None,
         };
 
         assert_eq!(config.increment_id(), 1);
@@ -536,7 +582,12 @@ mod tests {
             user: None,
             user_email: None,
             auto_commit: false,
+            commit_template: None,
             research: None,
+            run_model: None,
+            plan_model: None,
+            review_model: None,
+            research_model: None,
         };
         config.save(dir.path()).unwrap();
 
@@ -583,7 +634,12 @@ mod tests {
             user: None,
             user_email: None,
             auto_commit: false,
+            commit_template: None,
             research: None,
+            run_model: None,
+            plan_model: None,
+            review_model: None,
+            research_model: None,
         };
         config.save(dir.path()).unwrap();
 
@@ -642,7 +698,12 @@ mod tests {
             user: None,
             user_email: None,
             auto_commit: false,
+            commit_template: None,
             research: None,
+            run_model: None,
+            plan_model: None,
+            review_model: None,
+            research_model: None,
         };
         config.save(dir.path()).unwrap();
 
@@ -677,7 +738,12 @@ mod tests {
             user: None,
             user_email: None,
             auto_commit: false,
+            commit_template: None,
             research: None,
+            run_model: None,
+            plan_model: None,
+            review_model: None,
+            research_model: None,
         };
         config.save(dir.path()).unwrap();
 
@@ -722,7 +788,12 @@ mod tests {
             user: None,
             user_email: None,
             auto_commit: false,
+            commit_template: None,
             research: None,
+            run_model: None,
+            plan_model: None,
+            review_model: None,
+            research_model: None,
         };
         config.save(dir.path()).unwrap();
 
@@ -941,7 +1012,12 @@ mod tests {
             user: None,
             user_email: None,
             auto_commit: false,
+            commit_template: None,
             research: None,
+            run_model: None,
+            plan_model: None,
+            review_model: None,
+            research_model: None,
         };
         config.save(dir.path()).unwrap();
 
@@ -1001,7 +1077,12 @@ mod tests {
             user: None,
             user_email: None,
             auto_commit: false,
+            commit_template: None,
             research: None,
+            run_model: None,
+            plan_model: None,
+            review_model: None,
+            research_model: None,
         };
         config.save(dir.path()).unwrap();
 
@@ -1033,7 +1114,12 @@ mod tests {
             user: None,
             user_email: None,
             auto_commit: false,
+            commit_template: None,
             research: None,
+            run_model: None,
+            plan_model: None,
+            review_model: None,
+            research_model: None,
         };
         config.save(dir.path()).unwrap();
 
@@ -1078,7 +1164,12 @@ mod tests {
             user: None,
             user_email: None,
             auto_commit: false,
+            commit_template: None,
             research: None,
+            run_model: None,
+            plan_model: None,
+            review_model: None,
+            research_model: None,
         };
         config.save(dir.path()).unwrap();
 
@@ -1123,7 +1214,12 @@ mod tests {
             user: None,
             user_email: None,
             auto_commit: false,
+            commit_template: None,
             research: None,
+            run_model: None,
+            plan_model: None,
+            review_model: None,
+            research_model: None,
         };
         config.save(dir.path()).unwrap();
 
@@ -1233,7 +1329,12 @@ mod tests {
             user: None,
             user_email: None,
             auto_commit: false,
+            commit_template: None,
             research: None,
+            run_model: None,
+            plan_model: None,
+            review_model: None,
+            research_model: None,
         };
 
         config.save(dir.path()).unwrap();
