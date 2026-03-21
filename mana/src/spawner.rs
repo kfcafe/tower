@@ -275,6 +275,47 @@ impl Spawner {
         }
         self.running.clear();
     }
+
+    /// Gracefully shutdown all running agent processes.
+    ///
+    /// Sends SIGTERM first, waits up to `grace_period` for processes to exit,
+    /// then falls back to SIGKILL for any remaining. Releases claims on all
+    /// affected units.
+    pub fn shutdown_all(&mut self, grace_period: std::time::Duration) {
+        if self.running.is_empty() {
+            return;
+        }
+
+        // Send SIGTERM to all children
+        for proc in self.running.values() {
+            unsafe {
+                libc::kill(proc.pid as i32, libc::SIGTERM);
+            }
+        }
+
+        // Wait for graceful shutdown
+        let deadline = Instant::now() + grace_period;
+        loop {
+            let mut finished_ids = Vec::new();
+            for (id, proc) in self.running.iter_mut() {
+                if let Ok(Some(_)) = proc.child.try_wait() {
+                    finished_ids.push(id.clone());
+                }
+            }
+            for id in &finished_ids {
+                let _ = release_bean(id);
+                let _ = finish_agent(id, Some(-15));
+                self.running.remove(id);
+            }
+            if self.running.is_empty() || Instant::now() >= deadline {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+
+        // SIGKILL any remaining processes
+        self.kill_all();
+    }
 }
 
 impl Default for Spawner {

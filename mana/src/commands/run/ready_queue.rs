@@ -639,6 +639,9 @@ pub(super) fn run_single_direct(
         ),
     };
 
+    // Unregister child PID (process has exited)
+    super::unregister_child_pid(child_pid);
+
     // Release all file locks held by this unit.
     if file_locking {
         let _ = crate::locks::release_all_for_bean(mana_dir, &sb.id);
