@@ -8,6 +8,7 @@ use crate::hooks::{execute_hook, HookEvent};
 use crate::index::Index;
 use crate::unit::{validate_priority, OnFailAction, Unit};
 use crate::util::title_to_slug;
+use crate::verify_lint::{lint_verify, VerifyLintLevel};
 
 /// Parameters for creating a new unit.
 pub struct CreateParams {
