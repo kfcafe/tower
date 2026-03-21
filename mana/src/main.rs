@@ -386,6 +386,7 @@ fn main() -> Result<()> {
         Command::Show {
             id,
             json,
+            no_json,
             short,
             history,
         } => {
@@ -394,7 +395,13 @@ fn main() -> Result<()> {
                 validate_bean_id(&id)?;
             }
             let resolved_id = resolve_bean_id(&id, &mana_dir)?;
-            cmd_show(&resolved_id, json, short, history, &mana_dir)
+            cmd_show(
+                &resolved_id,
+                auto_json(json, no_json),
+                short,
+                history,
+                &mana_dir,
+            )
         }
 
         Command::Edit { id } => {
@@ -412,22 +419,31 @@ fn main() -> Result<()> {
             all,
             mine,
             json,
+            no_json,
             ids,
             format,
             ..
-        } => cmd_list(
-            status.as_deref(),
-            priority,
-            parent.as_deref(),
-            label.as_deref(),
-            assignee.as_deref(),
-            mine,
-            all,
-            json,
-            ids,
-            format.as_deref(),
-            &mana_dir,
-        ),
+        } => {
+            // --ids and --format are explicit overrides — don't auto-JSON
+            let effective_json = if ids || format.is_some() {
+                json // only if explicitly passed
+            } else {
+                auto_json(json, no_json)
+            };
+            cmd_list(
+                status.as_deref(),
+                priority,
+                parent.as_deref(),
+                label.as_deref(),
+                assignee.as_deref(),
+                mine,
+                all,
+                effective_json,
+                ids,
+                format.as_deref(),
+                &mana_dir,
+            )
+        }
 
         Command::Update {
             id,
@@ -494,12 +510,14 @@ fn main() -> Result<()> {
             }
         }
 
-        Command::Verify { id, json, .. } => {
+        Command::Verify {
+            id, json, no_json, ..
+        } => {
             validate_bean_id(&id)?;
             let resolved_id = resolve_bean_id(&id, &mana_dir)?;
             let out = mana::output::Output::new();
             let passed = cmd_verify(&mana_dir, &resolved_id, &out)?;
-            if json {
+            if auto_json(json, no_json) {
                 println!(
                     "{}",
                     serde_json::json!({"id": resolved_id, "passed": passed})
@@ -560,11 +578,12 @@ fn main() -> Result<()> {
             }
         },
 
-        Command::Status { json } => cmd_status(json, &mana_dir),
+        Command::Status { json, no_json } => cmd_status(auto_json(json, no_json), &mana_dir),
 
         Command::Context {
             id,
             json,
+            no_json,
             structure_only,
             agent_prompt,
             instructions,
@@ -577,7 +596,7 @@ fn main() -> Result<()> {
                     cmd_context(
                         &mana_dir,
                         &resolved_id,
-                        json,
+                        auto_json(json, no_json),
                         structure_only,
                         agent_prompt,
                         instructions,
@@ -586,7 +605,7 @@ fn main() -> Result<()> {
                 }
                 None => {
                     // No ID: output memory context
-                    cmd_memory_context(&mana_dir, json)
+                    cmd_memory_context(&mana_dir, auto_json(json, no_json))
                 }
             }
         }
@@ -603,7 +622,7 @@ fn main() -> Result<()> {
             let out = mana::output::Output::new();
             cmd_tidy(&mana_dir, dry_run, &out)
         }
-        Command::Stats { json } => cmd_stats(&mana_dir, json),
+        Command::Stats { json, no_json } => cmd_stats(&mana_dir, auto_json(json, no_json)),
         Command::Doctor { fix } => cmd_doctor(&mana_dir, fix),
         Command::Trust { revoke, check } => cmd_trust(&mana_dir, revoke, check),
 
@@ -739,7 +758,7 @@ fn main() -> Result<()> {
             )
         }
 
-        Command::Agents { json } => cmd_agents(&mana_dir, json),
+        Command::Agents { json, no_json } => cmd_agents(&mana_dir, auto_json(json, no_json)),
 
         Command::Logs { id, follow, all } => {
             validate_bean_id(&id)?;
@@ -759,7 +778,12 @@ fn main() -> Result<()> {
             Ok(())
         }
 
-        Command::Recall { query, all, json } => cmd_recall(&mana_dir, &query, all, json),
+        Command::Recall {
+            query,
+            all,
+            json,
+            no_json,
+        } => cmd_recall(&mana_dir, &query, all, auto_json(json, no_json)),
 
         Command::VerifyFacts => cmd_verify_facts(&mana_dir),
 
@@ -772,10 +796,10 @@ fn main() -> Result<()> {
             McpCommand::Serve => cmd_mcp_serve(&mana_dir),
         },
 
-        Command::Trace { id, json } => {
+        Command::Trace { id, json, no_json } => {
             validate_bean_id(&id)?;
             let resolved_id = resolve_bean_id(&id, &mana_dir)?;
-            cmd_trace(&resolved_id, json, &mana_dir)
+            cmd_trace(&resolved_id, auto_json(json, no_json), &mana_dir)
         }
 
         Command::Diff {
