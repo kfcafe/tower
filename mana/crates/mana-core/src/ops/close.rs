@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use chrono::Utc;
 
-use crate::config::Config;
+use crate::config::{Config, DEFAULT_COMMIT_TEMPLATE};
 use crate::discovery::{archive_path_for_bean, find_archived_unit, find_unit_file};
 use crate::graph;
 use crate::hooks::{
@@ -373,26 +373,6 @@ pub fn close(mana_dir: &Path, id: &str, opts: CloseOpts) -> Result<CloseOutcome>
         run_post_close_actions(&unit, project_root, opts.reason.as_deref(), config.as_ref());
     warnings.extend(post_close.warnings);
 
-    // Auto-commit if configured (skip in worktree mode — it already commits)
-    let auto_commit_result = if worktree_info.is_none() {
-        let auto_commit_enabled = config.as_ref().map(|c| c.auto_commit).unwrap_or(false);
-        if auto_commit_enabled {
-            let template = config.as_ref().and_then(|c| c.commit_template.clone());
-            Some(auto_commit_on_close(
-                project_root,
-                id,
-                &unit.title,
-                unit.parent.as_deref(),
-                &unit.labels,
-                template.as_deref(),
-            ))
-        } else {
-            None
-        }
-    } else {
-        None
-    };
-
     // Clean up worktree after successful close
     if let Some(ref wt_info) = worktree_info {
         if let Some(warning) = cleanup_worktree(wt_info) {
@@ -416,8 +396,29 @@ pub fn close(mana_dir: &Path, id: &str, opts: CloseOpts) -> Result<CloseOutcome>
         vec![]
     };
 
-    // Rebuild index
+    // Rebuild index before auto-commit so archived units, parent cascades, and
+    // index updates are included in the close commit.
     rebuild_index(mana_dir)?;
+
+    // Auto-commit if configured (skip in worktree mode — it already commits)
+    let auto_commit_result = if worktree_info.is_none() {
+        let auto_commit_enabled = config.as_ref().map(|c| c.auto_commit).unwrap_or(false);
+        if auto_commit_enabled {
+            let template = config.as_ref().and_then(|c| c.commit_template.clone());
+            Some(auto_commit_on_close(
+                project_root,
+                id,
+                &unit.title,
+                unit.parent.as_deref(),
+                &unit.labels,
+                template.as_deref(),
+            ))
+        } else {
+            None
+        }
+    } else {
+        None
+    };
 
     Ok(CloseOutcome::Closed(CloseResult {
         unit,
@@ -1033,10 +1034,14 @@ fn handle_worktree_merge(
     wt_info: &crate::worktree::WorktreeInfo,
     unit: &Unit,
 ) -> Result<WorktreeMergeStatus> {
-    crate::worktree::commit_worktree_changes(
-        &wt_info.worktree_path,
-        &format!("Close unit {}: {}", unit.id, unit.title),
-    )?;
+    let message = expand_commit_template(
+        DEFAULT_COMMIT_TEMPLATE,
+        &unit.id,
+        &unit.title,
+        unit.parent.as_deref(),
+        &unit.labels,
+    );
+    crate::worktree::commit_worktree_changes(&wt_info.worktree_path, &message)?;
 
     match crate::worktree::merge_to_main(wt_info, &unit.id)? {
         crate::worktree::MergeResult::Success | crate::worktree::MergeResult::NothingToCommit => {
@@ -1084,7 +1089,7 @@ fn auto_commit_on_close(
     template: Option<&str>,
 ) -> AutoCommitResult {
     let message = expand_commit_template(
-        template.unwrap_or("Close unit {id}: {title}"),
+        template.unwrap_or(DEFAULT_COMMIT_TEMPLATE),
         id,
         title,
         parent_id,
