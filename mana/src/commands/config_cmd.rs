@@ -2,7 +2,7 @@ use std::path::Path;
 
 use anyhow::{anyhow, Result};
 
-use crate::config::{Config, GlobalConfig};
+use crate::config::{Config, GlobalConfig, DEFAULT_COMMIT_TEMPLATE};
 
 /// Get a configuration value by key
 pub fn cmd_config_get(mana_dir: &Path, key: &str) -> Result<()> {
@@ -20,7 +20,7 @@ pub fn cmd_config_get(mana_dir: &Path, key: &str) -> Result<()> {
         "auto_commit" => config.auto_commit.to_string(),
         "commit_template" => config
             .commit_template
-            .unwrap_or_else(|| "Close unit {id}: {title}".to_string()),
+            .unwrap_or_else(|| DEFAULT_COMMIT_TEMPLATE.to_string()),
         "research" => config.research.unwrap_or_default(),
         "run_model" => config.run_model.unwrap_or_default(),
         "plan_model" => config.plan_model.unwrap_or_default(),
@@ -279,5 +279,14 @@ mod tests {
 
         let config = Config::load(dir.path()).unwrap();
         assert_eq!(config.run, None);
+    }
+
+    #[test]
+    fn set_auto_commit_persists_bool() {
+        let dir = setup_test_dir();
+        cmd_config_set(dir.path(), "auto_commit", "true").unwrap();
+
+        let config = Config::load(dir.path()).unwrap();
+        assert!(config.auto_commit);
     }
 }
