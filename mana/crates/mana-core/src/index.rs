@@ -39,6 +39,10 @@ pub struct IndexEntry {
     /// Whether this unit has a verify command (SPECs have verify, GOALs don't)
     #[serde(default)]
     pub has_verify: bool,
+    /// The actual verify command string (so agents don't need bn show per-bean)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub verify: Option<String>,
+    pub created_at: DateTime<Utc>,
     /// Agent or user currently holding a claim on this unit (e.g., "spro:12345" for agent with PID)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub claimed_by: Option<String>,
@@ -71,6 +75,8 @@ impl From<&Unit> for IndexEntry {
             produces: unit.produces.clone(),
             requires: unit.requires.clone(),
             has_verify: unit.verify.is_some(),
+            verify: unit.verify.clone(),
+            created_at: unit.created_at,
             claimed_by: unit.claimed_by.clone(),
             attempts: unit.attempts,
             paths: unit.paths.clone(),

@@ -124,6 +124,8 @@ mod tests {
             produces: vec![],
             requires: vec![],
             has_verify: true,
+            verify: None,
+            created_at: Utc::now(),
             claimed_by: None,
             attempts: 0,
             paths: vec![],

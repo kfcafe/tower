@@ -998,6 +998,8 @@ mod tests {
             produces: produces.into_iter().map(|s| s.to_string()).collect(),
             requires: requires.into_iter().map(|s| s.to_string()).collect(),
             has_verify: true,
+            verify: None,
+            created_at: chrono::Utc::now(),
             claimed_by: None,
             attempts: 0,
             paths: vec![],
@@ -1176,5 +1178,47 @@ mod tests {
         running.insert("src/shared.rs".to_string());
 
         assert!(has_path_conflict(&bean, &running));
+    }
+
+    #[test]
+    fn critical_path_bean_scheduled_first() {
+        // Two beans with same priority are both ready.
+        // Bean A has a chain of dependents (A→B→C), weight=3.
+        // Bean D is independent, weight=1.
+        // A should sort before D because it has higher downstream weight.
+        use super::super::wave::compute_downstream_weights;
+
+        let a = make_sized_bean("A", vec![], vec![], vec![]);
+        let b = make_sized_bean("B", vec!["A"], vec![], vec![]);
+        let c = make_sized_bean("C", vec!["B"], vec![], vec![]);
+        let d = make_sized_bean("D", vec![], vec![], vec![]);
+        let all_beans = vec![a, b, c, d];
+
+        let weight_map = compute_downstream_weights(&all_beans);
+
+        // Both A and D are ready (no deps). Collect them.
+        let all_ids: HashSet<String> = all_beans.iter().map(|b| b.id.clone()).collect();
+        let completed: HashSet<String> = HashSet::new();
+        let mut ready: Vec<SizedBean> = all_beans
+            .iter()
+            .filter(|b| is_bean_ready(b, &completed, &all_ids, &all_beans))
+            .cloned()
+            .collect();
+
+        // Sort the same way the ready queue does
+        ready.sort_by(|a, b| {
+            a.priority
+                .cmp(&b.priority)
+                .then_with(|| {
+                    let wa = weight_map.get(&a.id).copied().unwrap_or(1);
+                    let wb = weight_map.get(&b.id).copied().unwrap_or(1);
+                    wb.cmp(&wa)
+                })
+                .then_with(|| natural_cmp(&a.id, &b.id))
+        });
+
+        assert_eq!(ready.len(), 2);
+        assert_eq!(ready[0].id, "A"); // weight 3, scheduled first
+        assert_eq!(ready[1].id, "D"); // weight 1, scheduled second
     }
 }

@@ -332,6 +332,8 @@ mod tests {
             produces: vec!["Artifact".to_string()],
             requires: Vec::new(),
             has_verify: true,
+            verify: None,
+            created_at: chrono::Utc::now(),
             claimed_by: None,
             attempts: 0,
             paths: vec!["src/test.rs".to_string()],

@@ -187,6 +187,10 @@ Verify patterns:
         #[arg(long)]
         json: bool,
 
+        /// Force human-readable output even when piped
+        #[arg(long = "no-json", conflicts_with = "json")]
+        no_json: bool,
+
         /// One-line summary
         #[arg(long)]
         short: bool,
@@ -245,6 +249,10 @@ Examples:
         /// JSON output
         #[arg(long)]
         json: bool,
+
+        /// Force human-readable output even when piped
+        #[arg(long = "no-json", conflicts_with = "json")]
+        no_json: bool,
 
         /// Output only unit IDs (one per line, for piping)
         #[arg(long, conflicts_with = "json")]
@@ -379,6 +387,10 @@ Examples:
         #[arg(long)]
         json: bool,
 
+        /// Force human-readable output even when piped
+        #[arg(long = "no-json", conflicts_with = "json")]
+        no_json: bool,
+
         /// Suppress informational output
         #[arg(long, short = 'q')]
         quiet: bool,
@@ -415,6 +427,10 @@ Examples:
         /// JSON output
         #[arg(long)]
         json: bool,
+
+        /// Force human-readable output even when piped
+        #[arg(long = "no-json", conflicts_with = "json")]
+        no_json: bool,
     },
 
     /// Output context for a unit, or memory context (no args)
@@ -445,6 +461,10 @@ Examples:
         /// Output as JSON (file paths and contents)
         #[arg(long)]
         json: bool,
+
+        /// Force human-readable output even when piped
+        #[arg(long = "no-json", conflicts_with = "json")]
+        no_json: bool,
 
         /// Output only the structural summary (signatures, imports) — skip full file contents
         #[arg(long)]
@@ -502,6 +522,10 @@ Examples:
         /// Output as JSON
         #[arg(long)]
         json: bool,
+
+        /// Force human-readable output even when piped
+        #[arg(long = "no-json", conflicts_with = "json")]
+        no_json: bool,
     },
 
     /// Claim a unit for work (sets status to in_progress)
@@ -770,6 +794,10 @@ Examples:
         /// JSON output
         #[arg(long)]
         json: bool,
+
+        /// Force human-readable output even when piped
+        #[arg(long = "no-json", conflicts_with = "json")]
+        no_json: bool,
     },
 
     /// View agent output from log files
@@ -876,6 +904,10 @@ Examples:
         /// JSON output
         #[arg(long)]
         json: bool,
+
+        /// Force human-readable output even when piped
+        #[arg(long = "no-json", conflicts_with = "json")]
+        no_json: bool,
     },
 
     /// Re-verify all facts, detect staleness
@@ -902,6 +934,10 @@ Examples:
         /// Output as JSON
         #[arg(long)]
         json: bool,
+
+        /// Force human-readable output even when piped
+        #[arg(long = "no-json", conflicts_with = "json")]
+        no_json: bool,
     },
 
     /// Show git diff of what an agent changed for a bean

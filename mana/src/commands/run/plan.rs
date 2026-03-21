@@ -9,7 +9,10 @@ use crate::stream::{self, StreamEvent};
 use crate::unit::Status;
 
 use super::ready_queue::all_deps_closed;
-use super::wave::{compute_waves, Wave};
+use super::wave::{
+    compute_critical_path, compute_downstream_weights, compute_effective_parallelism,
+    compute_file_conflicts, compute_waves, Wave,
+};
 use super::BeanAction;
 
 /// A unit ready for dispatch.
@@ -136,17 +139,66 @@ pub(super) fn plan_dispatch(
 
 /// Print the dispatch plan without executing.
 pub(super) fn print_plan(plan: &DispatchPlan) {
+    let weights = compute_downstream_weights(&plan.all_beans);
+    let critical_path = compute_critical_path(&plan.all_beans);
+
     for (wave_idx, wave) in plan.waves.iter().enumerate() {
-        println!("Wave {}: {} unit(s)", wave_idx + 1, wave.units.len());
+        let eff_par = compute_effective_parallelism(&wave.units);
+        let par_note = if eff_par < wave.units.len() {
+            format!(", parallelism: {}/{}", eff_par, wave.units.len())
+        } else {
+            String::new()
+        };
+        println!(
+            "Wave {}: {} unit(s){}",
+            wave_idx + 1,
+            wave.units.len(),
+            par_note
+        );
         for sb in &wave.units {
+            let weight = weights.get(&sb.id).copied().unwrap_or(1);
+            let weight_note = if weight > 1 {
+                format!("  [weight: {}]", weight)
+            } else {
+                String::new()
+            };
             let warning = plan
                 .warnings
                 .iter()
                 .find(|(id, _)| id == &sb.id)
                 .map(|(_, w)| format!("  ⚠ {}", w))
                 .unwrap_or_default();
-            println!("  {}  {}  {}{}", sb.id, sb.title, sb.action, warning);
+            println!(
+                "  {}  {}  {}{}{}",
+                sb.id, sb.title, sb.action, weight_note, warning
+            );
         }
+    }
+
+    // File conflict groups
+    let mut has_conflicts = false;
+    for (wave_idx, wave) in plan.waves.iter().enumerate() {
+        let conflicts = compute_file_conflicts(&wave.units);
+        if !conflicts.is_empty() {
+            if !has_conflicts {
+                println!();
+                println!("File conflicts:");
+                has_conflicts = true;
+            }
+            for (file, ids) in &conflicts {
+                println!("  {} → {} (wave {})", file, ids.join(", "), wave_idx + 1);
+            }
+        }
+    }
+
+    // Critical path
+    if critical_path.len() > 1 {
+        println!();
+        println!(
+            "Critical path: {} ({} steps)",
+            critical_path.join(" → "),
+            critical_path.len()
+        );
     }
 
     if !plan.skipped.is_empty() {
@@ -445,5 +497,107 @@ mod tests {
         assert_eq!(plan.waves.len(), 2);
         assert_eq!(plan.waves[0].units[0].id, "1.1");
         assert_eq!(plan.waves[1].units[0].id, "1.2");
+    }
+
+    #[test]
+    fn plan_dispatch_sorts_wave_by_downstream_weight() {
+        let (_dir, mana_dir) = make_beans_dir();
+        write_config(&mana_dir, Some("echo {id}"));
+
+        let parent = crate::unit::Unit::new("1", "Parent");
+        parent.to_file(mana_dir.join("1-parent.md")).unwrap();
+
+        // A has no dependents (weight 1)
+        let mut a = crate::unit::Unit::new("1.1", "A leaf");
+        a.parent = Some("1".to_string());
+        a.verify = Some("echo ok".to_string());
+        a.paths = vec!["src/a.rs".to_string()];
+        a.to_file(mana_dir.join("1.1-a-leaf.md")).unwrap();
+
+        // B has two dependents D, E (weight 3)
+        let mut b = crate::unit::Unit::new("1.2", "B root");
+        b.parent = Some("1".to_string());
+        b.verify = Some("echo ok".to_string());
+        b.paths = vec!["src/b.rs".to_string()];
+        b.to_file(mana_dir.join("1.2-b-root.md")).unwrap();
+
+        // C has one dependent F (weight 2)
+        let mut c = crate::unit::Unit::new("1.3", "C mid");
+        c.parent = Some("1".to_string());
+        c.verify = Some("echo ok".to_string());
+        c.paths = vec!["src/c.rs".to_string()];
+        c.to_file(mana_dir.join("1.3-c-mid.md")).unwrap();
+
+        // D depends on B
+        let mut d = crate::unit::Unit::new("1.4", "D dep B");
+        d.parent = Some("1".to_string());
+        d.verify = Some("echo ok".to_string());
+        d.dependencies = vec!["1.2".to_string()];
+        d.paths = vec!["src/d.rs".to_string()];
+        d.to_file(mana_dir.join("1.4-d.md")).unwrap();
+
+        // E depends on B
+        let mut e = crate::unit::Unit::new("1.5", "E dep B");
+        e.parent = Some("1".to_string());
+        e.verify = Some("echo ok".to_string());
+        e.dependencies = vec!["1.2".to_string()];
+        e.paths = vec!["src/e.rs".to_string()];
+        e.to_file(mana_dir.join("1.5-e.md")).unwrap();
+
+        // F depends on C
+        let mut f = crate::unit::Unit::new("1.6", "F dep C");
+        f.parent = Some("1".to_string());
+        f.verify = Some("echo ok".to_string());
+        f.dependencies = vec!["1.3".to_string()];
+        f.paths = vec!["src/f.rs".to_string()];
+        f.to_file(mana_dir.join("1.6-f.md")).unwrap();
+
+        // Simulate dry-run: shows all waves
+        let config = Config::load_with_extends(&mana_dir).unwrap();
+        let plan = plan_dispatch(&mana_dir, &config, Some("1"), false, true).unwrap();
+
+        // Wave 1 should be: B(weight 3), C(weight 2), A(weight 1)
+        assert_eq!(plan.waves[0].units.len(), 3);
+        assert_eq!(plan.waves[0].units[0].id, "1.2"); // B — weight 3
+        assert_eq!(plan.waves[0].units[1].id, "1.3"); // C — weight 2
+        assert_eq!(plan.waves[0].units[2].id, "1.1"); // A — weight 1
+    }
+
+    #[test]
+    fn plan_dispatch_file_conflict_in_wave() {
+        let (_dir, mana_dir) = make_beans_dir();
+        write_config(&mana_dir, Some("echo {id}"));
+
+        // Two units in the same wave that share a file
+        let mut a = crate::unit::Unit::new("1", "Touches lib");
+        a.verify = Some("echo ok".to_string());
+        a.paths = vec!["src/lib.rs".to_string(), "src/a.rs".to_string()];
+        a.to_file(mana_dir.join("1-touches-lib.md")).unwrap();
+
+        let mut b = crate::unit::Unit::new("2", "Also lib");
+        b.verify = Some("echo ok".to_string());
+        b.paths = vec!["src/lib.rs".to_string(), "src/b.rs".to_string()];
+        b.to_file(mana_dir.join("2-also-lib.md")).unwrap();
+
+        let mut c = crate::unit::Unit::new("3", "Independent");
+        c.verify = Some("echo ok".to_string());
+        c.paths = vec!["src/c.rs".to_string()];
+        c.to_file(mana_dir.join("3-independent.md")).unwrap();
+
+        let config = Config::load_with_extends(&mana_dir).unwrap();
+        let plan = plan_dispatch(&mana_dir, &config, None, false, false).unwrap();
+
+        // All 3 in wave 1 (no deps)
+        assert_eq!(plan.waves.len(), 1);
+        assert_eq!(plan.waves[0].units.len(), 3);
+
+        // Verify file conflict detection works on the wave
+        let conflicts = super::super::wave::compute_file_conflicts(&plan.waves[0].units);
+        assert_eq!(conflicts.len(), 1);
+        assert_eq!(conflicts[0].0, "src/lib.rs");
+
+        // Effective parallelism: 2 (A+C or B+C, not A+B)
+        let eff = super::super::wave::compute_effective_parallelism(&plan.waves[0].units);
+        assert_eq!(eff, 2);
     }
 }

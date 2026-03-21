@@ -5,6 +5,20 @@ use std::io::IsTerminal;
 use anyhow::Result;
 use clap::{CommandFactory, Parser};
 
+/// Resolve whether to output JSON based on explicit flags and TTY detection.
+/// When stdout is piped (not a TTY), defaults to JSON — matching rg/fd/eza behavior.
+/// `--json` forces JSON even at a TTY. `--no-json` forces pretty even in a pipe.
+fn auto_json(explicit_json: bool, no_json: bool) -> bool {
+    if no_json {
+        return false;
+    }
+    if explicit_json {
+        return true;
+    }
+    // Auto-detect: JSON when stdout is not a terminal
+    !std::io::stdout().is_terminal()
+}
+
 mod cli;
 
 use cli::{Cli, Command, ConfigCommand, CreateOpts, CreateSubcommand, DepCommand, McpCommand};
