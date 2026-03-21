@@ -162,7 +162,7 @@ pub fn parse_agent_event(raw: &serde_json::Value) -> Option<AgentEvent> {
         }
     }
 
-    // ── result → Finished ──────────────────────────────────────────
+    // ── result → Finished (pi format) ──────────────────────────────
     if let Some(result) = raw.get("result") {
         let total_tokens = result
             .get("totalTokens")
@@ -170,6 +170,127 @@ pub fn parse_agent_event(raw: &serde_json::Value) -> Option<AgentEvent> {
             .unwrap_or(0);
         let cost = result.get("cost").and_then(|c| c.as_f64()).unwrap_or(0.0);
         return Some(AgentEvent::Finished { total_tokens, cost });
+    }
+
+    // ── imp format: flat "type" field ──────────────────────────────
+    // imp uses {type: "text_delta", text: "..."} instead of pi's
+    // nested assistantMessageEvent structure.
+    if let Some(event_type) = raw.get("type").and_then(|t| t.as_str()) {
+        match event_type {
+            "text_delta" => {
+                if let Some(text) = raw.get("text").and_then(|t| t.as_str()) {
+                    return Some(AgentEvent::Text {
+                        text: text.to_string(),
+                    });
+                }
+            }
+            "thinking_delta" => {
+                if let Some(text) = raw.get("text").and_then(|t| t.as_str()) {
+                    return Some(AgentEvent::Thinking {
+                        text: text.to_string(),
+                    });
+                }
+            }
+            "tool_call" => {
+                let name = raw
+                    .get("tool")
+                    .and_then(|n| n.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                let id = raw
+                    .get("id")
+                    .and_then(|i| i.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                return Some(AgentEvent::ToolStart { name, id });
+            }
+            "tool_execution_start" => {
+                let name = raw
+                    .get("tool")
+                    .and_then(|n| n.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                let id = raw
+                    .get("tool_call_id")
+                    .and_then(|i| i.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                return Some(AgentEvent::ToolStart { name, id });
+            }
+            "tool_execution_end" => {
+                let _id = raw
+                    .get("tool_call_id")
+                    .and_then(|i| i.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                // imp puts tool args in the "args" field of tool_execution_start,
+                // but for ToolEnd we need the name. Extract from result if available.
+                let name = raw
+                    .get("tool")
+                    .and_then(|n| n.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                let arguments = raw
+                    .get("args")
+                    .cloned()
+                    .or_else(|| raw.get("result").and_then(|r| r.get("args")).cloned())
+                    .unwrap_or(serde_json::Value::Null);
+                return Some(AgentEvent::ToolEnd { name, arguments });
+            }
+            "turn_end" => {
+                // imp's turn_end has {index, message} where message has usage info
+                if let Some(msg) = raw.get("message") {
+                    if let Some(usage) = msg.get("usage") {
+                        let input = usage
+                            .get("input_tokens")
+                            .and_then(|t| t.as_u64())
+                            .unwrap_or(0);
+                        let output = usage
+                            .get("output_tokens")
+                            .and_then(|t| t.as_u64())
+                            .unwrap_or(0);
+                        let cache_read = usage
+                            .get("cache_read_tokens")
+                            .or_else(|| usage.get("cache_read_input_tokens"))
+                            .and_then(|t| t.as_u64())
+                            .unwrap_or(0);
+                        let cache_write = usage
+                            .get("cache_write_tokens")
+                            .or_else(|| usage.get("cache_creation_input_tokens"))
+                            .and_then(|t| t.as_u64())
+                            .unwrap_or(0);
+                        // imp doesn't include cost per-turn in turn_end
+                        let cost = 0.0;
+                        if input > 0 || output > 0 {
+                            return Some(AgentEvent::TokenUpdate {
+                                input_tokens: input,
+                                output_tokens: output,
+                                cache_read,
+                                cache_write,
+                                cost,
+                            });
+                        }
+                    }
+                }
+            }
+            "agent_end" => {
+                // imp's agent_end: {usage: {input_tokens, output_tokens, ...}, cost: {total, ...}}
+                let total_tokens = raw
+                    .get("usage")
+                    .map(|u| {
+                        u.get("input_tokens").and_then(|t| t.as_u64()).unwrap_or(0)
+                            + u.get("output_tokens").and_then(|t| t.as_u64()).unwrap_or(0)
+                    })
+                    .unwrap_or(0);
+                let cost = raw
+                    .get("cost")
+                    .and_then(|c| c.get("total"))
+                    .and_then(|t| t.as_f64())
+                    .unwrap_or(0.0);
+                return Some(AgentEvent::Finished { total_tokens, cost });
+            }
+            _ => {}
+        }
     }
 
     None
@@ -181,11 +302,12 @@ pub fn parse_agent_event(raw: &serde_json::Value) -> Option<AgentEvent> {
 /// For `Bash` we scan the command string for tokens that look like file paths.
 pub fn extract_file_path(tool_name: &str, arguments: &serde_json::Value) -> Option<String> {
     match tool_name {
-        "Read" | "Write" | "Edit" => arguments
+        // pi uses PascalCase, imp uses snake_case
+        "Read" | "Write" | "Edit" | "read" | "write" | "edit" | "multi_edit" => arguments
             .get("path")
             .and_then(|p| p.as_str())
             .map(|s| s.to_string()),
-        "Bash" => {
+        "Bash" | "bash" => {
             if let Some(cmd) = arguments.get("command").and_then(|c| c.as_str()) {
                 for word in cmd.split_whitespace() {
                     if word.contains('/')

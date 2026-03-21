@@ -332,6 +332,17 @@ fn determine_spawn_mode(config: &Config) -> SpawnMode {
     }
 }
 
+/// Check if `imp` is available on PATH.
+fn imp_available() -> bool {
+    Command::new("imp")
+        .arg("--version")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
 /// Check if `pi` is available on PATH.
 fn pi_available() -> bool {
     Command::new("pi")
