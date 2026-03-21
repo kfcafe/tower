@@ -1433,7 +1433,7 @@ fn history_multiple_attempts_accumulate() {
 
 #[test]
 fn history_agent_from_env_var() {
-    std::env::set_var("BEANS_AGENT", "test-agent-42");
+    std::env::set_var("MANA_AGENT", "test-agent-42");
 
     let (_dir, mana_dir) = setup_test_beans_dir();
     let mut unit = Unit::new("1", "Task with agent env");
@@ -1444,7 +1444,7 @@ fn history_agent_from_env_var() {
 
     cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
 
-    std::env::remove_var("BEANS_AGENT");
+    std::env::remove_var("MANA_AGENT");
 
     let archived = crate::discovery::find_archived_unit(&mana_dir, "1").unwrap();
     let updated = Unit::from_file(&archived).unwrap();

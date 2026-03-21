@@ -218,7 +218,7 @@ pub fn close(mana_dir: &Path, id: &str, opts: CloseOpts) -> Result<CloseOutcome>
             let verify_result = run_verify_command(&verify_cmd, project_root, timeout_secs)?;
             let finished_at = Utc::now();
             let duration_secs = (finished_at - started_at).num_milliseconds() as f64 / 1000.0;
-            let agent = std::env::var("BEANS_AGENT").ok();
+            let agent = std::env::var("MANA_AGENT").ok();
 
             if !verify_result.passed {
                 // Build combined output — on timeout, synthesize a message

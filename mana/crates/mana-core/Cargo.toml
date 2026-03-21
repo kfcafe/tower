@@ -5,7 +5,7 @@ edition = "2021"
 rust-version = "1.85"
 description = "Core library for mana — task tracker for AI coding agents"
 license = "Apache-2.0"
-repository = "https://github.com/kfcafe/beans"
+repository = "https://github.com/kfcafe/mana"
 
 [lib]
 name = "mana_core"
