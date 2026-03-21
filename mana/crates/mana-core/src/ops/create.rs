@@ -51,9 +51,7 @@ pub fn create(mana_dir: &Path, params: CreateParams) -> Result<CreateResult> {
     if let Some(ref verify_cmd) = params.verify {
         let findings = lint_verify(verify_cmd);
         if !findings.is_empty() {
-            let has_errors = findings
-                .iter()
-                .any(|f| f.level == VerifyLintLevel::Error);
+            let has_errors = findings.iter().any(|f| f.level == VerifyLintLevel::Error);
 
             // Print warnings to stderr regardless
             for finding in &findings {

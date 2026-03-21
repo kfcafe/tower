@@ -1434,7 +1434,11 @@ mod tests {
         let project_dir = temp_dir.path().join("verification-project");
         let mana_dir = project_dir.join(".mana");
         fs::create_dir_all(&mana_dir).unwrap();
-        fs::write(mana_dir.join("config.yaml"), "project: verification\nnext_id: 1\n").unwrap();
+        fs::write(
+            mana_dir.join("config.yaml"),
+            "project: verification\nnext_id: 1\n",
+        )
+        .unwrap();
 
         let original_dir = std::env::current_dir().unwrap();
         std::env::set_current_dir(&project_dir).unwrap();
@@ -1467,7 +1471,11 @@ mod tests {
         let project_dir = temp_dir.path().join("global-review-project");
         let mana_dir = project_dir.join(".mana");
         fs::create_dir_all(&mana_dir).unwrap();
-        fs::write(mana_dir.join("config.yaml"), "project: global-review\nnext_id: 1\n").unwrap();
+        fs::write(
+            mana_dir.join("config.yaml"),
+            "project: global-review\nnext_id: 1\n",
+        )
+        .unwrap();
 
         let original_dir = std::env::current_dir().unwrap();
         std::env::set_current_dir(&project_dir).unwrap();

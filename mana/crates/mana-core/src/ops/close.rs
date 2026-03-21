@@ -1777,7 +1777,10 @@ mod tests {
         assert_eq!(head_subject.trim(), "feat(bean-1.1): Child");
 
         let changed_files = git_stdout(project_root, &["show", "--name-only", "--format=", "HEAD"]);
-        assert!(changed_files.contains(".mana/index.yaml"), "{changed_files}");
+        assert!(
+            changed_files.contains(".mana/index.yaml"),
+            "{changed_files}"
+        );
         assert!(changed_files.contains("1-parent.md"), "{changed_files}");
         assert!(changed_files.contains("1.1-child.md"), "{changed_files}");
     }
