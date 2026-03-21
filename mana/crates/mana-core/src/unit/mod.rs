@@ -1,3 +1,44 @@
+//! Core unit data model.
+//!
+//! A [`Unit`] is the fundamental work item in mana. Units are stored as
+//! Markdown files with YAML frontmatter (`.mana/{id}-{slug}.md`) and carry
+//! everything an agent needs to perform and verify a single piece of work:
+//! title, description, verify command, dependency links, attempt history,
+//! and lifecycle metadata.
+//!
+//! ## File format
+//!
+//! ```text
+//! ---
+//! id: '42'
+//! title: Fix the login bug
+//! status: open
+//! priority: 2
+//! created_at: '2026-01-01T00:00:00Z'
+//! updated_at: '2026-01-01T00:00:00Z'
+//! verify: cargo test --test login
+//! ---
+//!
+//! ## Description
+//!
+//! The login flow fails when the session cookie expires mid-request.
+//! ```
+//!
+//! ## Reading and writing
+//!
+//! ```rust,no_run
+//! use mana_core::unit::Unit;
+//! use std::path::Path;
+//!
+//! // Read from file
+//! let unit = Unit::from_file(Path::new(".mana/42-fix-login-bug.md")).unwrap();
+//!
+//! // Modify and write back
+//! let mut unit = unit;
+//! unit.notes = Some("Root cause: token expiry not checked".to_string());
+//! unit.to_file(Path::new(".mana/42-fix-login-bug.md")).unwrap();
+//! ```
+
 use std::path::Path;
 
 use anyhow::Result;
@@ -28,6 +69,15 @@ pub fn validate_priority(priority: u8) -> Result<()> {
 // Unit
 // ---------------------------------------------------------------------------
 
+/// A single unit of work managed by mana.
+///
+/// Units live on disk as Markdown files with YAML frontmatter.
+/// All fields are serializable; optional fields are omitted from YAML
+/// when `None` or empty to keep files readable.
+///
+/// Most callers should construct units via [`Unit::try_new`] and mutate
+/// them through the high-level API functions in [`crate::api`] rather than
+/// building them directly.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Unit {
     pub id: String,

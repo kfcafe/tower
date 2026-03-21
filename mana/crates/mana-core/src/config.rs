@@ -1,3 +1,40 @@
+//! Project and global configuration.
+//!
+//! Configuration is stored in `.mana/config.yaml` (project-level) and
+//! `~/.config/units/config.yaml` (global/user-level).
+//!
+//! ## Loading config
+//!
+//! ```rust,no_run
+//! use mana_core::config::Config;
+//! use std::path::Path;
+//!
+//! let mana_dir = Path::new("/project/.mana");
+//!
+//! // Load project config only
+//! let config = Config::load(mana_dir).unwrap();
+//!
+//! // Load with inheritance from `extends` paths (recommended)
+//! let config = Config::load_with_extends(mana_dir).unwrap();
+//! println!("Project: {}", config.project);
+//! println!("Max concurrent agents: {}", config.max_concurrent);
+//! ```
+//!
+//! ## Config inheritance
+//!
+//! A project config can extend shared configs via the `extends` field:
+//!
+//! ```yaml
+//! project: my-project
+//! next_id: 42
+//! extends:
+//!   - ~/shared/mana-config.yaml
+//!   - ../team-defaults.yaml
+//! ```
+//!
+//! Extended configs are merged with the local config taking precedence.
+//! The `project`, `next_id`, and `extends` fields are never inherited.
+
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -33,6 +70,14 @@ impl Default for ReviewConfig {
     }
 }
 
+/// Project-level mana configuration, loaded from `.mana/config.yaml`.
+///
+/// All fields have sensible defaults; only `project` and `next_id` are
+/// required in the YAML file. Optional fields are omitted when serialized
+/// to keep config files minimal.
+///
+/// Use [`Config::load_with_extends`] to load with inherited values from
+/// parent configs listed in the `extends` field.
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Config {
     pub project: String,
