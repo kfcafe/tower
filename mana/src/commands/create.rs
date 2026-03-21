@@ -41,6 +41,8 @@ pub struct CreateArgs {
     pub verify_timeout: Option<u64>,
     /// Mark as a product feature (human-only close, no verify gate required).
     pub feature: bool,
+    /// Unresolved decisions that block autonomous execution.
+    pub decisions: Vec<String>,
 }
 
 /// Assign a child ID for a parent unit.
@@ -300,6 +302,11 @@ pub fn cmd_create(mana_dir: &Path, args: CreateArgs) -> Result<String> {
         unit.verify_timeout = Some(timeout);
     }
 
+    // Set decisions if provided
+    if !args.decisions.is_empty() {
+        unit.decisions = args.decisions;
+    }
+
     // Get the project directory (parent of mana_dir which is .mana)
     let project_dir = mana_dir
         .parent()
@@ -452,6 +459,7 @@ mod tests {
             claim: false,
             by: None,
             verify_timeout: None,
+            decisions: Vec::new(),
         };
 
         cmd_create(&mana_dir, args).unwrap();
@@ -492,6 +500,7 @@ mod tests {
             claim: false,
             by: None,
             verify_timeout: None,
+            decisions: Vec::new(),
         };
 
         let result = cmd_create(&mana_dir, args);
@@ -534,6 +543,7 @@ mod tests {
             claim: false,
             by: None,
             verify_timeout: None,
+            decisions: Vec::new(),
         };
         cmd_create(&mana_dir, args1).unwrap();
 
@@ -559,6 +569,7 @@ mod tests {
             claim: false,
             by: None,
             verify_timeout: None,
+            decisions: Vec::new(),
         };
         cmd_create(&mana_dir, args2).unwrap();
 
@@ -595,6 +606,7 @@ mod tests {
             claim: false,
             by: None,
             verify_timeout: None,
+            decisions: Vec::new(),
         };
         cmd_create(&mana_dir, parent_args).unwrap();
 
@@ -620,6 +632,7 @@ mod tests {
             claim: false,
             by: None,
             verify_timeout: None,
+            decisions: Vec::new(),
         };
         cmd_create(&mana_dir, child_args).unwrap();
 
@@ -655,6 +668,7 @@ mod tests {
             claim: false,
             by: None,
             verify_timeout: None,
+            decisions: Vec::new(),
         };
         cmd_create(&mana_dir, parent_args).unwrap();
 
@@ -681,6 +695,7 @@ mod tests {
                 claim: false,
                 by: None,
                 verify_timeout: None,
+                decisions: Vec::new(),
             };
             cmd_create(&mana_dir, child_args).unwrap();
         }
@@ -722,6 +737,7 @@ mod tests {
             claim: false,
             by: None,
             verify_timeout: None,
+            decisions: Vec::new(),
         };
 
         cmd_create(&mana_dir, args).unwrap();
@@ -763,6 +779,7 @@ mod tests {
             claim: false,
             by: None,
             verify_timeout: None,
+            decisions: Vec::new(),
         };
 
         cmd_create(&mana_dir, args).unwrap();
@@ -828,6 +845,7 @@ mod tests {
             claim: false,
             by: None,
             verify_timeout: None,
+            decisions: Vec::new(),
         };
 
         let result = cmd_create(&mana_dir, args);
@@ -865,6 +883,7 @@ mod tests {
                 claim: false,
                 by: None,
                 verify_timeout: None,
+                decisions: Vec::new(),
             };
 
             let result = cmd_create(&mana_dir, args);
@@ -914,6 +933,7 @@ mod tests {
             claim: false,
             by: None,
             verify_timeout: None,
+            decisions: Vec::new(),
         };
 
         // Unit should be created
@@ -966,6 +986,7 @@ mod tests {
             claim: false,
             by: None,
             verify_timeout: None,
+            decisions: Vec::new(),
         };
 
         // Unit creation should fail
@@ -1036,6 +1057,7 @@ mod tests {
             claim: false,
             by: None,
             verify_timeout: None,
+            decisions: Vec::new(),
         };
 
         // Create unit
@@ -1091,6 +1113,7 @@ mod tests {
             claim: false,
             by: None,
             verify_timeout: None,
+            decisions: Vec::new(),
         };
 
         // Unit creation should STILL succeed (post-create failures are non-blocking)
@@ -1144,6 +1167,7 @@ mod tests {
             claim: false,
             by: None,
             verify_timeout: None,
+            decisions: Vec::new(),
         };
 
         // Unit creation should succeed (untrusted hooks are skipped)
@@ -1186,6 +1210,7 @@ mod tests {
             claim: false,
             by: None,
             verify_timeout: None,
+            decisions: Vec::new(),
         };
 
         let result = cmd_create(&mana_dir, args);
@@ -1219,6 +1244,7 @@ mod tests {
             claim: false,
             by: None,
             verify_timeout: None,
+            decisions: Vec::new(),
         };
 
         let result = cmd_create(&mana_dir, args);
@@ -1258,6 +1284,7 @@ mod tests {
             claim: false,
             by: None,
             verify_timeout: None,
+            decisions: Vec::new(),
         };
 
         let result = cmd_create(&mana_dir, args);
@@ -1297,6 +1324,7 @@ mod tests {
             claim: false,
             by: None,
             verify_timeout: None,
+            decisions: Vec::new(),
         };
 
         let result = cmd_create(&mana_dir, args);
@@ -1337,6 +1365,7 @@ mod tests {
             claim: true,
             by: Some("agent-1".to_string()),
             verify_timeout: None,
+            decisions: Vec::new(),
         };
 
         cmd_create(&mana_dir, args).unwrap();
@@ -1377,6 +1406,7 @@ mod tests {
             claim: true,
             by: None,
             verify_timeout: None,
+            decisions: Vec::new(),
         };
 
         cmd_create(&mana_dir, args).unwrap();
@@ -1414,6 +1444,7 @@ mod tests {
             claim: false,
             by: None,
             verify_timeout: None,
+            decisions: Vec::new(),
         };
 
         cmd_create(&mana_dir, args).unwrap();
@@ -1451,6 +1482,7 @@ mod tests {
             claim: false,
             by: None,
             verify_timeout: None,
+            decisions: Vec::new(),
         };
         cmd_create(&mana_dir, parent_args).unwrap();
 
@@ -1476,6 +1508,7 @@ mod tests {
             claim: true,
             by: Some("agent-2".to_string()),
             verify_timeout: None,
+            decisions: Vec::new(),
         };
         cmd_create(&mana_dir, child_args).unwrap();
 
@@ -1516,6 +1549,7 @@ mod tests {
             claim: true,
             by: Some("agent-1".to_string()),
             verify_timeout: None,
+            decisions: Vec::new(),
         };
 
         let result = cmd_create(&mana_dir, args);
@@ -1556,6 +1590,7 @@ mod tests {
             claim: true,
             by: None,
             verify_timeout: None,
+            decisions: Vec::new(),
         };
 
         let result = cmd_create(&mana_dir, args);
@@ -1587,6 +1622,7 @@ mod tests {
             claim: true,
             by: None,
             verify_timeout: None,
+            decisions: Vec::new(),
         };
 
         let result = cmd_create(&mana_dir, args);
@@ -1619,6 +1655,7 @@ mod tests {
             claim: false,
             by: None,
             verify_timeout: None,
+            decisions: Vec::new(),
         };
         cmd_create(&mana_dir, parent_args).unwrap();
 
@@ -1645,6 +1682,7 @@ mod tests {
             claim: true,
             by: Some("agent-1".to_string()),
             verify_timeout: None,
+            decisions: Vec::new(),
         };
 
         let result = cmd_create(&mana_dir, child_args);
@@ -1680,6 +1718,7 @@ mod tests {
             claim: false,
             by: None,
             verify_timeout: None,
+            decisions: Vec::new(),
         };
 
         let result = cmd_create(&mana_dir, args);
@@ -1815,6 +1854,7 @@ mod tests {
             claim: false,
             by: None,
             verify_timeout: None,
+            decisions: Vec::new(),
         };
         let id1 = cmd_create(&mana_dir, args1).unwrap();
 
@@ -1840,6 +1880,7 @@ mod tests {
             claim: false,
             by: None,
             verify_timeout: None,
+            decisions: Vec::new(),
         };
         let id2 = cmd_create_next(&mana_dir, args2).unwrap();
 
@@ -1880,6 +1921,7 @@ mod tests {
             claim: false,
             by: None,
             verify_timeout: None,
+            decisions: Vec::new(),
         };
         let id1 = cmd_create(&mana_dir, args1).unwrap();
 
@@ -1905,6 +1947,7 @@ mod tests {
             claim: false,
             by: None,
             verify_timeout: None,
+            decisions: Vec::new(),
         };
         let id2 = cmd_create_next(&mana_dir, args2).unwrap();
 
@@ -1930,6 +1973,7 @@ mod tests {
             claim: false,
             by: None,
             verify_timeout: None,
+            decisions: Vec::new(),
         };
         let id3 = cmd_create_next(&mana_dir, args3).unwrap();
 
@@ -1976,6 +2020,7 @@ mod tests {
             claim: false,
             by: None,
             verify_timeout: None,
+            decisions: Vec::new(),
         };
         cmd_create(&mana_dir, args1).unwrap();
 
@@ -2000,6 +2045,7 @@ mod tests {
             claim: false,
             by: None,
             verify_timeout: None,
+            decisions: Vec::new(),
         };
         cmd_create(&mana_dir, args2).unwrap();
 
@@ -2025,6 +2071,7 @@ mod tests {
             claim: false,
             by: None,
             verify_timeout: None,
+            decisions: Vec::new(),
         };
         let id3 = cmd_create_next(&mana_dir, args3).unwrap();
 
@@ -2066,6 +2113,7 @@ mod tests {
             claim: false,
             by: None,
             verify_timeout: None,
+            decisions: Vec::new(),
         };
         let result = cmd_create_next(&mana_dir, args);
         assert!(result.is_err(), "Should fail with no existing units");
@@ -2106,6 +2154,7 @@ mod tests {
             claim: false,
             by: None,
             verify_timeout: None,
+            decisions: Vec::new(),
         };
 
         let id = cmd_create(&mana_dir, args).unwrap();
@@ -2143,6 +2192,7 @@ mod tests {
             claim: false,
             by: None,
             verify_timeout: None,
+            decisions: Vec::new(),
         };
 
         let result = cmd_create(&mana_dir, args);
@@ -2184,6 +2234,7 @@ mod tests {
             claim: false,
             by: None,
             verify_timeout: None,
+            decisions: Vec::new(),
         };
 
         let result = cmd_create(&mana_dir, args);

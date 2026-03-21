@@ -1,8 +1,12 @@
-//! `mana plan` — interactively plan a large unit into children.
+//! `mana plan` — interactively plan a large unit into children, or run project research.
 //!
-//! Without an ID, picks the highest-priority ready unit that is oversized or unscoped.
-//! When `config.plan` is set, spawns that template command.
-//! Otherwise, builds a rich decomposition prompt and spawns `pi` directly.
+//! With an ID, decomposes a large unit into smaller children.
+//! Without an ID, enters project-level research mode: detects the project stack,
+//! runs static analysis, and spawns an agent to find improvements and create units.
+//!
+//! When `config.plan` is set, spawns that template command for decomposition.
+//! When `config.research` is set, spawns that for research mode.
+//! Otherwise, builds a rich prompt and spawns `pi` directly.
 
 use std::path::Path;
 
@@ -13,7 +17,7 @@ use crate::discovery::find_unit_file;
 use crate::index::Index;
 use crate::unit::Unit;
 use mana_core::ops::plan::{
-    build_decomposition_prompt, find_plan_candidates, is_oversized, shell_escape,
+    build_decomposition_prompt, build_research_prompt, is_oversized, shell_escape,
 };
 
 /// Arguments for the plan command.
@@ -33,7 +37,7 @@ pub fn cmd_plan(mana_dir: &Path, args: PlanArgs) -> Result<()> {
 
     match args.id {
         Some(ref id) => plan_specific(mana_dir, &config, id, &args),
-        None => plan_auto_pick(mana_dir, &config, &args),
+        None => plan_research(mana_dir, &config, &args),
     }
 }
 
@@ -52,31 +56,110 @@ fn plan_specific(mana_dir: &Path, config: &Config, id: &str, args: &PlanArgs) ->
     spawn_plan(mana_dir, config, id, &unit, args)
 }
 
-/// Auto-pick the highest-priority ready unit that is oversized.
-fn plan_auto_pick(mana_dir: &Path, config: &Config, args: &PlanArgs) -> Result<()> {
-    let candidates = find_plan_candidates(mana_dir)?;
+/// Project-level research mode: analyze codebase and create units from findings.
+fn plan_research(mana_dir: &Path, config: &Config, args: &PlanArgs) -> Result<()> {
+    let project_root = mana_dir.parent().unwrap_or(Path::new("."));
+    let mana_cmd = std::env::args()
+        .next()
+        .unwrap_or_else(|| "mana".to_string());
 
-    if candidates.is_empty() {
-        eprintln!("✓ All ready units are small enough to run directly.");
-        eprintln!("  Use mana run to dispatch them.");
-        return Ok(());
-    }
+    eprintln!("🔍 Project research mode");
+    eprintln!();
 
-    // Show all candidates
-    eprintln!("{} units need planning:", candidates.len());
-    for c in &candidates {
-        eprintln!("  P{}  {:6}  {}", c.priority, c.id, c.title);
+    // Detect stack
+    let stack = mana_core::ops::plan::detect_project_stack(project_root);
+    if stack.is_empty() {
+        eprintln!("  Could not detect project language/stack.");
+    } else {
+        eprintln!("  Detected stack:");
+        for (lang, file) in &stack {
+            eprintln!("    {} ({})", lang, file);
+        }
     }
     eprintln!();
 
-    // Pick first (highest priority, lowest ID)
-    let first = &candidates[0];
-    eprintln!("Planning: {} — {}", first.id, first.title);
+    // Create a parent unit to group findings
+    let date = chrono::Utc::now().format("%Y-%m-%d");
+    let parent_title = format!("Project research — {}", date);
 
-    let bean_path = find_unit_file(mana_dir, &first.id)?;
-    let unit = Unit::from_file(&bean_path)?;
+    if args.dry_run {
+        eprintln!("Would create parent unit: {}", parent_title);
+        eprintln!();
 
-    spawn_plan(mana_dir, config, &first.id, &unit, args)
+        // Run static checks for preview
+        eprintln!("Running static analysis...");
+        let static_output = mana_core::ops::plan::run_static_checks(project_root);
+        if static_output.is_empty() {
+            eprintln!("  No issues found (or tools not installed).");
+        } else {
+            eprintln!("{}", static_output);
+        }
+
+        let prompt = build_research_prompt(project_root, "PARENT_ID", &mana_cmd);
+        eprintln!("--- Research prompt ---");
+        eprintln!("{}", prompt);
+        return Ok(());
+    }
+
+    // Create the parent unit
+    let mut cfg = crate::config::Config::load(mana_dir)?;
+    let parent_id = cfg.increment_id().to_string();
+    cfg.save(mana_dir)?;
+
+    let mut parent_unit = Unit::new(&parent_id, &parent_title);
+    parent_unit.labels = vec!["research".to_string()];
+    parent_unit.verify = Some(format!("{} tree {}", mana_cmd, parent_id));
+    parent_unit.description = Some(format!(
+        "Parent unit grouping project research findings from {}.",
+        date
+    ));
+    let slug = crate::util::title_to_slug(&parent_title);
+    let filename = format!("{}-{}.md", parent_id, slug);
+    parent_unit.to_file(mana_dir.join(&filename))?;
+
+    // Rebuild index to include new parent
+    let _ = Index::build(mana_dir);
+
+    eprintln!("Created parent unit {} — {}", parent_id, parent_title);
+    eprintln!();
+
+    // Spawn research agent
+    spawn_research(mana_dir, config, &parent_id, &mana_cmd, args)
+}
+
+/// Spawn the research agent.
+fn spawn_research(
+    mana_dir: &Path,
+    config: &Config,
+    parent_id: &str,
+    mana_cmd: &str,
+    args: &PlanArgs,
+) -> Result<()> {
+    // Priority: config.research > config.plan > built-in
+    if let Some(ref template) = config.research {
+        let cmd = template.replace("{parent_id}", parent_id);
+        eprintln!("Spawning research: {}", cmd);
+        return run_shell_command(&cmd, parent_id, args.auto);
+    }
+
+    if let Some(ref template) = config.plan {
+        // Use plan template with a research-oriented invocation
+        let cmd = template.replace("{id}", parent_id);
+        eprintln!("Spawning research (via plan template): {}", cmd);
+        return run_shell_command(&cmd, parent_id, args.auto);
+    }
+
+    // Built-in: construct prompt and spawn pi
+    let project_root = mana_dir.parent().unwrap_or(Path::new("."));
+
+    eprintln!("Running static analysis...");
+    let prompt = build_research_prompt(project_root, parent_id, mana_cmd);
+
+    let escaped_prompt = shell_escape(&prompt);
+    let cmd = format!("pi {}", escaped_prompt);
+
+    eprintln!("Spawning built-in research agent...");
+    run_shell_command(&cmd, parent_id, args.auto)
 }
 
 /// Spawn the plan command for a unit.
@@ -306,21 +389,37 @@ mod tests {
     }
 
     #[test]
-    fn plan_auto_pick_finds_oversized() {
+    fn plan_research_dry_run_shows_prompt() {
         let (dir, mana_dir) = setup_beans_dir();
 
+        let _ = Index::build(&mana_dir);
+
+        let result = cmd_plan(
+            &mana_dir,
+            PlanArgs {
+                id: None,
+                strategy: None,
+                auto: false,
+                force: false,
+                dry_run: true,
+            },
+        );
+
+        assert!(result.is_ok());
+
+        drop(dir);
+    }
+
+    #[test]
+    fn plan_research_creates_parent_unit() {
+        let (dir, mana_dir) = setup_beans_dir();
+
+        // Use a research template that just succeeds
         fs::write(
             mana_dir.join("config.yaml"),
-            "project: test\nnext_id: 10\nplan: \"true\"\n",
+            "project: test\nnext_id: 10\nresearch: \"true\"\n",
         )
         .unwrap();
-
-        let mut big = Unit::new("1", "Big unit");
-        big.produces = vec!["a".into(), "b".into(), "c".into(), "d".into()];
-        big.to_file(mana_dir.join("1-big-unit.md")).unwrap();
-
-        let small = Unit::new("2", "Small unit");
-        small.to_file(mana_dir.join("2-small-unit.md")).unwrap();
 
         let _ = Index::build(&mana_dir);
 
@@ -337,15 +436,28 @@ mod tests {
 
         assert!(result.is_ok());
 
+        // Check parent unit was created
+        let index = Index::load_or_rebuild(&mana_dir).unwrap();
+        let research_units: Vec<_> = index
+            .units
+            .iter()
+            .filter(|u| u.title.contains("Project research"))
+            .collect();
+        assert_eq!(research_units.len(), 1);
+
         drop(dir);
     }
 
     #[test]
-    fn plan_auto_pick_none_needed() {
+    fn plan_research_falls_back_to_plan_template() {
         let (dir, mana_dir) = setup_beans_dir();
 
-        let unit = Unit::new("1", "Small");
-        unit.to_file(mana_dir.join("1-small.md")).unwrap();
+        // No research template, but plan template is set
+        fs::write(
+            mana_dir.join("config.yaml"),
+            "project: test\nnext_id: 10\nplan: \"true\"\n",
+        )
+        .unwrap();
 
         let _ = Index::build(&mana_dir);
 
@@ -354,7 +466,7 @@ mod tests {
             PlanArgs {
                 id: None,
                 strategy: None,
-                auto: false,
+                auto: true,
                 force: false,
                 dry_run: false,
             },

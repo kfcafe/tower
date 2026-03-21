@@ -51,6 +51,9 @@ pub struct IndexEntry {
     /// Whether this unit is a feature (product-level goal, human-only close)
     #[serde(default)]
     pub feature: bool,
+    /// Whether this unit has unresolved decisions
+    #[serde(default)]
+    pub has_decisions: bool,
 }
 
 impl From<&Unit> for IndexEntry {
@@ -72,6 +75,7 @@ impl From<&Unit> for IndexEntry {
             attempts: unit.attempts,
             paths: unit.paths.clone(),
             feature: unit.feature,
+            has_decisions: !unit.decisions.is_empty(),
         }
     }
 }

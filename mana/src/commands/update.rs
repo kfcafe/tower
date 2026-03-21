@@ -29,6 +29,8 @@ pub fn cmd_update(
     assignee: Option<String>,
     add_label: Option<String>,
     remove_label: Option<String>,
+    decisions: Vec<String>,
+    resolve_decisions: Vec<String>,
 ) -> Result<()> {
     // Validate priority if provided
     if let Some(p) = priority {
@@ -105,6 +107,28 @@ pub fn cmd_update(
         unit.labels.retain(|l| l != &label);
     }
 
+    // Add new decisions
+    for decision in decisions {
+        unit.decisions.push(decision);
+    }
+
+    // Resolve decisions by index or text match
+    for resolve in &resolve_decisions {
+        if let Ok(idx) = resolve.parse::<usize>() {
+            if idx < unit.decisions.len() {
+                unit.decisions.remove(idx);
+            } else {
+                return Err(anyhow!("Decision index {} out of range (unit has {} decisions)", idx, unit.decisions.len()));
+            }
+        } else {
+            let before = unit.decisions.len();
+            unit.decisions.retain(|d| d != resolve);
+            if unit.decisions.len() == before {
+                return Err(anyhow!("No decision matching '{}' found", resolve));
+            }
+        }
+    }
+
     // Update timestamp
     unit.updated_at = Utc::now();
 
@@ -164,6 +188,8 @@ mod tests {
             None,
             None,
             None,
+            vec![],
+            vec![],
         )
         .unwrap();
 
@@ -194,6 +220,8 @@ mod tests {
             None,
             None,
             None,
+            vec![],
+            vec![],
         )
         .unwrap();
 
@@ -226,6 +254,8 @@ mod tests {
             None,
             None,
             None,
+            vec![],
+            vec![],
         )
         .unwrap();
 
@@ -258,6 +288,8 @@ mod tests {
             None,
             None,
             None,
+            vec![],
+            vec![],
         )
         .unwrap();
 
@@ -287,6 +319,8 @@ mod tests {
             None,
             None,
             None,
+            vec![],
+            vec![],
         )
         .unwrap();
 
@@ -316,6 +350,8 @@ mod tests {
             None,
             Some("urgent".to_string()),
             None,
+            vec![],
+            vec![],
         )
         .unwrap();
 
@@ -346,6 +382,8 @@ mod tests {
             None,
             None,
             Some("urgent".to_string()),
+            vec![],
+            vec![],
         )
         .unwrap();
 
@@ -371,6 +409,8 @@ mod tests {
             None,
             None,
             None,
+            vec![],
+            vec![],
         );
         assert!(result.is_err());
     }
@@ -396,6 +436,8 @@ mod tests {
             None,
             None,
             None,
+            vec![],
+            vec![],
         )
         .unwrap();
 
@@ -431,6 +473,8 @@ mod tests {
             None,
             None,
             None,
+            vec![],
+            vec![],
         )
         .unwrap();
 
@@ -463,6 +507,8 @@ mod tests {
             None,
             None,
             None,
+            vec![],
+            vec![],
         );
         assert!(result.is_err(), "Should reject priority > 4");
         let err_msg = result.unwrap_err().to_string();
@@ -494,6 +540,8 @@ mod tests {
                 None,
                 None,
                 None,
+            vec![],
+            vec![],
             );
             assert!(result.is_ok(), "Priority {} should be valid", priority);
 
@@ -529,6 +577,8 @@ mod tests {
             None,
             None,
             None,
+            vec![],
+            vec![],
         );
         assert!(
             result.is_ok(),
@@ -578,6 +628,8 @@ mod tests {
             None,
             None,
             None,
+            vec![],
+            vec![],
         );
         assert!(
             result.is_err(),
@@ -629,6 +681,8 @@ mod tests {
             None,
             None,
             None,
+            vec![],
+            vec![],
         );
         assert!(
             result.is_ok(),
@@ -689,6 +743,8 @@ mod tests {
             None,
             None,
             None,
+            vec![],
+            vec![],
         )
         .unwrap();
 
@@ -739,6 +795,8 @@ mod tests {
             None,
             None,
             None,
+            vec![],
+            vec![],
         );
         assert!(
             result.is_ok(),
@@ -794,6 +852,8 @@ mod tests {
             None,
             None,
             None,
+            vec![],
+            vec![],
         );
         assert!(result.is_ok());
 

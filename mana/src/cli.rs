@@ -319,6 +319,14 @@ Examples:
         /// Remove a label
         #[arg(long)]
         remove_label: Option<String>,
+
+        /// Add an unresolved decision/question (repeatable)
+        #[arg(long = "decision")]
+        decisions: Vec<String>,
+
+        /// Resolve a decision by index (0-based) or by text match
+        #[arg(long = "resolve-decision")]
+        resolve_decisions: Vec<String>,
     },
 
     /// Close one or more units (runs verify gate first)
@@ -896,6 +904,41 @@ Examples:
         json: bool,
     },
 
+    /// Show git diff of what an agent changed for a bean
+    ///
+    /// Finds commits associated with a unit and shows their diff. Works with:
+    /// - Auto-commit: finds commits with "Close unit {id}" in the message
+    /// - Checkpoint: uses the checkpoint SHA recorded at claim time
+    /// - Timestamps: falls back to diffing between claim and close times
+    ///
+    /// For open/in-progress beans, diffs to HEAD (shows current working changes).
+    #[command(
+        display_order = 39,
+        after_help = "\
+Examples:
+  mana diff 3             Show what changed for bean 3
+  mana diff 3 --stat      Summary only (files changed, insertions, deletions)
+  mana diff 3 --name-only Just filenames
+  mana diff 3 --no-color  Disable color (for piping)
+  mana diff 3 | delta     Pipe to your preferred diff viewer"
+    )]
+    Diff {
+        /// Unit ID
+        id: String,
+
+        /// Show file-level summary instead of full diff
+        #[arg(long)]
+        stat: bool,
+
+        /// Show only filenames that changed
+        #[arg(long)]
+        name_only: bool,
+
+        /// Disable color output
+        #[arg(long)]
+        no_color: bool,
+    },
+
     /// Adversarial post-close review of a unit's implementation
     ///
     /// Spawns a review agent with the unit's spec + current git diff as context.
@@ -1206,6 +1249,10 @@ pub struct CreateOpts {
     /// Launch interactive wizard (prompts for all fields step-by-step)
     #[arg(long, short = 'i')]
     pub interactive: bool,
+
+    /// Unresolved decision/question that blocks autonomous execution (repeatable)
+    #[arg(long = "decision")]
+    pub decisions: Vec<String>,
 
     /// Output created unit as JSON (for piping)
     #[arg(long)]

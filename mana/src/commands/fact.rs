@@ -55,6 +55,7 @@ pub fn cmd_fact(
             by: None,
             verify_timeout: None,
             feature: false,
+            decisions: Vec::new(),
         },
     )?;
 

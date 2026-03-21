@@ -332,6 +332,7 @@ mod tests {
             attempts: 0,
             paths: vec!["src/test.rs".to_string()],
             feature: false,
+            has_decisions: false,
         }
     }
 
