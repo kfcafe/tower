@@ -1,3 +1,29 @@
+//! Fast unit index cache.
+//!
+//! The index (`index.yaml`) is a compact summary of all active units, built
+//! by scanning every unit file in the `.mana/` directory. It lets the CLI
+//! answer list/filter/graph queries without parsing every individual unit file.
+//!
+//! The index is rebuilt automatically whenever unit files are newer than the
+//! cached `index.yaml`. It is saved atomically to prevent corruption.
+//!
+//! ## Usage
+//!
+//! ```rust,no_run
+//! use mana_core::index::Index;
+//! use std::path::Path;
+//!
+//! let mana_dir = Path::new("/project/.mana");
+//!
+//! // Load from disk, rebuilding if stale
+//! let index = Index::load_or_rebuild(mana_dir).unwrap();
+//! println!("{} units", index.units.len());
+//!
+//! // Force a full rebuild from unit files
+//! let index = Index::build(mana_dir).unwrap();
+//! index.save(mana_dir).unwrap();
+//! ```
+
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
@@ -20,6 +46,12 @@ fn default_created_at() -> DateTime<Utc> {
     DateTime::UNIX_EPOCH
 }
 
+/// A lightweight summary of a single unit, stored in the index cache.
+///
+/// `IndexEntry` contains only the fields needed for list/filter/graph
+/// operations. For the full unit with description, notes, and history,
+/// load the unit file directly via [`crate::unit::Unit::from_file`] or
+/// [`crate::api::get_unit`].
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct IndexEntry {
     pub id: String,

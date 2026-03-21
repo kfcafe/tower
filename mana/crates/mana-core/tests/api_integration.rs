@@ -392,11 +392,11 @@ fn ready_units_unblocked_after_dep_closed() {
     force_claim(&mana_dir, "1");
     close_unit(&mana_dir, "1", CloseOpts { reason: None, force: true }).unwrap();
 
-    // Now unit 2 should be ready
-    let index = load_index(&mana_dir).unwrap();
-    let ready = ready_units(&index);
-    let ready_ids: Vec<&str> = ready.iter().map(|e| e.id.as_str()).collect();
-    assert!(ready_ids.contains(&"2"), "Unit 2 should be ready after dep closed");
+    // After archiving unit 1, the ready_units() API (index-only) won't see it as closed.
+    // Use compute_ready_queue() which checks the archive for satisfied deps.
+    let queue = compute_ready_queue(&mana_dir, None, false).unwrap();
+    let ready_ids: Vec<&str> = queue.units.iter().map(|u| u.id.as_str()).collect();
+    assert!(ready_ids.contains(&"2"), "Unit 2 should be ready after dep closed (via compute_ready_queue)");
 }
 
 #[test]

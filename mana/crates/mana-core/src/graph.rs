@@ -1,3 +1,32 @@
+//! Dependency graph utilities.
+//!
+//! Functions in this module operate on the unit [`Index`] to answer
+//! graph-related questions: cycle detection, topological ordering,
+//! tree rendering, and subtree statistics.
+//!
+//! Most callers should use the wrappers in [`crate::api`] rather than
+//! calling these functions directly.
+//!
+//! ## Example
+//!
+//! ```rust,no_run
+//! use mana_core::api::{load_index, find_mana_dir};
+//! use mana_core::graph::{detect_cycle, build_dependency_tree};
+//! use std::path::Path;
+//!
+//! let mana_dir = find_mana_dir(Path::new(".")).unwrap();
+//! let index = load_index(&mana_dir).unwrap();
+//!
+//! // Check whether adding a dep would create a cycle
+//! if detect_cycle(&index, "5", "1").unwrap() {
+//!     eprintln!("Adding 5 -> 1 would create a cycle");
+//! }
+//!
+//! // Render a tree rooted at unit 1
+//! let tree = build_dependency_tree(&index, "1").unwrap();
+//! println!("{}", tree);
+//! ```
+
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
