@@ -141,6 +141,28 @@ fn run_wave_template(
     let mut pending: Vec<&SizedBean> = units.iter().collect();
 
     while !pending.is_empty() || !children.is_empty() {
+        // Check for shutdown signal
+        if super::shutdown_requested() {
+            for (sb, mut child, started) in children {
+                let _ = child.kill();
+                let _ = child.wait();
+                results.push(AgentResult {
+                    id: sb.id.clone(),
+                    title: sb.title.clone(),
+                    action: sb.action,
+                    success: false,
+                    duration: started.elapsed(),
+                    total_tokens: None,
+                    total_cost: None,
+                    error: Some("Interrupted by shutdown signal".to_string()),
+                    tool_count: 0,
+                    turns: 0,
+                    failure_summary: None,
+                });
+            }
+            return Ok(results);
+        }
+
         // Spawn up to max_jobs
         while children.len() < max_jobs && !pending.is_empty() {
             let sb = pending.remove(0);

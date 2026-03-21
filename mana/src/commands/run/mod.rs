@@ -390,6 +390,15 @@ fn run_once(
             let mut had_failure = false;
 
             for (wave_idx, wave) in plan.waves.iter().enumerate() {
+                // Check for shutdown signal between waves
+                if shutdown_requested() {
+                    if !args.json_stream {
+                        eprintln!("\nShutdown signal received, stopping.");
+                    }
+                    had_failure = true;
+                    break;
+                }
+
                 if args.json_stream {
                     stream::emit(&StreamEvent::RoundStart {
                         round: wave_idx + 1,
