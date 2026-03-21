@@ -751,6 +751,7 @@ mod tests {
             user: None,
             user_email: None,
             auto_commit: false,
+            research: None,
         };
         let mode = determine_spawn_mode(&config);
         assert_eq!(
@@ -785,6 +786,7 @@ mod tests {
             user: None,
             user_email: None,
             auto_commit: false,
+            research: None,
         };
         let mode = determine_spawn_mode(&config);
         assert_eq!(mode, SpawnMode::Direct);

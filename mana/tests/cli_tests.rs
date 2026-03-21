@@ -33,6 +33,7 @@ fn setup_test_env() -> (TempDir, std::path::PathBuf) {
         user: None,
         user_email: None,
         auto_commit: false,
+        research: None,
     };
     config.save(&mana_dir).unwrap();
 

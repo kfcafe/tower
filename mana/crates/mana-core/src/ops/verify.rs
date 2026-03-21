@@ -164,6 +164,7 @@ mod tests {
             user: None,
             user_email: None,
             auto_commit: false,
+            research: None,
         }
         .save(&bd)
         .unwrap();

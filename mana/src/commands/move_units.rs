@@ -198,6 +198,7 @@ mod tests {
             user: None,
             user_email: None,
             auto_commit: false,
+            research: None,
         };
         config.save(&mana_dir).unwrap();
 

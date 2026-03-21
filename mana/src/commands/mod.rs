@@ -7,6 +7,7 @@ pub mod context;
 pub mod create;
 pub mod delete;
 pub mod dep;
+pub mod diff;
 pub mod doctor;
 pub mod edit;
 pub mod fact;

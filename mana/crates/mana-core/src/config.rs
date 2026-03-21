@@ -160,6 +160,7 @@ impl Default for Config {
             user: None,
             user_email: None,
             auto_commit: false,
+            research: None,
         }
     }
 }
@@ -452,6 +453,7 @@ mod tests {
             user: None,
             user_email: None,
             auto_commit: false,
+            research: None,
         };
 
         config.save(dir.path()).unwrap();
@@ -483,6 +485,7 @@ mod tests {
             user: None,
             user_email: None,
             auto_commit: false,
+            research: None,
         };
 
         assert_eq!(config.increment_id(), 1);
@@ -530,6 +533,7 @@ mod tests {
             user: None,
             user_email: None,
             auto_commit: false,
+            research: None,
         };
         config.save(dir.path()).unwrap();
 
@@ -576,6 +580,7 @@ mod tests {
             user: None,
             user_email: None,
             auto_commit: false,
+            research: None,
         };
         config.save(dir.path()).unwrap();
 
@@ -634,6 +639,7 @@ mod tests {
             user: None,
             user_email: None,
             auto_commit: false,
+            research: None,
         };
         config.save(dir.path()).unwrap();
 
@@ -668,6 +674,7 @@ mod tests {
             user: None,
             user_email: None,
             auto_commit: false,
+            research: None,
         };
         config.save(dir.path()).unwrap();
 
@@ -712,6 +719,7 @@ mod tests {
             user: None,
             user_email: None,
             auto_commit: false,
+            research: None,
         };
         config.save(dir.path()).unwrap();
 
@@ -930,6 +938,7 @@ mod tests {
             user: None,
             user_email: None,
             auto_commit: false,
+            research: None,
         };
         config.save(dir.path()).unwrap();
 
@@ -989,6 +998,7 @@ mod tests {
             user: None,
             user_email: None,
             auto_commit: false,
+            research: None,
         };
         config.save(dir.path()).unwrap();
 
@@ -1020,6 +1030,7 @@ mod tests {
             user: None,
             user_email: None,
             auto_commit: false,
+            research: None,
         };
         config.save(dir.path()).unwrap();
 
@@ -1064,6 +1075,7 @@ mod tests {
             user: None,
             user_email: None,
             auto_commit: false,
+            research: None,
         };
         config.save(dir.path()).unwrap();
 
@@ -1108,6 +1120,7 @@ mod tests {
             user: None,
             user_email: None,
             auto_commit: false,
+            research: None,
         };
         config.save(dir.path()).unwrap();
 
@@ -1217,6 +1230,7 @@ mod tests {
             user: None,
             user_email: None,
             auto_commit: false,
+            research: None,
         };
 
         config.save(dir.path()).unwrap();

@@ -292,6 +292,7 @@ pub fn cmd_init(path: Option<&Path>, args: InitArgs) -> Result<()> {
         user: None,
         user_email: None,
         auto_commit: false,
+        research: None,
     };
 
     config.save(&mana_dir)?;

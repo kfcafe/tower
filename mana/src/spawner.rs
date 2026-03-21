@@ -706,6 +706,7 @@ mod tests {
             user: None,
             user_email: None,
             auto_commit: false,
+            research: None,
             worktree: false,
         };
 
@@ -738,6 +739,7 @@ mod tests {
             user: None,
             user_email: None,
             auto_commit: false,
+            research: None,
             worktree: false,
         };
 
