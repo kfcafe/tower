@@ -873,11 +873,6 @@ fn main() -> Result<()> {
             )
         }
 
-        Command::Onboard { dir } => {
-            use mana::commands::onboard::cmd_onboard;
-            cmd_onboard(&dir)
-        }
-
         Command::Review { id, diff, model } => {
             validate_bean_id(&id)?;
             let resolved_id = resolve_bean_id(&id, &mana_dir)?;

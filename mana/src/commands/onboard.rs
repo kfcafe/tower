@@ -6,9 +6,9 @@ use anyhow::{Context, Result};
 const MARKER: &str = "# [mana-onboard]";
 
 /// A detected agent and what file triggered the detection.
-#[derive(Debug)]
 struct DetectedAgent {
     name: &'static str,
+    #[allow(dead_code)]
     trigger_path: PathBuf,
 }
 
