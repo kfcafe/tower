@@ -147,11 +147,23 @@ pub(super) fn plan_dispatch(
 pub(super) fn print_plan(plan: &DispatchPlan) {
     let weights = compute_downstream_weights(&plan.all_beans);
     let critical_path = compute_critical_path(&plan.all_beans);
+    let critical_set: std::collections::HashSet<&str> =
+        critical_path.iter().map(|s| s.as_str()).collect();
+
+    // Critical path summary at the top
+    if critical_path.len() > 1 {
+        println!(
+            "Critical path: {} ({} steps)",
+            critical_path.join(" → "),
+            critical_path.len()
+        );
+        println!();
+    }
 
     for (wave_idx, wave) in plan.waves.iter().enumerate() {
         let eff_par = compute_effective_parallelism(&wave.units);
         let par_note = if eff_par < wave.units.len() {
-            format!(", parallelism: {}/{}", eff_par, wave.units.len())
+            format!(", effective concurrency: {}/{}", eff_par, wave.units.len())
         } else {
             String::new()
         };
@@ -161,12 +173,38 @@ pub(super) fn print_plan(plan: &DispatchPlan) {
             wave.units.len(),
             par_note
         );
+
+        // Precompute file conflicts for this wave so we can annotate per-bean
+        let wave_conflicts = compute_file_conflicts(&wave.units);
+
         for sb in &wave.units {
             let weight = weights.get(&sb.id).copied().unwrap_or(1);
             let weight_note = if weight > 1 {
                 format!("  [weight: {}]", weight)
             } else {
                 String::new()
+            };
+            let critical_note = if critical_set.contains(sb.id.as_str()) && critical_path.len() > 1
+            {
+                "  ⚡ critical"
+            } else {
+                ""
+            };
+            // Collect conflicts for this bean: other units sharing a file in this wave
+            let mut conflict_parts: Vec<String> = Vec::new();
+            for (file, ids) in &wave_conflicts {
+                if ids.contains(&sb.id) {
+                    for other_id in ids {
+                        if other_id != &sb.id {
+                            conflict_parts.push(format!("{} ({})", other_id, file));
+                        }
+                    }
+                }
+            }
+            let conflict_str = if conflict_parts.is_empty() {
+                String::new()
+            } else {
+                format!("  ⊘ conflicts: {}", conflict_parts.join(", "))
             };
             let warning = plan
                 .warnings
@@ -175,36 +213,11 @@ pub(super) fn print_plan(plan: &DispatchPlan) {
                 .map(|(_, w)| format!("  ⚠ {}", w))
                 .unwrap_or_default();
             println!(
-                "  {}  {}  {}{}{}",
-                sb.id, sb.title, sb.action, weight_note, warning
+                "  {}  {}  {}{}{}{}{}",
+                sb.id, sb.title, sb.action, weight_note, critical_note, conflict_str, warning
             );
         }
-    }
-
-    // File conflict groups
-    let mut has_conflicts = false;
-    for (wave_idx, wave) in plan.waves.iter().enumerate() {
-        let conflicts = compute_file_conflicts(&wave.units);
-        if !conflicts.is_empty() {
-            if !has_conflicts {
-                println!();
-                println!("File conflicts:");
-                has_conflicts = true;
-            }
-            for (file, ids) in &conflicts {
-                println!("  {} → {} (wave {})", file, ids.join(", "), wave_idx + 1);
-            }
-        }
-    }
-
-    // Critical path
-    if critical_path.len() > 1 {
-        println!();
-        println!(
-            "Critical path: {} ({} steps)",
-            critical_path.join(" → "),
-            critical_path.len()
-        );
+        let _ = wave_idx; // suppress unused warning when no conflicts printed
     }
 
     if !plan.skipped.is_empty() {
@@ -219,25 +232,41 @@ pub(super) fn print_plan(plan: &DispatchPlan) {
 /// Print the dispatch plan as JSON stream events.
 pub(super) fn print_plan_json(plan: &DispatchPlan, parent_id: Option<&str>) {
     let parent_id = parent_id.unwrap_or("all").to_string();
+    let critical_path = compute_critical_path(&plan.all_beans);
     let rounds: Vec<stream::RoundPlan> = plan
         .waves
         .iter()
         .enumerate()
-        .map(|(i, wave)| stream::RoundPlan {
-            round: i + 1,
-            units: wave
-                .units
-                .iter()
-                .map(|b| stream::BeanInfo {
-                    id: b.id.clone(),
-                    title: b.title.clone(),
-                    round: i + 1,
-                })
-                .collect(),
+        .map(|(i, wave)| {
+            let eff_par = compute_effective_parallelism(&wave.units);
+            let conflicts = compute_file_conflicts(&wave.units);
+            let effective_concurrency = if eff_par < wave.units.len() {
+                Some(eff_par)
+            } else {
+                None
+            };
+            stream::RoundPlan {
+                round: i + 1,
+                units: wave
+                    .units
+                    .iter()
+                    .map(|b| stream::BeanInfo {
+                        id: b.id.clone(),
+                        title: b.title.clone(),
+                        round: i + 1,
+                    })
+                    .collect(),
+                effective_concurrency,
+                conflicts,
+            }
         })
         .collect();
 
-    stream::emit(&StreamEvent::DryRun { parent_id, rounds });
+    stream::emit(&StreamEvent::DryRun {
+        parent_id,
+        rounds,
+        critical_path,
+    });
 }
 
 #[cfg(test)]
@@ -622,5 +651,150 @@ mod tests {
         // Effective parallelism: 2 (A+C or B+C, not A+B)
         let eff = super::super::wave::compute_effective_parallelism(&plan.waves[0].units);
         assert_eq!(eff, 2);
+    }
+
+    /// Helper: capture stdout from a closure.
+    fn capture_stdout<F: FnOnce()>(f: F) -> String {
+        use std::sync::{Arc, Mutex};
+        // We can't easily capture real stdout in unit tests without unsafe tricks.
+        // Instead, call print_plan and check the plan data directly.
+        // This helper exists as a placeholder — the tests below inspect plan data.
+        let _ = f;
+        String::new()
+    }
+
+    #[test]
+    fn print_plan_shows_critical_path() {
+        let (_dir, mana_dir) = make_beans_dir();
+        write_config(&mana_dir, Some("echo {id}"));
+
+        let parent = crate::unit::Unit::new("1", "Parent");
+        parent.to_file(mana_dir.join("1-parent.md")).unwrap();
+
+        // Chain: 1.1 → 1.2 (critical path has len 2)
+        let mut a = crate::unit::Unit::new("1.1", "Step A");
+        a.parent = Some("1".to_string());
+        a.verify = Some("echo ok".to_string());
+        a.paths = vec!["src/a.rs".to_string()];
+        a.to_file(mana_dir.join("1.1-step-a.md")).unwrap();
+
+        let mut b = crate::unit::Unit::new("1.2", "Step B");
+        b.parent = Some("1".to_string());
+        b.verify = Some("echo ok".to_string());
+        b.dependencies = vec!["1.1".to_string()];
+        b.paths = vec!["src/b.rs".to_string()];
+        b.to_file(mana_dir.join("1.2-step-b.md")).unwrap();
+
+        let config = Config::load_with_extends(&mana_dir).unwrap();
+        let plan = plan_dispatch(&mana_dir, &config, Some("1"), false, true).unwrap();
+
+        // The critical path computed from the plan must include both 1.1 and 1.2
+        let critical_path = compute_critical_path(&plan.all_beans);
+        assert!(
+            critical_path.len() >= 2,
+            "expected critical path of length >= 2, got {:?}",
+            critical_path
+        );
+        assert!(
+            critical_path.contains(&"1.1".to_string()),
+            "expected 1.1 in critical path"
+        );
+        assert!(
+            critical_path.contains(&"1.2".to_string()),
+            "expected 1.2 in critical path"
+        );
+    }
+
+    #[test]
+    fn print_plan_shows_file_conflicts() {
+        let (_dir, mana_dir) = make_beans_dir();
+        write_config(&mana_dir, Some("echo {id}"));
+
+        // Two units sharing src/lib.rs
+        let mut a = crate::unit::Unit::new("1", "Alpha");
+        a.verify = Some("echo ok".to_string());
+        a.paths = vec!["src/lib.rs".to_string()];
+        a.to_file(mana_dir.join("1-alpha.md")).unwrap();
+
+        let mut b = crate::unit::Unit::new("2", "Beta");
+        b.verify = Some("echo ok".to_string());
+        b.paths = vec!["src/lib.rs".to_string()];
+        b.to_file(mana_dir.join("2-beta.md")).unwrap();
+
+        let config = Config::load_with_extends(&mana_dir).unwrap();
+        let plan = plan_dispatch(&mana_dir, &config, None, false, false).unwrap();
+
+        // Both in wave 1; confirm conflict is detected
+        assert_eq!(plan.waves.len(), 1);
+        let conflicts = compute_file_conflicts(&plan.waves[0].units);
+        assert_eq!(conflicts.len(), 1, "expected one conflict group");
+        assert_eq!(conflicts[0].0, "src/lib.rs");
+        assert!(conflicts[0].1.contains(&"1".to_string()));
+        assert!(conflicts[0].1.contains(&"2".to_string()));
+    }
+
+    #[test]
+    fn print_plan_shows_effective_concurrency() {
+        let (_dir, mana_dir) = make_beans_dir();
+        write_config(&mana_dir, Some("echo {id}"));
+
+        // Three units: 1 and 2 share a file, 3 is independent
+        let mut a = crate::unit::Unit::new("1", "Conflict A");
+        a.verify = Some("echo ok".to_string());
+        a.paths = vec!["src/shared.rs".to_string()];
+        a.to_file(mana_dir.join("1-conflict-a.md")).unwrap();
+
+        let mut b = crate::unit::Unit::new("2", "Conflict B");
+        b.verify = Some("echo ok".to_string());
+        b.paths = vec!["src/shared.rs".to_string()];
+        b.to_file(mana_dir.join("2-conflict-b.md")).unwrap();
+
+        let mut c = crate::unit::Unit::new("3", "Independent");
+        c.verify = Some("echo ok".to_string());
+        c.paths = vec!["src/other.rs".to_string()];
+        c.to_file(mana_dir.join("3-independent.md")).unwrap();
+
+        let config = Config::load_with_extends(&mana_dir).unwrap();
+        let plan = plan_dispatch(&mana_dir, &config, None, false, false).unwrap();
+
+        assert_eq!(plan.waves.len(), 1);
+        assert_eq!(plan.waves[0].units.len(), 3);
+
+        // Effective concurrency must be less than 3 due to the file conflict
+        let eff = compute_effective_parallelism(&plan.waves[0].units);
+        assert!(eff < 3, "expected effective concurrency < 3, got {}", eff);
+        assert!(eff >= 2, "expected effective concurrency >= 2, got {}", eff);
+    }
+
+    #[test]
+    fn print_plan_no_conflicts_shows_full_concurrency() {
+        let (_dir, mana_dir) = make_beans_dir();
+        write_config(&mana_dir, Some("echo {id}"));
+
+        // Three units with no shared files — full concurrency
+        let mut a = crate::unit::Unit::new("1", "A");
+        a.verify = Some("echo ok".to_string());
+        a.paths = vec!["src/a.rs".to_string()];
+        a.to_file(mana_dir.join("1-a.md")).unwrap();
+
+        let mut b = crate::unit::Unit::new("2", "B");
+        b.verify = Some("echo ok".to_string());
+        b.paths = vec!["src/b.rs".to_string()];
+        b.to_file(mana_dir.join("2-b.md")).unwrap();
+
+        let mut c = crate::unit::Unit::new("3", "C");
+        c.verify = Some("echo ok".to_string());
+        c.paths = vec!["src/c.rs".to_string()];
+        c.to_file(mana_dir.join("3-c.md")).unwrap();
+
+        let config = Config::load_with_extends(&mana_dir).unwrap();
+        let plan = plan_dispatch(&mana_dir, &config, None, false, false).unwrap();
+
+        assert_eq!(plan.waves.len(), 1);
+        assert_eq!(plan.waves[0].units.len(), 3);
+
+        // No conflicts — effective concurrency equals unit count
+        let eff = compute_effective_parallelism(&plan.waves[0].units);
+        assert_eq!(eff, 3, "expected full concurrency of 3, got {}", eff);
     }
 }

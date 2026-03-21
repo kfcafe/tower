@@ -140,6 +140,33 @@ Examples:
         no_agent: bool,
     },
 
+    /// Configure coding agents to use mana (Claude Code, pi, Cursor, Aider, etc.)
+    ///
+    /// Scans the project for known coding-agent config files and writes mana
+    /// integration instructions into each one. Idempotent — safe to run multiple times.
+    ///
+    /// Detected agents and their actions:
+    ///   CLAUDE.md / .claude/settings.json → append workflow + status hook
+    ///   .pi/                               → write .pi/agent/skills/mana/SKILL.md
+    ///   .cursor/rules or .cursorrules      → append mana workflow rules
+    ///   AGENTS.md                          → append mana workflow section
+    ///   .cline/ or cline_docs/             → write mana.md
+    ///   opencode.yaml or .opencode/        → write or patch mana config
+    ///   .aider.conf.yml                    → append mana conventions comment
+    ///   (none detected)                    → create AGENTS.md from scratch
+    #[command(
+        display_order = 2,
+        after_help = "\
+Examples:
+  mana onboard                 Auto-detect and configure all coding agents
+  mana onboard --dir ~/myproj  Configure agents in a specific project directory"
+    )]
+    Onboard {
+        /// Project directory to configure (defaults to current directory)
+        #[arg(long, default_value = ".")]
+        dir: std::path::PathBuf,
+    },
+
     /// Create a new unit
     ///
     /// Every unit needs a verify gate (--verify) — a shell command that must exit 0

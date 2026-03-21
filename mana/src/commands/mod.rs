@@ -22,6 +22,7 @@ pub mod memory_context;
 pub mod move_units;
 pub mod mutate;
 pub mod next;
+pub mod onboard;
 pub mod plan;
 pub mod quick;
 
@@ -65,6 +66,7 @@ pub use memory_context::cmd_memory_context;
 pub use move_units::{cmd_move_from, cmd_move_to};
 pub use mutate::cmd_mutate;
 pub use next::cmd_next;
+pub use onboard::cmd_onboard;
 pub use plan::cmd_plan;
 pub use quick::cmd_quick;
 
