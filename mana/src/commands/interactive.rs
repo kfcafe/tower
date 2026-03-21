@@ -264,6 +264,7 @@ pub fn interactive_create(mana_dir: &Path, prefill: Prefill) -> Result<CreateArg
         verify_timeout: None,
         feature: false,
         decisions: Vec::new(),
+        force: false,
     })
 }
 

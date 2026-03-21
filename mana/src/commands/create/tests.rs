@@ -66,6 +66,7 @@ fn create_minimal_bean() {
         by: None,
         verify_timeout: None,
         decisions: Vec::new(),
+        force: false,
     };
 
     cmd_create(&mana_dir, args).unwrap();
@@ -107,6 +108,7 @@ fn create_allows_bean_without_verify_or_acceptance() {
         by: None,
         verify_timeout: None,
         decisions: Vec::new(),
+        force: false,
     };
 
     let result = cmd_create(&mana_dir, args);
@@ -150,6 +152,7 @@ fn create_increments_id() {
         by: None,
         verify_timeout: None,
         decisions: Vec::new(),
+        force: false,
     };
     cmd_create(&mana_dir, args1).unwrap();
 
@@ -176,6 +179,7 @@ fn create_increments_id() {
         by: None,
         verify_timeout: None,
         decisions: Vec::new(),
+        force: false,
     };
     cmd_create(&mana_dir, args2).unwrap();
 
@@ -213,6 +217,7 @@ fn create_with_parent_assigns_child_id() {
         by: None,
         verify_timeout: None,
         decisions: Vec::new(),
+        force: false,
     };
     cmd_create(&mana_dir, parent_args).unwrap();
 
@@ -239,6 +244,7 @@ fn create_with_parent_assigns_child_id() {
         by: None,
         verify_timeout: None,
         decisions: Vec::new(),
+        force: false,
     };
     cmd_create(&mana_dir, child_args).unwrap();
 
@@ -275,6 +281,7 @@ fn create_multiple_children() {
         by: None,
         verify_timeout: None,
         decisions: Vec::new(),
+        force: false,
     };
     cmd_create(&mana_dir, parent_args).unwrap();
 
@@ -302,6 +309,7 @@ fn create_multiple_children() {
             by: None,
             verify_timeout: None,
             decisions: Vec::new(),
+            force: true,
         };
         cmd_create(&mana_dir, child_args).unwrap();
     }
@@ -344,6 +352,7 @@ fn create_with_all_fields() {
         by: None,
         verify_timeout: None,
         decisions: Vec::new(),
+        force: false,
     };
 
     cmd_create(&mana_dir, args).unwrap();
@@ -386,6 +395,7 @@ fn create_updates_index() {
         by: None,
         verify_timeout: None,
         decisions: Vec::new(),
+        force: false,
     };
 
     cmd_create(&mana_dir, args).unwrap();
@@ -452,6 +462,7 @@ fn create_rejects_priority_too_high() {
         by: None,
         verify_timeout: None,
         decisions: Vec::new(),
+        force: false,
     };
 
     let result = cmd_create(&mana_dir, args);
@@ -490,6 +501,7 @@ fn create_accepts_valid_priorities() {
             by: None,
             verify_timeout: None,
             decisions: Vec::new(),
+            force: false,
         };
 
         let result = cmd_create(&mana_dir, args);
@@ -540,6 +552,7 @@ fn pre_create_hook_accepts_bean_creation() {
         by: None,
         verify_timeout: None,
         decisions: Vec::new(),
+        force: false,
     };
 
     // Unit should be created
@@ -593,6 +606,7 @@ fn pre_create_hook_rejects_bean_creation() {
         by: None,
         verify_timeout: None,
         decisions: Vec::new(),
+        force: false,
     };
 
     // Unit creation should fail
@@ -664,6 +678,7 @@ fn post_create_hook_runs_after_creation() {
         by: None,
         verify_timeout: None,
         decisions: Vec::new(),
+        force: false,
     };
 
     // Create unit
@@ -720,6 +735,7 @@ fn post_create_hook_failure_does_not_break_creation() {
         by: None,
         verify_timeout: None,
         decisions: Vec::new(),
+        force: false,
     };
 
     // Unit creation should STILL succeed (post-create failures are non-blocking)
@@ -774,6 +790,7 @@ fn untrusted_hooks_are_silently_skipped() {
         by: None,
         verify_timeout: None,
         decisions: Vec::new(),
+        force: false,
     };
 
     // Unit creation should succeed (untrusted hooks are skipped)
@@ -817,6 +834,7 @@ fn default_rejects_passing_verify() {
         by: None,
         verify_timeout: None,
         decisions: Vec::new(),
+        force: false,
     };
 
     let result = cmd_create(&mana_dir, args);
@@ -851,6 +869,7 @@ fn default_accepts_failing_verify() {
         by: None,
         verify_timeout: None,
         decisions: Vec::new(),
+        force: false,
     };
 
     let result = cmd_create(&mana_dir, args);
@@ -891,6 +910,7 @@ fn pass_ok_skips_fail_first_check() {
         by: None,
         verify_timeout: None,
         decisions: Vec::new(),
+        force: false,
     };
 
     let result = cmd_create(&mana_dir, args);
@@ -931,6 +951,7 @@ fn no_verify_skips_fail_first_check() {
         by: None,
         verify_timeout: None,
         decisions: Vec::new(),
+        force: false,
     };
 
     let result = cmd_create(&mana_dir, args);
@@ -972,6 +993,7 @@ fn create_with_claim_sets_in_progress() {
         by: Some("agent-1".to_string()),
         verify_timeout: None,
         decisions: Vec::new(),
+        force: false,
     };
 
     cmd_create(&mana_dir, args).unwrap();
@@ -1013,6 +1035,7 @@ fn create_with_claim_without_by() {
         by: None,
         verify_timeout: None,
         decisions: Vec::new(),
+        force: false,
     };
 
     cmd_create(&mana_dir, args).unwrap();
@@ -1051,6 +1074,7 @@ fn create_without_claim_stays_open() {
         by: None,
         verify_timeout: None,
         decisions: Vec::new(),
+        force: false,
     };
 
     cmd_create(&mana_dir, args).unwrap();
@@ -1089,6 +1113,7 @@ fn create_with_claim_and_parent() {
         by: None,
         verify_timeout: None,
         decisions: Vec::new(),
+        force: false,
     };
     cmd_create(&mana_dir, parent_args).unwrap();
 
@@ -1115,6 +1140,7 @@ fn create_with_claim_and_parent() {
         by: Some("agent-2".to_string()),
         verify_timeout: None,
         decisions: Vec::new(),
+        force: false,
     };
     cmd_create(&mana_dir, child_args).unwrap();
 
@@ -1156,6 +1182,7 @@ fn create_claim_rejects_missing_validation_criteria() {
         by: Some("agent-1".to_string()),
         verify_timeout: None,
         decisions: Vec::new(),
+        force: false,
     };
 
     let result = cmd_create(&mana_dir, args);
@@ -1197,6 +1224,7 @@ fn create_claim_accepts_with_acceptance() {
         by: None,
         verify_timeout: None,
         decisions: Vec::new(),
+        force: false,
     };
 
     let result = cmd_create(&mana_dir, args);
@@ -1229,6 +1257,7 @@ fn create_claim_accepts_with_verify() {
         by: None,
         verify_timeout: None,
         decisions: Vec::new(),
+        force: false,
     };
 
     let result = cmd_create(&mana_dir, args);
@@ -1262,6 +1291,7 @@ fn create_claim_with_parent_exempt_from_validation() {
         by: None,
         verify_timeout: None,
         decisions: Vec::new(),
+        force: false,
     };
     cmd_create(&mana_dir, parent_args).unwrap();
 
@@ -1289,6 +1319,7 @@ fn create_claim_with_parent_exempt_from_validation() {
         by: Some("agent-1".to_string()),
         verify_timeout: None,
         decisions: Vec::new(),
+        force: false,
     };
 
     let result = cmd_create(&mana_dir, child_args);
@@ -1325,6 +1356,7 @@ fn create_without_claim_exempt_from_validation() {
         by: None,
         verify_timeout: None,
         decisions: Vec::new(),
+        force: false,
     };
 
     let result = cmd_create(&mana_dir, args);
@@ -1461,6 +1493,7 @@ fn create_next_depends_on_latest() {
         by: None,
         verify_timeout: None,
         decisions: Vec::new(),
+        force: false,
     };
     let id1 = cmd_create(&mana_dir, args1).unwrap();
 
@@ -1487,6 +1520,7 @@ fn create_next_depends_on_latest() {
         by: None,
         verify_timeout: None,
         decisions: Vec::new(),
+        force: false,
     };
     let id2 = cmd_create_next(&mana_dir, args2).unwrap();
 
@@ -1528,6 +1562,7 @@ fn create_next_chain_three_beans() {
         by: None,
         verify_timeout: None,
         decisions: Vec::new(),
+        force: false,
     };
     let id1 = cmd_create(&mana_dir, args1).unwrap();
 
@@ -1554,6 +1589,7 @@ fn create_next_chain_three_beans() {
         by: None,
         verify_timeout: None,
         decisions: Vec::new(),
+        force: false,
     };
     let id2 = cmd_create_next(&mana_dir, args2).unwrap();
 
@@ -1580,6 +1616,7 @@ fn create_next_chain_three_beans() {
         by: None,
         verify_timeout: None,
         decisions: Vec::new(),
+        force: false,
     };
     let id3 = cmd_create_next(&mana_dir, args3).unwrap();
 
@@ -1627,6 +1664,7 @@ fn create_next_merges_explicit_deps() {
         by: None,
         verify_timeout: None,
         decisions: Vec::new(),
+        force: false,
     };
     cmd_create(&mana_dir, args1).unwrap();
 
@@ -1652,6 +1690,7 @@ fn create_next_merges_explicit_deps() {
         by: None,
         verify_timeout: None,
         decisions: Vec::new(),
+        force: false,
     };
     cmd_create(&mana_dir, args2).unwrap();
 
@@ -1678,6 +1717,7 @@ fn create_next_merges_explicit_deps() {
         by: None,
         verify_timeout: None,
         decisions: Vec::new(),
+        force: false,
     };
     let id3 = cmd_create_next(&mana_dir, args3).unwrap();
 
@@ -1720,6 +1760,7 @@ fn create_next_fails_with_no_beans() {
         by: None,
         verify_timeout: None,
         decisions: Vec::new(),
+        force: false,
     };
     let result = cmd_create_next(&mana_dir, args);
     assert!(result.is_err(), "Should fail with no existing units");
@@ -1761,6 +1802,7 @@ fn create_feature_sets_feature_flag() {
         by: None,
         verify_timeout: None,
         decisions: Vec::new(),
+        force: false,
     };
 
     let id = cmd_create(&mana_dir, args).unwrap();
@@ -1799,6 +1841,7 @@ fn create_feature_works_without_verify() {
         by: None,
         verify_timeout: None,
         decisions: Vec::new(),
+        force: false,
     };
 
     let result = cmd_create(&mana_dir, args);
@@ -1841,6 +1884,7 @@ fn create_without_feature_preserves_existing_behavior() {
         by: None,
         verify_timeout: None,
         decisions: Vec::new(),
+        force: false,
     };
 
     let result = cmd_create(&mana_dir, args);

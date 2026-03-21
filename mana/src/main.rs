@@ -29,9 +29,10 @@ use mana::commands::{
     cmd_adopt, cmd_agents, cmd_claim, cmd_close, cmd_config_get, cmd_config_set, cmd_context,
     cmd_create, cmd_delete, cmd_dep_add, cmd_dep_list, cmd_dep_remove, cmd_diff, cmd_doctor,
     cmd_edit, cmd_fact, cmd_graph, cmd_init, cmd_list, cmd_locks, cmd_locks_clear, cmd_logs,
-    cmd_mcp_serve, cmd_memory_context, cmd_move_from, cmd_move_to, cmd_plan, cmd_quick, cmd_recall,
-    cmd_release, cmd_reopen, cmd_run, cmd_show, cmd_stats, cmd_status, cmd_sync, cmd_tidy,
-    cmd_trace, cmd_tree, cmd_trust, cmd_unarchive, cmd_update, cmd_verify, cmd_verify_facts,
+    cmd_mcp_serve, cmd_memory_context, cmd_move_from, cmd_move_to, cmd_mutate, cmd_next, cmd_plan,
+    cmd_quick, cmd_recall, cmd_release, cmd_reopen, cmd_run, cmd_show, cmd_stats, cmd_status,
+    cmd_sync, cmd_tidy, cmd_trace, cmd_tree, cmd_trust, cmd_unarchive, cmd_update, cmd_verify,
+    cmd_verify_facts,
     review::{cmd_review, ReviewArgs},
 };
 use mana::discovery::find_mana_dir;
@@ -130,6 +131,7 @@ fn main() -> Result<()> {
                 run,
                 interactive,
                 json,
+                force,
             } = *args;
             // Handle 'mana create next' subcommand
             if let Some(CreateSubcommand::Next {
@@ -215,6 +217,7 @@ fn main() -> Result<()> {
                         verify_timeout,
                         feature: false,
                         decisions: Vec::new(),
+                        force,
                     },
                 )?;
 
@@ -340,6 +343,7 @@ fn main() -> Result<()> {
                         by,
                         feature,
                         decisions,
+                        force,
                     },
                 )?;
                 (id, run)
@@ -588,6 +592,12 @@ fn main() -> Result<()> {
 
         Command::Status { json, no_json } => cmd_status(auto_json(json, no_json), &mana_dir),
 
+        Command::Next {
+            count,
+            json,
+            no_json,
+        } => cmd_next(count, auto_json(json, no_json), &mana_dir),
+
         Command::Context {
             id,
             json,
@@ -662,6 +672,7 @@ fn main() -> Result<()> {
             on_fail,
             pass_ok,
             verify_timeout,
+            force,
         } => {
             if let Some(ref p) = parent {
                 validate_bean_id(p)?;
@@ -688,6 +699,7 @@ fn main() -> Result<()> {
                     on_fail,
                     pass_ok,
                     verify_timeout,
+                    force,
                 },
             )
         }
@@ -826,6 +838,28 @@ fn main() -> Result<()> {
                 mana::commands::diff::DiffOutput::Full
             };
             cmd_diff(&mana_dir, &resolved_id, output, no_color)
+        }
+
+        Command::Mutate {
+            id,
+            max,
+            timeout,
+            diff_base,
+            json,
+            no_json,
+        } => {
+            validate_bean_id(&id)?;
+            let resolved_id = resolve_bean_id(&id, &mana_dir)?;
+            cmd_mutate(
+                &mana_dir,
+                mana::commands::mutate::MutateArgs {
+                    id: resolved_id,
+                    max_mutants: max,
+                    timeout,
+                    diff_base,
+                    json: auto_json(json, no_json),
+                },
+            )
         }
 
         Command::Review { id, diff, model } => {

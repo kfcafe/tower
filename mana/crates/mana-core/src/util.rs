@@ -203,6 +203,90 @@ pub fn title_to_slug(title: &str) -> String {
     }
 }
 
+/// Normalize a title for similarity comparison.
+///
+/// Lowercases, strips punctuation, and splits into a set of words.
+/// Common short words (stop words) are removed to focus on meaningful content.
+fn normalize_title_words(title: &str) -> Vec<String> {
+    let stop_words: &[&str] = &[
+        "a", "an", "the", "to", "in", "on", "of", "for", "and", "or", "is", "it", "by", "at",
+        "be", "do", "up", "as", "so", "if", "no", "not", "but", "all", "can", "had", "has",
+        "was", "are", "its", "may", "our", "out", "own", "too", "use", "via", "way", "yet",
+        "with", "from", "that", "this", "into", "when", "will", "been", "have", "each", "make",
+        "than", "them", "then", "some",
+    ];
+
+    let lowered = title.to_lowercase();
+    lowered
+        .split(|c: char| !c.is_ascii_alphanumeric())
+        .map(|w| w.trim())
+        .filter(|w| !w.is_empty() && w.len() > 1 && !stop_words.contains(w))
+        .map(|w| w.to_string())
+        .collect()
+}
+
+/// Compute word-overlap similarity between two titles.
+///
+/// Returns a value between 0.0 (no overlap) and 1.0 (identical words).
+/// Uses Jaccard-like similarity: |intersection| / |smaller set|.
+/// Dividing by the smaller set means "Fix auth" matches "Fix authentication timeout handling"
+/// at a high score even though one title has more words.
+pub fn title_similarity(a: &str, b: &str) -> f64 {
+    let words_a = normalize_title_words(a);
+    let words_b = normalize_title_words(b);
+
+    if words_a.is_empty() || words_b.is_empty() {
+        return 0.0;
+    }
+
+    let intersection = words_a.iter().filter(|w| words_b.contains(w)).count();
+    let min_len = words_a.len().min(words_b.len());
+
+    intersection as f64 / min_len as f64
+}
+
+/// A similar unit found during duplicate detection.
+#[derive(Debug, Clone)]
+pub struct SimilarUnit {
+    pub id: String,
+    pub title: String,
+    pub score: f64,
+}
+
+/// Find open/in-progress units with titles similar to the given title.
+///
+/// Returns units whose title similarity exceeds the threshold (default 0.7).
+/// Only checks units with status Open or InProgress.
+pub fn find_similar_titles(
+    index: &crate::index::Index,
+    new_title: &str,
+    threshold: f64,
+) -> Vec<SimilarUnit> {
+    let mut matches = Vec::new();
+
+    for entry in &index.units {
+        if entry.status != Status::Open && entry.status != Status::InProgress {
+            continue;
+        }
+
+        let score = title_similarity(new_title, &entry.title);
+        if score >= threshold {
+            matches.push(SimilarUnit {
+                id: entry.id.clone(),
+                title: entry.title.clone(),
+                score,
+            });
+        }
+    }
+
+    // Sort by score descending
+    matches.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+    matches
+}
+
+/// Default similarity threshold for duplicate detection (70% word overlap).
+pub const DEFAULT_SIMILARITY_THRESHOLD: f64 = 0.7;
+
 /// Write contents to a file atomically using write-to-temp + rename.
 ///
 /// Writes to a temporary file in the same directory as `path`, then renames
@@ -648,5 +732,186 @@ mod tests {
             .collect();
         assert_eq!(entries.len(), 1, "only the target file should exist");
         assert_eq!(entries[0].file_name().to_str().unwrap(), "test.yaml");
+    }
+
+    // ---------- title_similarity tests ----------
+
+    #[test]
+    fn similarity_identical_titles() {
+        assert!((title_similarity("Fix auth timeout", "Fix auth timeout") - 1.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn similarity_close_titles() {
+        // "Fix auth timeout" vs "Fix authentication timeout handling"
+        // Normalized: ["fix", "auth", "timeout"] vs ["fix", "authentication", "timeout", "handling"]
+        // "auth" != "authentication" so intersection = {"fix", "timeout"} = 2
+        // min_len = 3 → 2/3 ≈ 0.67
+        let score = title_similarity("Fix auth timeout", "Fix authentication timeout handling");
+        assert!(score > 0.5, "Expected > 0.5, got {}", score);
+    }
+
+    #[test]
+    fn similarity_very_different_titles() {
+        let score = title_similarity("Fix auth timeout", "Add database migration");
+        assert!(score < 0.3, "Expected < 0.3, got {}", score);
+    }
+
+    #[test]
+    fn similarity_empty_title() {
+        assert!((title_similarity("", "Something")).abs() < f64::EPSILON);
+        assert!((title_similarity("Something", "")).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn similarity_case_insensitive() {
+        let score = title_similarity("Fix Auth Timeout", "fix auth timeout");
+        assert!((score - 1.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn similarity_ignores_stop_words() {
+        // "Add a new feature" normalized: ["add", "new", "feature"]
+        // "Add the new feature" normalized: ["add", "new", "feature"]
+        let score = title_similarity("Add a new feature", "Add the new feature");
+        assert!((score - 1.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn similarity_strips_punctuation() {
+        let score = title_similarity("Fix: auth timeout!", "Fix auth timeout");
+        assert!((score - 1.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn similarity_subset_match_scores_high() {
+        // "Fix auth" vs "Fix auth timeout" → intersection = {fix, auth} = 2, min_len = 2 → 1.0
+        let score = title_similarity("Fix auth", "Fix auth timeout");
+        assert!((score - 1.0).abs() < f64::EPSILON);
+    }
+
+    // ---------- find_similar_titles tests ----------
+
+    #[test]
+    fn find_similar_returns_matches_above_threshold() {
+        use crate::index::{Index, IndexEntry};
+        use chrono::Utc;
+
+        let index = Index {
+            units: vec![
+                IndexEntry {
+                    id: "1".to_string(),
+                    title: "Fix auth timeout".to_string(),
+                    status: Status::Open,
+                    priority: 2,
+                    parent: None,
+                    dependencies: vec![],
+                    labels: vec![],
+                    assignee: None,
+                    updated_at: Utc::now(),
+                    produces: vec![],
+                    requires: vec![],
+                    has_verify: false,
+                    verify: None,
+                    created_at: Utc::now(),
+                    claimed_by: None,
+                    attempts: 0,
+                    paths: vec![],
+                    feature: false,
+                    has_decisions: false,
+                },
+                IndexEntry {
+                    id: "2".to_string(),
+                    title: "Add database migration".to_string(),
+                    status: Status::Open,
+                    priority: 2,
+                    parent: None,
+                    dependencies: vec![],
+                    labels: vec![],
+                    assignee: None,
+                    updated_at: Utc::now(),
+                    produces: vec![],
+                    requires: vec![],
+                    has_verify: false,
+                    verify: None,
+                    created_at: Utc::now(),
+                    claimed_by: None,
+                    attempts: 0,
+                    paths: vec![],
+                    feature: false,
+                    has_decisions: false,
+                },
+            ],
+        };
+
+        let matches = find_similar_titles(&index, "Fix auth timeout handling", 0.7);
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].id, "1");
+    }
+
+    #[test]
+    fn find_similar_skips_closed_units() {
+        use crate::index::{Index, IndexEntry};
+        use chrono::Utc;
+
+        let index = Index {
+            units: vec![IndexEntry {
+                id: "1".to_string(),
+                title: "Fix auth timeout".to_string(),
+                status: Status::Closed,
+                priority: 2,
+                parent: None,
+                dependencies: vec![],
+                labels: vec![],
+                assignee: None,
+                updated_at: Utc::now(),
+                produces: vec![],
+                requires: vec![],
+                has_verify: false,
+                verify: None,
+                created_at: Utc::now(),
+                claimed_by: None,
+                attempts: 0,
+                paths: vec![],
+                feature: false,
+                has_decisions: false,
+            }],
+        };
+
+        let matches = find_similar_titles(&index, "Fix auth timeout", 0.7);
+        assert!(matches.is_empty());
+    }
+
+    #[test]
+    fn find_similar_returns_empty_when_no_match() {
+        use crate::index::{Index, IndexEntry};
+        use chrono::Utc;
+
+        let index = Index {
+            units: vec![IndexEntry {
+                id: "1".to_string(),
+                title: "Fix auth timeout".to_string(),
+                status: Status::Open,
+                priority: 2,
+                parent: None,
+                dependencies: vec![],
+                labels: vec![],
+                assignee: None,
+                updated_at: Utc::now(),
+                produces: vec![],
+                requires: vec![],
+                has_verify: false,
+                verify: None,
+                created_at: Utc::now(),
+                claimed_by: None,
+                attempts: 0,
+                paths: vec![],
+                feature: false,
+                has_decisions: false,
+            }],
+        };
+
+        let matches = find_similar_titles(&index, "Add database migration", 0.7);
+        assert!(matches.is_empty());
     }
 }

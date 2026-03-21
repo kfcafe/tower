@@ -42,6 +42,7 @@ Commands:
 
   QUERY
     status       Show project status: claimed, ready, and blocked units
+    next         Recommend the best bean to work on next
     tree         Show hierarchical tree of units
     graph        Display dependency graph
     context      Output context for a unit, or memory context (no args)
@@ -57,6 +58,7 @@ Commands:
     plan         Interactively plan a large unit into children
     review       Adversarial post-close review of an implementation
     diff         Show git diff of what an agent changed for a bean
+    mutate       Mutation-test a unit's verify gate strength
     agents       Show running and recently completed agents
     logs         View agent output from log files
 
@@ -433,6 +435,32 @@ Examples:
         no_json: bool,
     },
 
+    /// Recommend the single best bean to work on next
+    ///
+    /// Scores ready beans by priority, dependency depth (unblocks), age, and attempt
+    /// count. Returns the top-scored bean — the answer to "what should I work on?"
+    #[command(
+        display_order = 21,
+        after_help = "\
+Examples:
+  mana next                Show the single best bean to work on
+  mana next -n 3           Show top 3 recommendations
+  mana next --json         Machine-readable JSON output"
+    )]
+    Next {
+        /// Number of recommendations to show (default: 1)
+        #[arg(short = 'n', long, default_value = "1")]
+        count: usize,
+
+        /// JSON output
+        #[arg(long)]
+        json: bool,
+
+        /// Force human-readable output even when piped
+        #[arg(long = "no-json", conflicts_with = "json")]
+        no_json: bool,
+    },
+
     /// Output context for a unit, or memory context (no args)
     ///
     /// With a unit ID: outputs complete agent context — unit spec, verify command,
@@ -645,6 +673,10 @@ Examples:
         /// Timeout in seconds for the verify command (kills process on expiry)
         #[arg(long)]
         verify_timeout: Option<u64>,
+
+        /// Skip duplicate title check
+        #[arg(long)]
+        force: bool,
     },
 
     /// Move units between .mana/ directories
@@ -975,6 +1007,46 @@ Examples:
         no_color: bool,
     },
 
+    /// Mutation-test a unit's verify gate
+    ///
+    /// After confirming verify passes on clean code, mutates the git diff
+    /// (flips operators, swaps booleans, deletes lines) and re-runs verify.
+    /// Surviving mutants indicate a weak verify gate that doesn't catch changes.
+    #[command(
+        display_order = 36,
+        after_help = "\
+Examples:
+  mana mutate 5                       Test verify strength for unit 5
+  mana mutate 5 --max 10              Test at most 10 mutants
+  mana mutate 5 --timeout 30          30s timeout per verify run
+  mana mutate 5 --diff-base HEAD~3    Diff against 3 commits ago
+  mana mutate 5 --json                Machine-readable output"
+    )]
+    Mutate {
+        /// Unit ID
+        id: String,
+
+        /// Maximum number of mutants to test (0 = all)
+        #[arg(long, default_value = "0")]
+        max: usize,
+
+        /// Timeout per verify run in seconds
+        #[arg(long)]
+        timeout: Option<u64>,
+
+        /// Git ref to diff against (default: HEAD)
+        #[arg(long, default_value = "HEAD")]
+        diff_base: String,
+
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+
+        /// Force human-readable output even when piped
+        #[arg(long = "no-json", conflicts_with = "json")]
+        no_json: bool,
+    },
+
     /// Adversarial post-close review of a unit's implementation
     ///
     /// Spawns a review agent with the unit's spec + current git diff as context.
@@ -1293,4 +1365,8 @@ pub struct CreateOpts {
     /// Output created unit as JSON (for piping)
     #[arg(long)]
     pub json: bool,
+
+    /// Skip duplicate title check
+    #[arg(long)]
+    pub force: bool,
 }

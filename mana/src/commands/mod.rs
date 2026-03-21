@@ -20,6 +20,8 @@ pub mod logs;
 pub mod mcp;
 pub mod memory_context;
 pub mod move_units;
+pub mod mutate;
+pub mod next;
 pub mod plan;
 pub mod quick;
 
@@ -61,6 +63,8 @@ pub use logs::cmd_logs;
 pub use mcp::cmd_mcp_serve;
 pub use memory_context::cmd_memory_context;
 pub use move_units::{cmd_move_from, cmd_move_to};
+pub use mutate::cmd_mutate;
+pub use next::cmd_next;
 pub use plan::cmd_plan;
 pub use quick::cmd_quick;
 

@@ -10,7 +10,7 @@ use crate::hooks::{execute_hook, HookEvent};
 use crate::index::Index;
 use crate::project::suggest_verify_command;
 use crate::unit::{validate_priority, OnFailAction, Unit};
-use crate::util::title_to_slug;
+use crate::util::{find_similar_titles, title_to_slug, DEFAULT_SIMILARITY_THRESHOLD};
 
 /// Create arguments structure for organizing all the parameters passed to create.
 pub struct CreateArgs {
@@ -43,6 +43,8 @@ pub struct CreateArgs {
     pub feature: bool,
     /// Unresolved decisions that block autonomous execution.
     pub decisions: Vec<String>,
+    /// Skip duplicate title check
+    pub force: bool,
 }
 
 /// Assign a child ID for a parent unit.
@@ -197,6 +199,26 @@ pub fn cmd_create(mana_dir: &Path, args: CreateArgs) -> Result<String> {
             }
 
             eprintln!("✓ Verify failed as expected - test is real");
+        }
+    }
+
+    // Duplicate title check (skip with --force)
+    if !args.force {
+        if let Ok(index) = Index::load_or_rebuild(mana_dir) {
+            let similar = find_similar_titles(&index, &args.title, DEFAULT_SIMILARITY_THRESHOLD);
+            if !similar.is_empty() {
+                let mut msg = String::from("Similar unit(s) already exist:\n");
+                for s in &similar {
+                    msg.push_str(&format!(
+                        "  [{}] {} (similarity: {:.0}%)\n",
+                        s.id,
+                        s.title,
+                        s.score * 100.0
+                    ));
+                }
+                msg.push_str("\nUse --force to create anyway.");
+                anyhow::bail!(msg);
+            }
         }
     }
 

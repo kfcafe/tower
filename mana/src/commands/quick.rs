@@ -10,7 +10,7 @@ use crate::hooks::{execute_hook, HookEvent};
 use crate::index::Index;
 use crate::project::suggest_verify_command;
 use crate::unit::{validate_priority, OnFailAction, Status, Unit};
-use crate::util::title_to_slug;
+use crate::util::{find_similar_titles, title_to_slug, DEFAULT_SIMILARITY_THRESHOLD};
 
 /// Arguments for quick-create command.
 pub struct QuickArgs {
@@ -31,6 +31,8 @@ pub struct QuickArgs {
     pub pass_ok: bool,
     /// Timeout in seconds for the verify command (kills process on expiry).
     pub verify_timeout: Option<u64>,
+    /// Skip duplicate title check
+    pub force: bool,
 }
 
 /// Quick-create: create a unit and immediately claim it.
@@ -80,6 +82,26 @@ pub fn cmd_quick(mana_dir: &Path, args: QuickArgs) -> Result<()> {
             }
 
             println!("✓ Verify failed as expected - test is real");
+        }
+    }
+
+    // Duplicate title check (skip with --force)
+    if !args.force {
+        if let Ok(index) = Index::load_or_rebuild(mana_dir) {
+            let similar = find_similar_titles(&index, &args.title, DEFAULT_SIMILARITY_THRESHOLD);
+            if !similar.is_empty() {
+                let mut msg = String::from("Similar unit(s) already exist:\n");
+                for s in &similar {
+                    msg.push_str(&format!(
+                        "  [{}] {} (similarity: {:.0}%)\n",
+                        s.id,
+                        s.title,
+                        s.score * 100.0
+                    ));
+                }
+                msg.push_str("\nUse --force to create anyway.");
+                anyhow::bail!(msg);
+            }
         }
     }
 
@@ -263,6 +285,7 @@ mod tests {
             on_fail: None,
             pass_ok: true,
             verify_timeout: None,
+            force: false,
         };
 
         cmd_quick(&mana_dir, args).unwrap();
@@ -298,6 +321,7 @@ mod tests {
             on_fail: None,
             pass_ok: true,
             verify_timeout: None,
+            force: false,
         };
 
         cmd_quick(&mana_dir, args).unwrap();
@@ -327,6 +351,7 @@ mod tests {
             on_fail: None,
             pass_ok: true,
             verify_timeout: None,
+            force: false,
         };
 
         let result = cmd_quick(&mana_dir, args);
@@ -354,6 +379,7 @@ mod tests {
             on_fail: None,
             pass_ok: true,
             verify_timeout: None,
+            force: false,
         };
         cmd_quick(&mana_dir, args1).unwrap();
 
@@ -372,6 +398,7 @@ mod tests {
             on_fail: None,
             pass_ok: true,
             verify_timeout: None,
+            force: false,
         };
         cmd_quick(&mana_dir, args2).unwrap();
 
@@ -400,6 +427,7 @@ mod tests {
             on_fail: None,
             pass_ok: true,
             verify_timeout: None,
+            force: false,
         };
 
         cmd_quick(&mana_dir, args).unwrap();
@@ -430,6 +458,7 @@ mod tests {
             on_fail: None,
             pass_ok: true,
             verify_timeout: None,
+            force: false,
         };
 
         cmd_quick(&mana_dir, args).unwrap();
@@ -463,6 +492,7 @@ mod tests {
             on_fail: None,
             pass_ok: false, // default: fail-first enforced
             verify_timeout: None,
+            force: false,
         };
 
         let result = cmd_quick(&mana_dir, args);
@@ -489,6 +519,7 @@ mod tests {
             on_fail: None,
             pass_ok: false, // default: fail-first enforced
             verify_timeout: None,
+            force: false,
         };
 
         let result = cmd_quick(&mana_dir, args);
@@ -521,6 +552,7 @@ mod tests {
             on_fail: None,
             pass_ok: true,
             verify_timeout: None,
+            force: false,
         };
 
         let result = cmd_quick(&mana_dir, args);
@@ -553,6 +585,7 @@ mod tests {
             on_fail: None,
             pass_ok: false,
             verify_timeout: None,
+            force: false,
         };
 
         let result = cmd_quick(&mana_dir, args);

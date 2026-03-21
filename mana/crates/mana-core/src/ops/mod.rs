@@ -11,6 +11,7 @@ pub mod init;
 pub mod list;
 pub mod memory_context;
 pub mod move_units;
+pub mod mutate;
 pub mod plan;
 pub mod recall;
 pub mod reopen;

@@ -56,6 +56,7 @@ pub fn cmd_fact(
             verify_timeout: None,
             feature: false,
             decisions: Vec::new(),
+            force: true, // facts have unique verify commands, skip title dupe check
         },
     )?;
 
