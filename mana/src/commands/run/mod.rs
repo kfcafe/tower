@@ -46,6 +46,8 @@ pub(super) struct RunConfig {
     pub idle_timeout_minutes: u32,
     pub json_stream: bool,
     pub file_locking: bool,
+    /// Config-level model for run/implement (substituted into `{model}` in templates).
+    pub run_model: Option<String>,
 }
 
 /// Arguments for cmd_run, matching the CLI definition.
@@ -320,6 +322,7 @@ fn run_once(
         idle_timeout_minutes: args.idle_timeout,
         json_stream: args.json_stream,
         file_locking: config.file_locking,
+        run_model: config.run_model.clone(),
     };
     let run_start = Instant::now();
     let total_done;

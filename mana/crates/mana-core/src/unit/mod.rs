@@ -551,6 +551,7 @@ mod tests {
             attempt_log: Vec::new(),
             created_by: Some("alice".to_string()),
             decisions: vec!["JWT or sessions?".to_string()],
+            model: Some("claude-sonnet".to_string()),
         };
 
         let yaml = serde_yml::to_string(&unit).unwrap();
