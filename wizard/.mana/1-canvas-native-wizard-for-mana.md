@@ -2,10 +2,10 @@
 id: '1'
 title: Canvas-native Wizard for mana
 slug: canvas-native-wizard-for-mana
-status: open
+status: closed
 priority: 2
 created_at: '2026-03-20T06:31:02.579109Z'
-updated_at: '2026-03-20T06:31:02.579109Z'
+updated_at: '2026-03-21T20:48:24.319513Z'
 labels:
 - wizard
 - canvas

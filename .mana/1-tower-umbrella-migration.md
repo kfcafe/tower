@@ -2,10 +2,10 @@
 id: '1'
 title: Tower umbrella migration
 slug: tower-umbrella-migration
-status: open
+status: closed
 priority: 2
 created_at: '2026-03-20T15:43:32.040863Z'
-updated_at: '2026-03-20T15:43:32.040863Z'
+updated_at: '2026-03-21T20:48:51.920560Z'
 labels:
 - tower
 - umbrella

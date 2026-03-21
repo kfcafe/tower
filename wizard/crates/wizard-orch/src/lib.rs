@@ -19,6 +19,7 @@ pub struct RuntimeSupervisor {
     /// Broadcast sender for runtime updates
     update_sender: broadcast::Sender<Event>,
     /// Receiver for shutdown signals
+    #[allow(dead_code)] // Will be used for graceful shutdown
     shutdown_receiver: Arc<Mutex<Option<mpsc::Receiver<()>>>>,
     /// Artifact storage and management
     artifacts: Arc<Mutex<HashMap<String, Artifact>>>,
@@ -26,6 +27,12 @@ pub struct RuntimeSupervisor {
     reviews: Arc<Mutex<HashMap<String, Review>>>,
     /// Verification results cache
     verifications: Arc<Mutex<HashMap<String, VerificationDetails>>>,
+}
+
+impl Default for RuntimeSupervisor {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl RuntimeSupervisor {
@@ -508,15 +515,13 @@ impl RuntimeSupervisor {
         checks.push(verify_check);
 
         // Determine overall status
-        let overall_status = if checks
+        let has_failure = checks
             .iter()
             .any(|check| matches!(check.status, VerificationStatus::Failed))
-        {
-            VerificationStatus::Failed
-        } else if issues
-            .iter()
-            .any(|issue| matches!(issue.severity, IssueSeverity::Error))
-        {
+            || issues
+                .iter()
+                .any(|issue| matches!(issue.severity, IssueSeverity::Error));
+        let overall_status = if has_failure {
             VerificationStatus::Failed
         } else {
             VerificationStatus::Passed
@@ -570,7 +575,8 @@ impl RuntimeSupervisor {
     /// Helper to get artifacts lock (for internal use)
     fn get_artifacts_guard(
         &self,
-    ) -> Result<std::sync::MutexGuard<HashMap<String, Artifact>>, Box<dyn std::error::Error>> {
+    ) -> Result<std::sync::MutexGuard<'_, HashMap<String, Artifact>>, Box<dyn std::error::Error>>
+    {
         self.artifacts
             .lock()
             .map_err(|e| format!("Failed to lock artifacts: {}", e).into())
@@ -969,7 +975,7 @@ pub fn watch_mana_directory<F>(
     mut on_change: F,
 ) -> Result<(), Box<dyn std::error::Error>>
 where
-    F: FnMut(ProjectSnapshot) -> () + Send + 'static,
+    F: FnMut(ProjectSnapshot) + Send + 'static,
 {
     let (tx, rx) = mpsc::channel();
 
@@ -1096,7 +1102,7 @@ pub fn project_snapshot(project_name: &str) -> ProjectSnapshot {
 #[deprecated(note = "Use load_runtime_snapshot() instead")]
 pub fn runtime_snapshot() -> RuntimeSnapshot {
     // Try to load real data, but fallback to placeholder if it fails
-    load_runtime_snapshot().unwrap_or_else(|_| RuntimeSnapshot {
+    load_runtime_snapshot().unwrap_or(RuntimeSnapshot {
         running_agents: 0,
         queued_units: 0,
     })
