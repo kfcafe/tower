@@ -141,18 +141,24 @@ impl Spawner {
             return Err(anyhow!("Unit {} already has a running agent", bean_id));
         }
 
-        let template = match action {
-            AgentAction::Implement => config
-                .run
-                .as_deref()
-                .ok_or_else(|| anyhow!("No run template configured"))?,
-            AgentAction::Plan => config
-                .plan
-                .as_deref()
-                .ok_or_else(|| anyhow!("No plan template configured"))?,
+        let (template, model) = match action {
+            AgentAction::Implement => (
+                config
+                    .run
+                    .as_deref()
+                    .ok_or_else(|| anyhow!("No run template configured"))?,
+                config.run_model.as_deref(),
+            ),
+            AgentAction::Plan => (
+                config
+                    .plan
+                    .as_deref()
+                    .ok_or_else(|| anyhow!("No plan template configured"))?,
+                config.plan_model.as_deref(),
+            ),
         };
 
-        let cmd = substitute_template(template, bean_id);
+        let cmd = substitute_template_with_model(template, bean_id, model);
         let log_path = build_log_path(bean_id)?;
 
         // Build agent identity: user/agent-N (namespaced under the user who spawned)
@@ -554,6 +560,35 @@ mod tests {
     #[test]
     fn template_substitution_multiple_placeholders() {
         assert_eq!(substitute_template("{id}-{id}-{id}", "3"), "3-3-3");
+    }
+
+    #[test]
+    fn template_with_model_substitution() {
+        assert_eq!(
+            substitute_template_with_model(
+                "claude --model {model} -p 'implement {id}'",
+                "5",
+                Some("sonnet")
+            ),
+            "claude --model sonnet -p 'implement 5'"
+        );
+    }
+
+    #[test]
+    fn template_with_model_none_leaves_placeholder() {
+        assert_eq!(
+            substitute_template_with_model("claude --model {model} -p 'implement {id}'", "5", None),
+            "claude --model {model} -p 'implement 5'"
+        );
+    }
+
+    #[test]
+    fn template_with_model_no_model_placeholder() {
+        // If template doesn't use {model}, model config is ignored (backward compatible)
+        assert_eq!(
+            substitute_template_with_model("echo {id}", "5", Some("opus")),
+            "echo 5"
+        );
     }
 
     #[test]

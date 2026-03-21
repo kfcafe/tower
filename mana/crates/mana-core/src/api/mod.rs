@@ -40,7 +40,7 @@
 
 use std::path::Path;
 
-use anyhow::Result;
+use crate::error::{ManaError, ManaResult};
 
 // ---------------------------------------------------------------------------
 // Re-exported core types
@@ -70,6 +70,9 @@ pub use crate::graph::{
 // Utility
 pub use crate::unit::validate_priority;
 
+// Error types
+pub use crate::error::{self, ManaError as Error};
+
 // ---------------------------------------------------------------------------
 // Query functions
 // ---------------------------------------------------------------------------
@@ -80,30 +83,67 @@ pub use crate::unit::validate_priority;
 /// Works for both active and legacy unit formats.
 ///
 /// # Errors
-/// - Unit ID is invalid
-/// - No unit file found for the given ID
-/// - File cannot be parsed
-pub fn get_bean(mana_dir: &Path, id: &str) -> Result<Unit> {
-    let path = find_unit_file(mana_dir, id)?;
-    Unit::from_file(&path)
+/// - [`ManaError::UnitNotFound`] — no unit file for the given ID
+/// - [`ManaError::InvalidId`] — ID is empty or contains invalid characters
+/// - [`ManaError::ParseError`] — file cannot be deserialized
+/// - [`ManaError::IoError`] — filesystem failure
+pub fn get_bean(mana_dir: &Path, id: &str) -> ManaResult<Unit> {
+    let path = find_unit_file(mana_dir, id).map_err(|e| {
+        let msg = e.to_string();
+        if msg.contains("Invalid unit ID") || msg.contains("cannot be empty") {
+            ManaError::InvalidId {
+                id: id.to_string(),
+                reason: msg,
+            }
+        } else {
+            ManaError::UnitNotFound {
+                id: id.to_string(),
+            }
+        }
+    })?;
+    Unit::from_file(&path).map_err(|e| ManaError::ParseError {
+        path,
+        reason: e.to_string(),
+    })
 }
 
 /// Load a unit from the archive by ID.
 ///
 /// # Errors
-/// - Unit ID not found in archive
-/// - File cannot be parsed
-pub fn get_archived_bean(mana_dir: &Path, id: &str) -> Result<Unit> {
-    let path = find_archived_unit(mana_dir, id)?;
-    Unit::from_file(&path)
+/// - [`ManaError::UnitNotFound`] — unit ID not found in archive
+/// - [`ManaError::InvalidId`] — ID is empty or contains invalid characters
+/// - [`ManaError::ParseError`] — file cannot be deserialized
+/// - [`ManaError::IoError`] — filesystem failure
+pub fn get_archived_bean(mana_dir: &Path, id: &str) -> ManaResult<Unit> {
+    let path = find_archived_unit(mana_dir, id).map_err(|e| {
+        let msg = e.to_string();
+        if msg.contains("Invalid unit ID") || msg.contains("cannot be empty") {
+            ManaError::InvalidId {
+                id: id.to_string(),
+                reason: msg,
+            }
+        } else {
+            ManaError::UnitNotFound {
+                id: id.to_string(),
+            }
+        }
+    })?;
+    Unit::from_file(&path).map_err(|e| ManaError::ParseError {
+        path,
+        reason: e.to_string(),
+    })
 }
 
 /// Load the index, rebuilding from unit files if stale.
 ///
 /// This is the main entry point for reading unit metadata.
 /// The index is a YAML cache that's faster than reading every unit file.
-pub fn load_index(mana_dir: &Path) -> Result<Index> {
-    Index::load_or_rebuild(mana_dir)
+///
+/// # Errors
+/// - [`ManaError::IndexError`] — index cannot be built, loaded, or saved
+/// - [`ManaError::IoError`] — filesystem failure
+pub fn load_index(mana_dir: &Path) -> ManaResult<Index> {
+    Index::load_or_rebuild(mana_dir).map_err(|e| ManaError::IndexError(e.to_string()))
 }
 
 // ---------------------------------------------------------------------------

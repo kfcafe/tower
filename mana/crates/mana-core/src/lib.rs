@@ -1,5 +1,6 @@
 pub mod agent_presets;
 pub mod api;
+pub mod error;
 pub mod blocking;
 pub mod config;
 pub mod ctx_assembler;

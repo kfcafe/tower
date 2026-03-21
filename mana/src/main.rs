@@ -231,7 +231,11 @@ fn main() -> Result<()> {
                     let config = Config::load_with_extends(&mana_dir)?;
                     match &config.run {
                         Some(template) => {
-                            let cmd = template.replace("{id}", &bean_id);
+                            let cmd = mana::spawner::substitute_template_with_model(
+                                template,
+                                &bean_id,
+                                config.run_model.as_deref(),
+                            );
                             eprintln!("Spawning: {}", cmd);
                             let status =
                                 std::process::Command::new("sh").args(["-c", &cmd]).status();
@@ -355,7 +359,11 @@ fn main() -> Result<()> {
                 let config = Config::load_with_extends(&mana_dir)?;
                 match &config.run {
                     Some(template) => {
-                        let cmd = template.replace("{id}", &bean_id);
+                        let cmd = mana::spawner::substitute_template_with_model(
+                            template,
+                            &bean_id,
+                            config.run_model.as_deref(),
+                        );
                         eprintln!("Spawning: {}", cmd);
                         let status = std::process::Command::new("sh").args(["-c", &cmd]).status();
                         match status {

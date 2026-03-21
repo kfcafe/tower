@@ -300,6 +300,7 @@ pub(super) fn run_wave(
             plan_template.as_deref(),
             cfg.max_jobs,
             cfg.timeout_minutes,
+            cfg.run_model.as_deref(),
         ),
         SpawnMode::Direct => run_wave_direct(
             mana_dir,
@@ -321,6 +322,7 @@ fn run_wave_template(
     _plan_template: Option<&str>,
     max_jobs: usize,
     _timeout_minutes: u32,
+    config_run_model: Option<&str>,
 ) -> Result<Vec<AgentResult>> {
     let mut results = Vec::new();
     let mut children: Vec<(SizedBean, std::process::Child, Instant)> = Vec::new();
@@ -357,7 +359,10 @@ fn run_wave_template(
                 BeanAction::Implement => run_template,
             };
 
-            let cmd = template.replace("{id}", &sb.id);
+            // Model precedence: bean-level override > config-level > no substitution
+            let effective_model = sb.model.as_deref().or(config_run_model);
+            let cmd =
+                crate::spawner::substitute_template_with_model(template, &sb.id, effective_model);
             match Command::new("sh").args(["-c", &cmd]).spawn() {
                 Ok(child) => {
                     children.push((sb.clone(), child, Instant::now()));
@@ -691,7 +696,7 @@ mod tests {
             model: None,
         }];
 
-        let results = run_wave_template(&units, "echo {id}", None, 4, 30).unwrap();
+        let results = run_wave_template(&units, "echo {id}", None, 4, 30, None).unwrap();
         assert_eq!(results.len(), 1);
         assert!(results[0].success);
         assert_eq!(results[0].id, "1");
@@ -712,7 +717,7 @@ mod tests {
             model: None,
         }];
 
-        let results = run_wave_template(&units, "echo {id}", None, 4, 30).unwrap();
+        let results = run_wave_template(&units, "echo {id}", None, 4, 30, None).unwrap();
         assert_eq!(results.len(), 1);
         assert!(results[0].success);
         assert_eq!(results[0].id, "1");
@@ -733,7 +738,7 @@ mod tests {
             model: None,
         }];
 
-        let results = run_wave_template(&units, "false", None, 4, 30).unwrap();
+        let results = run_wave_template(&units, "false", None, 4, 30, None).unwrap();
         assert_eq!(results.len(), 1);
         assert!(!results[0].success);
         assert!(results[0].error.is_some());

@@ -105,7 +105,14 @@ pub fn cmd_review(mana_dir: &Path, args: ReviewArgs) -> Result<()> {
         return Ok(());
     };
 
-    let cmd_str = template.replace("{id}", &args.id);
+    // Model precedence: CLI override > bean-level > config review_model > no substitution
+    let effective_model = args
+        .model
+        .as_deref()
+        .or(unit.model.as_deref())
+        .or(config.review_model.as_deref());
+    let cmd_str =
+        crate::spawner::substitute_template_with_model(template, &args.id, effective_model);
 
     eprintln!("Review: spawning review agent for unit {}...", args.id);
 
