@@ -384,6 +384,14 @@ fn run_once(
         return Ok(());
     }
 
+    let decision_warnings = collect_decision_warnings(mana_dir, &plan.all_beans, &plan.index)?;
+    if !confirm_dispatch_with_decisions(&decision_warnings, args.json_stream)? {
+        if !args.json_stream {
+            eprintln!("Dispatch cancelled.");
+        }
+        return Ok(());
+    }
+
     // Report blocked units (oversized/unscoped)
     if !plan.skipped.is_empty() && !args.json_stream {
         eprintln!("{} unit(s) blocked:", plan.skipped.len());
@@ -930,6 +938,70 @@ mod tests {
         };
         assert_eq!(result.total_tokens, Some(5000));
         assert_eq!(result.total_cost, Some(0.03));
+    }
+
+    #[test]
+    fn collect_decision_warnings_only_returns_dispatch_units_with_decisions() {
+        let (_dir, mana_dir) = make_beans_dir();
+        write_config(&mana_dir, Some("echo {id}"));
+
+        let mut unit1 = crate::unit::Unit::new("1", "Has decisions");
+        unit1.verify = Some("echo ok".to_string());
+        unit1.decisions = vec!["JWT or session cookies?".to_string()];
+        unit1.to_file(mana_dir.join("1-has-decisions.md")).unwrap();
+
+        let mut unit2 = crate::unit::Unit::new("2", "No decisions");
+        unit2.verify = Some("echo ok".to_string());
+        unit2.to_file(mana_dir.join("2-no-decisions.md")).unwrap();
+
+        let index = crate::index::Index::build(&mana_dir).unwrap();
+        let beans = vec![
+            SizedBean {
+                id: "1".to_string(),
+                title: "Has decisions".to_string(),
+                action: BeanAction::Implement,
+                priority: 2,
+                dependencies: Vec::new(),
+                parent: None,
+                produces: Vec::new(),
+                requires: Vec::new(),
+                paths: Vec::new(),
+                model: None,
+            },
+            SizedBean {
+                id: "2".to_string(),
+                title: "No decisions".to_string(),
+                action: BeanAction::Implement,
+                priority: 2,
+                dependencies: Vec::new(),
+                parent: None,
+                produces: Vec::new(),
+                requires: Vec::new(),
+                paths: Vec::new(),
+                model: None,
+            },
+        ];
+
+        let warnings = collect_decision_warnings(&mana_dir, &beans, &index).unwrap();
+        assert_eq!(warnings.len(), 1);
+        assert_eq!(warnings[0].id, "1");
+        assert_eq!(warnings[0].decisions, vec!["JWT or session cookies?"]);
+    }
+
+    #[test]
+    fn format_decision_warning_message_matches_single_unit_prompt() {
+        let message = format_decision_warning_message(&[DecisionWarning {
+            id: "42".to_string(),
+            title: "Implement auth".to_string(),
+            decisions: vec![
+                "JWT or session cookies?".to_string(),
+                "Which JWT library?".to_string(),
+            ],
+        }]);
+
+        assert!(message.contains("⚠ Unit 42 has 2 unresolved decisions"));
+        assert!(message.contains("0: JWT or session cookies?"));
+        assert!(message.contains("1: Which JWT library?"));
     }
 
     #[test]
