@@ -164,6 +164,12 @@ pub struct Unit {
     /// Whether this unit is a feature (product-level goal, human-only close).
     #[serde(default, skip_serializing_if = "is_false")]
     pub feature: bool,
+
+    /// Unresolved decisions that block autonomous execution.
+    /// Each entry is a question that must be answered before an agent starts work.
+    /// Empty list means no blocking decisions.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub decisions: Vec<String>,
 }
 
 fn default_priority() -> u8 {
@@ -243,6 +249,7 @@ impl Unit {
             paths: Vec::new(),
             attempt_log: Vec::new(),
             created_by: None,
+            decisions: Vec::new(),
         })
     }
 
@@ -453,6 +460,7 @@ impl Unit {
             "last_verified" => self.last_verified = serde_json::from_str(json_value)?,
             "stale_after" => self.stale_after = serde_json::from_str(json_value)?,
             "paths" => self.paths = serde_json::from_str(json_value)?,
+            "decisions" => self.decisions = serde_json::from_str(json_value)?,
             _ => return Err(anyhow::anyhow!("Unknown field: {}", field)),
         }
         self.updated_at = Utc::now();
@@ -536,6 +544,7 @@ mod tests {
             paths: Vec::new(),
             attempt_log: Vec::new(),
             created_by: Some("alice".to_string()),
+            decisions: vec!["JWT or sessions?".to_string()],
         };
 
         let yaml = serde_yml::to_string(&unit).unwrap();

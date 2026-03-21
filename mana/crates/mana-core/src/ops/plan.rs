@@ -170,6 +170,169 @@ A good child unit description includes:
     )
 }
 
+/// Detect the project's language/stack by looking for marker files.
+///
+/// Returns a list of (language, config_file) pairs found in the project root.
+pub fn detect_project_stack(project_root: &Path) -> Vec<(&'static str, &'static str)> {
+    let markers: &[(&str, &str)] = &[
+        ("Rust", "Cargo.toml"),
+        ("JavaScript/TypeScript", "package.json"),
+        ("Python", "pyproject.toml"),
+        ("Python", "setup.py"),
+        ("Go", "go.mod"),
+        ("Ruby", "Gemfile"),
+        ("Java", "pom.xml"),
+        ("Java", "build.gradle"),
+        ("Elixir", "mix.exs"),
+        ("Swift", "Package.swift"),
+        ("C/C++", "CMakeLists.txt"),
+        ("Zig", "build.zig"),
+    ];
+
+    markers
+        .iter()
+        .filter(|(_, file)| project_root.join(file).exists())
+        .copied()
+        .collect()
+}
+
+/// Run static analysis commands for the detected stack.
+///
+/// Returns a string with the combined output of all checks (best-effort).
+/// Commands that aren't installed or fail are skipped gracefully.
+pub fn run_static_checks(project_root: &Path) -> String {
+    let stack = detect_project_stack(project_root);
+    let mut output = String::new();
+
+    for (lang, _) in &stack {
+        let checks: Vec<(&str, &[&str])> = match *lang {
+            "Rust" => vec![
+                ("cargo clippy", &["cargo", "clippy", "--", "-D", "warnings"]),
+                ("cargo test (check)", &["cargo", "test", "--no-run"]),
+            ],
+            "JavaScript/TypeScript" => vec![
+                ("npm run lint", &["npm", "run", "lint"]),
+                ("npx tsc --noEmit", &["npx", "tsc", "--noEmit"]),
+            ],
+            "Python" => vec![
+                ("ruff check .", &["ruff", "check", "."]),
+                ("mypy .", &["mypy", "."]),
+            ],
+            "Go" => vec![
+                ("go vet ./...", &["go", "vet", "./..."]),
+                ("golangci-lint run", &["golangci-lint", "run"]),
+            ],
+            _ => vec![],
+        };
+
+        for (name, args) in checks {
+            let result = std::process::Command::new(args[0])
+                .args(&args[1..])
+                .current_dir(project_root)
+                .output();
+
+            match result {
+                Ok(o) => {
+                    let stdout = String::from_utf8_lossy(&o.stdout);
+                    let stderr = String::from_utf8_lossy(&o.stderr);
+                    if !o.status.success() {
+                        output.push_str(&format!("### {} (exit {})\n", name, o.status));
+                        if !stdout.is_empty() {
+                            // Truncate to keep prompt reasonable
+                            let truncated: String = stdout.chars().take(2000).collect();
+                            output.push_str(&truncated);
+                            output.push('\n');
+                        }
+                        if !stderr.is_empty() {
+                            let truncated: String = stderr.chars().take(2000).collect();
+                            output.push_str(&truncated);
+                            output.push('\n');
+                        }
+                    } else {
+                        output.push_str(&format!("### {} — ✓ passed\n", name));
+                    }
+                }
+                Err(_) => {
+                    // Tool not installed, skip silently
+                }
+            }
+        }
+    }
+
+    output
+}
+
+/// Build a research prompt for project-level analysis.
+///
+/// Includes detected stack info, static check results, and instructions
+/// for the agent to create units from findings.
+pub fn build_research_prompt(
+    project_root: &Path,
+    parent_id: &str,
+    mana_cmd: &str,
+) -> String {
+    let stack = detect_project_stack(project_root);
+    let stack_info = if stack.is_empty() {
+        "Could not detect project stack.".to_string()
+    } else {
+        stack
+            .iter()
+            .map(|(lang, file)| format!("- {} ({})", lang, file))
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+
+    let static_output = run_static_checks(project_root);
+    let static_section = if static_output.is_empty() {
+        "No static analysis tools were available or all passed.".to_string()
+    } else {
+        static_output
+    };
+
+    format!(
+        r#"Analyze this project for improvements and create units for each finding.
+
+## Project Stack
+{stack_info}
+
+## Static Analysis Results
+{static_section}
+
+## Your Task
+1. Review the static analysis output above for errors, warnings, and issues
+2. Examine the codebase for:
+   - **Bugs**: Logic errors, edge cases, error handling gaps
+   - **Tests**: Missing test coverage, untested error paths
+   - **Refactors**: Code duplication, complexity, unclear naming
+   - **Security**: Input validation, auth issues, data exposure
+   - **Performance**: Unnecessary allocations, N+1 queries, blocking I/O
+3. For each finding, create a unit:
+
+```
+{mana_cmd} create "category: description" \
+  --parent {parent_id} \
+  --verify "test command" \
+  --description "What's wrong, where it is, how to fix it"
+```
+
+## Categories
+Use these prefixes for unit titles:
+- `bug:` for bugs and logic errors
+- `test:` for missing tests
+- `refactor:` for code quality improvements
+- `security:` for security issues
+- `perf:` for performance improvements
+
+## Rules
+- Focus on actionable, concrete findings (not style nits)
+- Every unit must have a verify command that proves the fix works
+- Include file paths and line numbers when possible
+- Prioritize: critical bugs > security > missing tests > refactors > perf
+- Create 3-10 units (don't overwhelm with trivial issues)
+- After creating units, run `{mana_cmd} tree {parent_id}` to show the result"#,
+    )
+}
+
 /// Escape a string for safe use as a single shell argument.
 pub fn shell_escape(s: &str) -> String {
     let escaped = s.replace('\'', "'\\''");
