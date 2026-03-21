@@ -271,6 +271,7 @@ pub(super) fn run_ready_queue_direct(
                     &sb,
                     timeout_min,
                     idle_min,
+                    config_run_model.as_deref(),
                     json_stream,
                     file_locking,
                 );
@@ -390,6 +391,28 @@ pub(super) fn run_ready_queue_direct(
     Ok((results, any_failed))
 }
 
+fn build_direct_pi_command(
+    prompt_result: &crate::prompt::PromptResult,
+    model: Option<&str>,
+) -> Command {
+    let mut cmd = Command::new("pi");
+    cmd.args(["--mode", "json", "--print", "--no-session"]);
+
+    if let Some(model) = model {
+        cmd.args(["--model", model]);
+    }
+
+    if !prompt_result.system_prompt.is_empty() {
+        cmd.args(["--append-system-prompt", &prompt_result.system_prompt]);
+    }
+
+    if !prompt_result.file_ref.is_empty() {
+        cmd.arg(&prompt_result.file_ref);
+    }
+    cmd.arg(&prompt_result.user_message);
+    cmd
+}
+
 /// Run a single unit by spawning pi directly.
 pub(super) fn run_single_direct(
     mana_dir: &Path,
@@ -492,18 +515,10 @@ pub(super) fn run_single_direct(
         }
     };
 
+    let effective_model = unit.model.as_deref().or(config_run_model);
+
     // Build pi command using structured prompt fields
-    let mut cmd = Command::new("pi");
-    cmd.args(["--mode", "json", "--print", "--no-session"]);
-
-    if !prompt_result.system_prompt.is_empty() {
-        cmd.args(["--append-system-prompt", &prompt_result.system_prompt]);
-    }
-
-    if !prompt_result.file_ref.is_empty() {
-        cmd.arg(&prompt_result.file_ref);
-    }
-    cmd.arg(&prompt_result.user_message);
+    let mut cmd = build_direct_pi_command(&prompt_result, effective_model);
     cmd.stdout(Stdio::piped());
     cmd.stderr(Stdio::piped());
 
@@ -700,7 +715,7 @@ pub(super) fn run_single_direct(
             cost: cumulative_cost,
             tool_count,
             error: error.clone(),
-            model: "default".to_string(),
+            model: effective_model.unwrap_or("default").to_string(),
             timestamp: chrono::Utc::now().to_rfc3339(),
         },
     );

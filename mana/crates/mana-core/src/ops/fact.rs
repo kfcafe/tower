@@ -369,7 +369,7 @@ mod tests {
             &mana_dir,
             FactParams {
                 title: "Config file format".to_string(),
-                verify: "true".to_string(),
+                verify: "grep -q 'project: test' .mana/config.yaml".to_string(),
                 description: None,
                 paths: Some("src/config.rs, src/main.rs".to_string()),
                 ttl_days: None,
@@ -389,7 +389,7 @@ mod tests {
             &mana_dir,
             FactParams {
                 title: "Short-lived fact".to_string(),
-                verify: "true".to_string(),
+                verify: "grep -q 'project: test' .mana/config.yaml".to_string(),
                 description: None,
                 paths: None,
                 ttl_days: Some(7),

@@ -308,6 +308,7 @@ pub(super) fn run_wave(
             cfg.max_jobs,
             cfg.timeout_minutes,
             cfg.idle_timeout_minutes,
+            cfg.run_model.as_deref(),
             cfg.json_stream,
             wave_number,
             cfg.file_locking,
@@ -453,6 +454,7 @@ fn run_wave_direct(
     max_jobs: usize,
     timeout_minutes: u32,
     idle_timeout_minutes: u32,
+    config_run_model: Option<&str>,
     json_stream: bool,
     wave_number: usize,
     file_locking: bool,
@@ -479,6 +481,7 @@ fn run_wave_direct(
             let results = Arc::clone(&results);
             let timeout_min = timeout_minutes;
             let idle_min = idle_timeout_minutes;
+            let config_run_model = config_run_model.map(str::to_string);
 
             if json_stream {
                 stream::emit(&StreamEvent::BeanStart {
@@ -497,6 +500,7 @@ fn run_wave_direct(
                     &sb,
                     timeout_min,
                     idle_min,
+                    config_run_model.as_deref(),
                     json_stream,
                     file_locking,
                 );

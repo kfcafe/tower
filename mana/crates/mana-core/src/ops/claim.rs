@@ -369,6 +369,7 @@ mod tests {
         let (_dir, bd) = setup();
         let mut params = minimal_params("Task");
         params.verify = Some("   ".to_string());
+        params.force = true;
         create::create(&bd, params).unwrap();
 
         let result = claim(&bd, "1", force_params(Some("alice"))).unwrap();
@@ -379,7 +380,7 @@ mod tests {
     fn verify_on_claim_passing_verify_rejected() {
         let (_dir, bd) = setup();
         let mut params = minimal_params("Already done");
-        params.verify = Some("true".to_string());
+        params.verify = Some("grep -q 'project: test' .mana/config.yaml".to_string());
         params.fail_first = true;
         create::create(&bd, params).unwrap();
 
@@ -411,7 +412,7 @@ mod tests {
     fn verify_on_claim_force_overrides() {
         let (_dir, bd) = setup();
         let mut params = minimal_params("Force claim");
-        params.verify = Some("true".to_string());
+        params.verify = Some("grep -q 'project: test' .mana/config.yaml".to_string());
         create::create(&bd, params).unwrap();
 
         let result = claim(&bd, "1", force_params(Some("alice"))).unwrap();

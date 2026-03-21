@@ -180,7 +180,7 @@ mod tests {
     fn verify_passing_command() {
         let (_dir, bd) = setup();
         let mut params = minimal_params("Task");
-        params.verify = Some("echo hello".to_string());
+        params.verify = Some("grep -q 'project: test' .mana/config.yaml && printf hello".to_string());
         create::create(&bd, params).unwrap();
 
         let result = run_verify(&bd, "1").unwrap().unwrap();
@@ -222,7 +222,7 @@ mod tests {
     fn verify_captures_stderr() {
         let (_dir, bd) = setup();
         let mut params = minimal_params("Task");
-        params.verify = Some("echo err >&2".to_string());
+        params.verify = Some("grep -q 'project: test' .mana/config.yaml && printf err >&2".to_string());
         create::create(&bd, params).unwrap();
 
         let result = run_verify(&bd, "1").unwrap().unwrap();

@@ -568,6 +568,27 @@ mod tests {
     }
 
     #[test]
+    fn builtin_plan_command_includes_model_when_set() {
+        let cmd = build_builtin_plan_command(
+            ".mana/7-plan.md",
+            "plan this unit carefully",
+            Some("sonnet"),
+        );
+
+        assert_eq!(
+            cmd,
+            "pi --model 'sonnet' @.mana/7-plan.md 'plan this unit carefully'"
+        );
+    }
+
+    #[test]
+    fn builtin_research_command_includes_model_when_set() {
+        let cmd = build_builtin_research_command("research the project", Some("opus"));
+
+        assert_eq!(cmd, "pi --model 'opus' 'research the project'");
+    }
+
+    #[test]
     fn build_prompt_includes_decomposition_rules() {
         let unit = Unit::new("42", "Implement auth system");
         let prompt = build_decomposition_prompt("42", &unit, None);
