@@ -199,7 +199,8 @@ pub fn run_mutation_test(
         let original_content = originals[&abs_file].clone();
 
         // Apply mutation
-        let mutated_content = apply_line_mutation(&original_content, mutant.line_number, &mutant.mutated);
+        let mutated_content =
+            apply_line_mutation(&original_content, mutant.line_number, &mutant.mutated);
         fs::write(&abs_file, &mutated_content)
             .with_context(|| format!("Failed to write mutated {}", mutant.file.display()))?;
 
@@ -281,12 +282,7 @@ pub fn get_diff_hunks(project_root: &Path, base_ref: &str) -> Result<Vec<DiffHun
     if !output.status.success() {
         // Try diffing against empty tree (for initial commits)
         let output2 = Command::new("git")
-            .args([
-                "diff",
-                "--cached",
-                "--unified=0",
-                "--no-color",
-            ])
+            .args(["diff", "--cached", "--unified=0", "--no-color"])
             .current_dir(project_root)
             .output()
             .context("Failed to run git diff --cached")?;
@@ -330,7 +326,11 @@ fn parse_unified_diff(diff_text: &str) -> Result<Vec<DiffHunk>> {
                 current_lines.push(new_line_num);
             }
             new_line_num += 1;
-        } else if !line.starts_with('-') && !line.starts_with("diff ") && !line.starts_with("index ") && !line.starts_with("--- ") {
+        } else if !line.starts_with('-')
+            && !line.starts_with("diff ")
+            && !line.starts_with("index ")
+            && !line.starts_with("--- ")
+        {
             // Context line (no prefix) — advances line counter
             new_line_num += 1;
         }
@@ -376,11 +376,7 @@ fn parse_hunk_header(line: &str) -> Option<(usize, usize)> {
 // ---------------------------------------------------------------------------
 
 /// Generate all possible mutations for a single source line.
-pub fn generate_mutations(
-    file: &Path,
-    line_number: usize,
-    line: &str,
-) -> Vec<Mutant> {
+pub fn generate_mutations(file: &Path, line_number: usize, line: &str) -> Vec<Mutant> {
     let mut mutants = Vec::new();
     let trimmed = line.trim();
 
@@ -669,11 +665,7 @@ mod tests {
 
     #[test]
     fn generate_comparison_mutations() {
-        let mutants = generate_mutations(
-            Path::new("test.rs"),
-            1,
-            "    if x == 5 {",
-        );
+        let mutants = generate_mutations(Path::new("test.rs"), 1, "    if x == 5 {");
         let comparison: Vec<_> = mutants
             .iter()
             .filter(|m| m.operator == MutationOperator::FlipComparison)
@@ -684,11 +676,7 @@ mod tests {
 
     #[test]
     fn generate_logical_mutations() {
-        let mutants = generate_mutations(
-            Path::new("test.rs"),
-            1,
-            "    if a && b {",
-        );
+        let mutants = generate_mutations(Path::new("test.rs"), 1, "    if a && b {");
         let logical: Vec<_> = mutants
             .iter()
             .filter(|m| m.operator == MutationOperator::FlipLogical)
@@ -699,11 +687,7 @@ mod tests {
 
     #[test]
     fn generate_boolean_mutations() {
-        let mutants = generate_mutations(
-            Path::new("test.rs"),
-            1,
-            "    let flag = true;",
-        );
+        let mutants = generate_mutations(Path::new("test.rs"), 1, "    let flag = true;");
         let booleans: Vec<_> = mutants
             .iter()
             .filter(|m| m.operator == MutationOperator::SwapBoolean)
@@ -715,11 +699,7 @@ mod tests {
     #[test]
     fn generate_boolean_word_boundary() {
         // Should NOT mutate "true" inside "truecolor"
-        let mutants = generate_mutations(
-            Path::new("test.rs"),
-            1,
-            "    let truecolor = 1;",
-        );
+        let mutants = generate_mutations(Path::new("test.rs"), 1, "    let truecolor = 1;");
         let booleans: Vec<_> = mutants
             .iter()
             .filter(|m| m.operator == MutationOperator::SwapBoolean)
@@ -729,11 +709,7 @@ mod tests {
 
     #[test]
     fn generate_arithmetic_mutations() {
-        let mutants = generate_mutations(
-            Path::new("test.rs"),
-            1,
-            "    let total = a + b;",
-        );
+        let mutants = generate_mutations(Path::new("test.rs"), 1, "    let total = a + b;");
         let arith: Vec<_> = mutants
             .iter()
             .filter(|m| m.operator == MutationOperator::FlipArithmetic)
@@ -744,11 +720,7 @@ mod tests {
 
     #[test]
     fn generate_delete_mutations() {
-        let mutants = generate_mutations(
-            Path::new("test.rs"),
-            1,
-            "    println!(\"hello\");",
-        );
+        let mutants = generate_mutations(Path::new("test.rs"), 1, "    println!(\"hello\");");
         let deletes: Vec<_> = mutants
             .iter()
             .filter(|m| m.operator == MutationOperator::DeleteLine)
@@ -759,11 +731,7 @@ mod tests {
 
     #[test]
     fn skip_comment_lines() {
-        let mutants = generate_mutations(
-            Path::new("test.rs"),
-            1,
-            "    // if x == 5 {",
-        );
+        let mutants = generate_mutations(Path::new("test.rs"), 1, "    // if x == 5 {");
         assert!(mutants.is_empty());
     }
 
@@ -779,11 +747,7 @@ mod tests {
 
     #[test]
     fn skip_import_lines_for_arithmetic() {
-        let mutants = generate_mutations(
-            Path::new("test.rs"),
-            1,
-            "use std::ops::{Add + Sub};",
-        );
+        let mutants = generate_mutations(Path::new("test.rs"), 1, "use std::ops::{Add + Sub};");
         let arith: Vec<_> = mutants
             .iter()
             .filter(|m| m.operator == MutationOperator::FlipArithmetic)
@@ -901,7 +865,11 @@ diff --git a/b.rs b/b.rs
             .unwrap();
 
         // Initial commit
-        fs::write(root.join("main.rs"), "fn main() {\n    println!(\"hello\");\n}\n").unwrap();
+        fs::write(
+            root.join("main.rs"),
+            "fn main() {\n    println!(\"hello\");\n}\n",
+        )
+        .unwrap();
         Command::new("git")
             .args(["add", "-A"])
             .current_dir(&root)
@@ -992,12 +960,7 @@ diff --git a/b.rs b/b.rs
         let (_dir, root) = setup_git_repo();
 
         // No changes — no mutants
-        let report = run_mutation_test(
-            &root,
-            "true",
-            &MutateOpts::default(),
-        )
-        .unwrap();
+        let report = run_mutation_test(&root, "true", &MutateOpts::default()).unwrap();
 
         assert_eq!(report.total, 0);
         assert_eq!(report.score, 100.0);

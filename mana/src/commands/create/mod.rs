@@ -3,6 +3,7 @@ use std::path::Path;
 use std::process::Command as ShellCommand;
 
 use anyhow::{anyhow, Context, Result};
+use mana_core::verify_lint::{lint_verify, VerifyLintLevel};
 
 use crate::commands::claim::cmd_claim;
 use crate::config::Config;
@@ -103,6 +104,43 @@ pub fn assign_child_id(mana_dir: &Path, parent_id: &str) -> Result<String> {
 /// - `retry:5` → Retry { max: Some(5), delay_secs: None }
 /// - `escalate` → Escalate { priority: None, message: None }
 /// - `escalate:P0` or `escalate:0` → Escalate { priority: Some(0), message: None }
+pub(crate) fn lint_verify_command(verify_cmd: Option<&str>, force: bool) -> Result<()> {
+    let Some(verify_cmd) = verify_cmd else {
+        return Ok(());
+    };
+
+    let findings = lint_verify(verify_cmd);
+    if findings.is_empty() {
+        return Ok(());
+    }
+
+    let error_count = findings
+        .iter()
+        .filter(|finding| finding.level == VerifyLintLevel::Error)
+        .count();
+
+    for finding in &findings {
+        let label = match finding.level {
+            VerifyLintLevel::Error => "verify lint error",
+            VerifyLintLevel::Warning => "verify lint warning",
+        };
+        eprintln!("{}: {}", label, finding.message);
+    }
+
+    if error_count > 0 && !force {
+        anyhow::bail!(
+            "Refusing to create unit: verify command has {} lint error(s). Use --force to create anyway.",
+            error_count
+        );
+    }
+
+    if error_count > 0 {
+        eprintln!("Proceeding despite verify lint errors because --force was used.");
+    }
+
+    Ok(())
+}
+
 pub fn parse_on_fail(s: &str) -> Result<OnFailAction> {
     let (action, arg) = match s.split_once(':') {
         Some((a, b)) => (a, Some(b)),
@@ -168,6 +206,8 @@ pub fn cmd_create(mana_dir: &Path, args: CreateArgs) -> Result<String> {
              Hint: parent/goal units (without --claim) don't require this."
         );
     }
+
+    lint_verify_command(args.verify.as_deref(), args.force)?;
 
     // Fail-first check (default): verify command must FAIL before unit can be created
     // This prevents "cheating tests" like `assert True` that always pass

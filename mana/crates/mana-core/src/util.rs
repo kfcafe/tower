@@ -209,11 +209,11 @@ pub fn title_to_slug(title: &str) -> String {
 /// Common short words (stop words) are removed to focus on meaningful content.
 fn normalize_title_words(title: &str) -> Vec<String> {
     let stop_words: &[&str] = &[
-        "a", "an", "the", "to", "in", "on", "of", "for", "and", "or", "is", "it", "by", "at",
-        "be", "do", "up", "as", "so", "if", "no", "not", "but", "all", "can", "had", "has",
-        "was", "are", "its", "may", "our", "out", "own", "too", "use", "via", "way", "yet",
-        "with", "from", "that", "this", "into", "when", "will", "been", "have", "each", "make",
-        "than", "them", "then", "some",
+        "a", "an", "the", "to", "in", "on", "of", "for", "and", "or", "is", "it", "by", "at", "be",
+        "do", "up", "as", "so", "if", "no", "not", "but", "all", "can", "had", "has", "was", "are",
+        "its", "may", "our", "out", "own", "too", "use", "via", "way", "yet", "with", "from",
+        "that", "this", "into", "when", "will", "been", "have", "each", "make", "than", "them",
+        "then", "some",
     ];
 
     let lowered = title.to_lowercase();
@@ -280,7 +280,11 @@ pub fn find_similar_titles(
     }
 
     // Sort by score descending
-    matches.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+    matches.sort_by(|a, b| {
+        b.score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     matches
 }
 
@@ -738,7 +742,9 @@ mod tests {
 
     #[test]
     fn similarity_identical_titles() {
-        assert!((title_similarity("Fix auth timeout", "Fix auth timeout") - 1.0).abs() < f64::EPSILON);
+        assert!(
+            (title_similarity("Fix auth timeout", "Fix auth timeout") - 1.0).abs() < f64::EPSILON
+        );
     }
 
     #[test]

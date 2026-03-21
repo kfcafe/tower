@@ -20,7 +20,9 @@ pub fn config_get(mana_dir: &Path, key: &str) -> Result<String> {
         "poll_interval" => config.poll_interval.to_string(),
         "rules_file" => config.rules_file.unwrap_or_else(|| "RULES.md".to_string()),
         "auto_commit" => config.auto_commit.to_string(),
-        "commit_template" => config.commit_template.unwrap_or_else(|| "Close unit {id}: {title}".to_string()),
+        "commit_template" => config
+            .commit_template
+            .unwrap_or_else(|| "Close unit {id}: {title}".to_string()),
         "research" => config.research.unwrap_or_default(),
         "run_model" => config.run_model.unwrap_or_default(),
         "plan_model" => config.plan_model.unwrap_or_default(),

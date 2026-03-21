@@ -4,7 +4,7 @@ use std::process::Command as ShellCommand;
 use anyhow::{anyhow, Context, Result};
 use chrono::Utc;
 
-use crate::commands::create::assign_child_id;
+use crate::commands::create::{assign_child_id, lint_verify_command};
 use crate::config::Config;
 use crate::hooks::{execute_hook, HookEvent};
 use crate::index::Index;
@@ -51,6 +51,8 @@ pub fn cmd_quick(mana_dir: &Path, args: QuickArgs) -> Result<()> {
             "Unit must have validation criteria: provide --acceptance or --verify (or both)"
         );
     }
+
+    lint_verify_command(args.verify.as_deref(), args.force)?;
 
     // Fail-first check (default): verify command must FAIL before unit can be created
     // This prevents "cheating tests" like `assert True` that always pass
@@ -595,5 +597,60 @@ mod tests {
         let bean_path = mana_dir.join("1-no-verify.md");
         let unit = Unit::from_file(&bean_path).unwrap();
         assert!(!unit.fail_first);
+    }
+
+    mod lint {
+        use super::*;
+
+        #[test]
+        fn quick_verify_lint_rejects_errors_without_force() {
+            let (_dir, mana_dir) = setup_beans_dir_with_config();
+
+            let args = QuickArgs {
+                title: "Quick lint error".to_string(),
+                description: None,
+                acceptance: None,
+                notes: None,
+                verify: Some("true".to_string()),
+                priority: None,
+                by: None,
+                produces: None,
+                requires: None,
+                parent: None,
+                on_fail: None,
+                pass_ok: true,
+                verify_timeout: None,
+                force: false,
+            };
+
+            let result = cmd_quick(&mana_dir, args);
+            assert!(result.is_err());
+            assert!(result.unwrap_err().to_string().contains("lint error"));
+        }
+
+        #[test]
+        fn quick_verify_lint_allows_errors_with_force() {
+            let (_dir, mana_dir) = setup_beans_dir_with_config();
+
+            let args = QuickArgs {
+                title: "Forced quick lint error".to_string(),
+                description: None,
+                acceptance: None,
+                notes: None,
+                verify: Some("echo done".to_string()),
+                priority: None,
+                by: None,
+                produces: None,
+                requires: None,
+                parent: None,
+                on_fail: None,
+                pass_ok: true,
+                verify_timeout: None,
+                force: true,
+            };
+
+            let result = cmd_quick(&mana_dir, args);
+            assert!(result.is_ok());
+        }
     }
 }

@@ -96,9 +96,7 @@ pub fn get_bean(mana_dir: &Path, id: &str) -> ManaResult<Unit> {
                 reason: msg,
             }
         } else {
-            ManaError::UnitNotFound {
-                id: id.to_string(),
-            }
+            ManaError::UnitNotFound { id: id.to_string() }
         }
     })?;
     Unit::from_file(&path).map_err(|e| ManaError::ParseError {
@@ -123,9 +121,7 @@ pub fn get_archived_bean(mana_dir: &Path, id: &str) -> ManaResult<Unit> {
                 reason: msg,
             }
         } else {
-            ManaError::UnitNotFound {
-                id: id.to_string(),
-            }
+            ManaError::UnitNotFound { id: id.to_string() }
         }
     })?;
     Unit::from_file(&path).map_err(|e| ManaError::ParseError {

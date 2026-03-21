@@ -11,7 +11,9 @@ use crate::hooks::{
 };
 use crate::index::{ArchiveIndex, Index, IndexEntry};
 use crate::ops::verify::run_verify_command;
-use crate::unit::{AttemptOutcome, OnCloseAction, OnFailAction, RunRecord, RunResult, Status, Unit};
+use crate::unit::{
+    AttemptOutcome, OnCloseAction, OnFailAction, RunRecord, RunResult, Status, Unit,
+};
 use crate::util::title_to_slug;
 
 // ---------------------------------------------------------------------------
@@ -185,8 +187,7 @@ pub fn close(mana_dir: &Path, id: &str, opts: CloseOpts) -> Result<CloseOutcome>
                 // Circuit breaker
                 let root_id = find_root_parent(mana_dir, &unit)?;
                 let config_max = config.as_ref().map(|c| c.max_loops).unwrap_or(10);
-                let max_loops_limit =
-                    resolve_max_loops(mana_dir, &unit, &root_id, config_max);
+                let max_loops_limit = resolve_max_loops(mana_dir, &unit, &root_id, config_max);
 
                 if max_loops_limit > 0 {
                     // Save unit first so subtree count is accurate
@@ -299,14 +300,22 @@ pub fn close(mana_dir: &Path, id: &str, opts: CloseOpts) -> Result<CloseOutcome>
     let archive_path = archive_unit(mana_dir, &mut unit, &bean_path)?;
 
     // 7. Post-close cascade
-    let on_close_results = run_post_close_actions(&unit, project_root, opts.reason.as_deref(), config.as_ref());
+    let on_close_results =
+        run_post_close_actions(&unit, project_root, opts.reason.as_deref(), config.as_ref());
 
     // Auto-commit if configured (skip in worktree mode — it already commits)
     if worktree_info.is_none() {
         let auto_commit_enabled = config.as_ref().map(|c| c.auto_commit).unwrap_or(false);
         if auto_commit_enabled {
             let template = config.as_ref().and_then(|c| c.commit_template.clone());
-            auto_commit_on_close(project_root, id, &unit.title, unit.parent.as_deref(), &unit.labels, template.as_deref());
+            auto_commit_on_close(
+                project_root,
+                id,
+                &unit.title,
+                unit.parent.as_deref(),
+                &unit.labels,
+                template.as_deref(),
+            );
         }
     }
 
@@ -667,12 +676,7 @@ pub fn find_root_parent(mana_dir: &Path, unit: &Unit) -> Result<String> {
 }
 
 /// Resolve the effective max_loops for a unit, considering root parent overrides.
-pub fn resolve_max_loops(
-    mana_dir: &Path,
-    unit: &Unit,
-    root_id: &str,
-    config_max: u32,
-) -> u32 {
+pub fn resolve_max_loops(mana_dir: &Path, unit: &Unit, root_id: &str, config_max: u32) -> u32 {
     if root_id == unit.id {
         unit.effective_max_loops(config_max)
     } else {
@@ -913,12 +917,7 @@ fn run_post_close_actions(
 }
 
 /// Fire the on_fail config hook.
-fn run_on_fail_hook(
-    unit: &Unit,
-    project_root: &Path,
-    config: Option<&Config>,
-    output: &str,
-) {
+fn run_on_fail_hook(unit: &Unit, project_root: &Path, config: Option<&Config>, output: &str) {
     if let Some(config) = config {
         if let Some(ref on_fail_template) = config.on_fail {
             let vars = HookVars {

@@ -82,7 +82,7 @@ pub fn init(path: Option<&Path>, params: InitParams) -> Result<InitResult> {
         user_email: None,
         auto_commit: false,
         commit_template: None,
-            research: None,
+        research: None,
         run_model: None,
         plan_model: None,
         review_model: None,

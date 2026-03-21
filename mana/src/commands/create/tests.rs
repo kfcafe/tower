@@ -963,6 +963,110 @@ fn no_verify_skips_fail_first_check() {
     assert!(!unit.fail_first);
 }
 
+mod lint {
+    use super::*;
+
+    #[test]
+    fn create_rejects_verify_lint_errors_without_force() {
+        let (_dir, mana_dir) = setup_beans_dir_with_config();
+
+        let args = CreateArgs {
+            title: "Linted error".to_string(),
+            description: None,
+            acceptance: None,
+            notes: None,
+            design: None,
+            verify: Some("true".to_string()),
+            priority: None,
+            labels: None,
+            assignee: None,
+            deps: None,
+            parent: None,
+            produces: None,
+            requires: None,
+            paths: None,
+            on_fail: None,
+            pass_ok: true,
+            feature: false,
+            claim: false,
+            by: None,
+            verify_timeout: None,
+            decisions: Vec::new(),
+            force: false,
+        };
+
+        let result = cmd_create(&mana_dir, args);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("lint error"));
+    }
+
+    #[test]
+    fn create_allows_verify_lint_errors_with_force() {
+        let (_dir, mana_dir) = setup_beans_dir_with_config();
+
+        let args = CreateArgs {
+            title: "Forced linted error".to_string(),
+            description: None,
+            acceptance: None,
+            notes: None,
+            design: None,
+            verify: Some("true".to_string()),
+            priority: None,
+            labels: None,
+            assignee: None,
+            deps: None,
+            parent: None,
+            produces: None,
+            requires: None,
+            paths: None,
+            on_fail: None,
+            pass_ok: true,
+            feature: false,
+            claim: false,
+            by: None,
+            verify_timeout: None,
+            decisions: Vec::new(),
+            force: true,
+        };
+
+        let result = cmd_create(&mana_dir, args);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn create_allows_verify_lint_warnings() {
+        let (_dir, mana_dir) = setup_beans_dir_with_config();
+
+        let args = CreateArgs {
+            title: "Linted warning".to_string(),
+            description: None,
+            acceptance: None,
+            notes: None,
+            design: None,
+            verify: Some("cargo test".to_string()),
+            priority: None,
+            labels: None,
+            assignee: None,
+            deps: None,
+            parent: None,
+            produces: None,
+            requires: None,
+            paths: None,
+            on_fail: None,
+            pass_ok: true,
+            feature: false,
+            claim: false,
+            by: None,
+            verify_timeout: None,
+            decisions: Vec::new(),
+            force: false,
+        };
+
+        let result = cmd_create(&mana_dir, args);
+        assert!(result.is_ok());
+    }
+}
+
 // =========================================================================
 // --claim Flag Tests
 // =========================================================================

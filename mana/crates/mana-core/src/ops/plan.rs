@@ -266,11 +266,7 @@ pub fn run_static_checks(project_root: &Path) -> String {
 ///
 /// Includes detected stack info, static check results, and instructions
 /// for the agent to create units from findings.
-pub fn build_research_prompt(
-    project_root: &Path,
-    parent_id: &str,
-    mana_cmd: &str,
-) -> String {
+pub fn build_research_prompt(project_root: &Path, parent_id: &str, mana_cmd: &str) -> String {
     let stack = detect_project_stack(project_root);
     let stack_info = if stack.is_empty() {
         "Could not detect project stack.".to_string()
