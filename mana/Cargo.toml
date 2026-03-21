@@ -1,54 +1,13 @@
-[package]
-name = "mana-cli"
+[workspace]
+resolver = "2"
+members = [
+    "crates/mana-core",
+    "crates/mana-cli",
+]
+
+[workspace.package]
 version = "0.3.0"
 edition = "2021"
 rust-version = "1.85"
-description = "Coordination substrate for AI coding agents — verified gates, dependency-aware scheduling, and multi-agent orchestration"
 license = "Apache-2.0"
 repository = "https://github.com/kfcafe/mana"
-homepage = "https://github.com/kfcafe/mana"
-readme = "README.md"
-keywords = ["cli", "task-tracker", "ai-agents", "orchestration", "coding"]
-categories = ["command-line-utilities", "development-tools"]
-exclude = [
-    ".mana/",
-    ".claude/",
-    ".github/",
-    ".pi/",
-    ".vibecheck/",
-    "biome.json",
-    "tools/",
-    "VIBECHECK.md",
-    "VIBES.md",
-    "DESIGN-bean-run-native.md",
-]
-
-[lib]
-name = "mana"
-path = "src/lib.rs"
-
-[[bin]]
-name = "mana"
-path = "src/main.rs"
-
-[dependencies]
-mana-core = { path = "crates/mana-core" }
-anyhow = "1"
-chrono = { version = "0.4.20", features = ["serde"] }
-clap = { version = "4", features = ["derive"] }
-clap_complete = "4"
-dialoguer = { version = "0.12", features = ["editor", "fuzzy-select"] }
-dirs = "6"
-fs2 = "0.4"
-glob = "0.3"
-libc = "0.2"
-regex = "1.6"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-serde_yml = "0.0.12"
-sha2 = "0.10"
-shell-escape = "0.1"
-termimad = "0.34"
-
-[dev-dependencies]
-tempfile = "3"

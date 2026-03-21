@@ -734,6 +734,7 @@ dependencies = [
  "sha2",
  "shell-escape",
  "tempfile",
+ "thiserror",
 ]
 
 [[package]]
