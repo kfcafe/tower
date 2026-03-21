@@ -25,6 +25,8 @@ pub use wave::Wave;
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use anyhow::Result;
@@ -92,6 +94,73 @@ struct AgentResult {
     failure_summary: Option<String>,
 }
 
+// ---------------------------------------------------------------------------
+// Signal handling for clean agent shutdown
+// ---------------------------------------------------------------------------
+
+/// Global flag set by SIGINT/SIGTERM signal handlers to request clean shutdown.
+static SHUTDOWN_REQUESTED: AtomicBool = AtomicBool::new(false);
+
+/// PIDs of running child agent processes, for cleanup on shutdown.
+static CHILD_PIDS: Mutex<Vec<u32>> = Mutex::new(Vec::new());
+
+/// Returns true if a shutdown signal (SIGINT/SIGTERM) has been received.
+fn shutdown_requested() -> bool {
+    SHUTDOWN_REQUESTED.load(Ordering::SeqCst)
+}
+
+/// Install signal handlers for SIGINT and SIGTERM.
+///
+/// Instead of immediately terminating, the handlers set a flag that's checked
+/// in the execution loops. This allows clean shutdown: kill child agents,
+/// release claims, and print a summary.
+fn install_signal_handlers() {
+    unsafe {
+        libc::signal(libc::SIGINT, signal_handler as libc::sighandler_t);
+        libc::signal(libc::SIGTERM, signal_handler as libc::sighandler_t);
+    }
+}
+
+extern "C" fn signal_handler(_sig: libc::c_int) {
+    SHUTDOWN_REQUESTED.store(true, Ordering::SeqCst);
+}
+
+/// Register a child process PID for shutdown tracking.
+fn register_child_pid(pid: u32) {
+    if let Ok(mut pids) = CHILD_PIDS.lock() {
+        pids.push(pid);
+    }
+}
+
+/// Unregister a child process PID after it exits.
+fn unregister_child_pid(pid: u32) {
+    if let Ok(mut pids) = CHILD_PIDS.lock() {
+        pids.retain(|&p| p != pid);
+    }
+}
+
+/// Send SIGTERM to all tracked child processes for graceful shutdown.
+fn kill_all_children() {
+    if let Ok(pids) = CHILD_PIDS.lock() {
+        for &pid in pids.iter() {
+            unsafe {
+                libc::kill(pid as i32, libc::SIGTERM);
+            }
+        }
+    }
+}
+
+/// Send SIGKILL to all tracked child processes (forced shutdown).
+fn force_kill_all_children() {
+    if let Ok(pids) = CHILD_PIDS.lock() {
+        for &pid in pids.iter() {
+            unsafe {
+                libc::kill(pid as i32, libc::SIGKILL);
+            }
+        }
+    }
+}
+
 /// Which spawning mode to use.
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum SpawnMode {
@@ -106,6 +175,9 @@ enum SpawnMode {
 
 /// Execute the `mana run` command.
 pub fn cmd_run(mana_dir: &Path, args: RunArgs) -> Result<()> {
+    // Install signal handlers for clean shutdown on Ctrl+C / SIGTERM
+    install_signal_handlers();
+
     // Determine spawn mode
     let config = Config::load_with_extends(mana_dir)?;
     let spawn_mode = determine_spawn_mode(&config);
@@ -168,6 +240,14 @@ fn run_once(
     args: &RunArgs,
     spawn_mode: &SpawnMode,
 ) -> Result<()> {
+    // Check for shutdown before starting execution
+    if shutdown_requested() {
+        if !args.json_stream {
+            eprintln!("\nShutdown signal received, aborting.");
+        }
+        return Ok(());
+    }
+
     let plan = plan_dispatch(
         mana_dir,
         config,
