@@ -15,6 +15,7 @@ use anyhow::Result;
 use crate::config::Config;
 use crate::discovery::find_unit_file;
 use crate::index::Index;
+use crate::spawner::substitute_template_with_model;
 use crate::unit::Unit;
 use mana_core::ops::plan::{
     build_decomposition_prompt, build_research_prompt, is_oversized, shell_escape,
@@ -137,14 +138,15 @@ fn spawn_research(
 ) -> Result<()> {
     // Priority: config.research > config.plan > built-in
     if let Some(ref template) = config.research {
-        let cmd = template.replace("{parent_id}", parent_id);
+        let cmd =
+            build_research_template_command(template, parent_id, config.research_model.as_deref());
         eprintln!("Spawning research: {}", cmd);
         return run_shell_command(&cmd, parent_id, args.auto);
     }
 
     if let Some(ref template) = config.plan {
         // Use plan template with a research-oriented invocation
-        let cmd = template.replace("{id}", parent_id);
+        let cmd = substitute_template_with_model(template, parent_id, config.plan_model.as_deref());
         eprintln!("Spawning research (via plan template): {}", cmd);
         return run_shell_command(&cmd, parent_id, args.auto);
     }
@@ -171,15 +173,15 @@ fn spawn_plan(
     args: &PlanArgs,
 ) -> Result<()> {
     if let Some(ref template) = config.plan {
-        return spawn_template(template, id, args);
+        return spawn_template(template, id, args, config.plan_model.as_deref());
     }
 
     spawn_builtin(mana_dir, id, unit, args)
 }
 
 /// Spawn the plan using a user-configured template command.
-fn spawn_template(template: &str, id: &str, args: &PlanArgs) -> Result<()> {
-    let mut cmd = template.replace("{id}", id);
+fn spawn_template(template: &str, id: &str, args: &PlanArgs, model: Option<&str>) -> Result<()> {
+    let mut cmd = substitute_template_with_model(template, id, model);
 
     if let Some(ref strategy) = args.strategy {
         cmd = format!("{} --strategy {}", cmd, strategy);
@@ -192,6 +194,17 @@ fn spawn_template(template: &str, id: &str, args: &PlanArgs) -> Result<()> {
 
     eprintln!("Spawning: {}", cmd);
     run_shell_command(&cmd, id, args.auto)
+}
+
+#[must_use]
+fn build_research_template_command(template: &str, parent_id: &str, model: Option<&str>) -> String {
+    let cmd = template
+        .replace("{parent_id}", parent_id)
+        .replace("{id}", parent_id);
+    match model {
+        Some(model) => cmd.replace("{model}", model),
+        None => cmd,
+    }
 }
 
 /// Build a decomposition prompt and spawn `pi` with it directly.
@@ -475,6 +488,46 @@ mod tests {
         assert!(result.is_ok());
 
         drop(dir);
+    }
+
+    #[test]
+    fn research_template_command_replaces_parent_id_and_model() {
+        let cmd = build_research_template_command(
+            "claude --model {model} -p 'research {parent_id} {id}'",
+            "42",
+            Some("sonnet"),
+        );
+
+        assert_eq!(cmd, "claude --model sonnet -p 'research 42 42'");
+    }
+
+    #[test]
+    fn research_template_without_model_keeps_placeholder() {
+        let cmd = build_research_template_command(
+            "claude --model {model} -p 'research {parent_id}'",
+            "42",
+            None,
+        );
+
+        assert_eq!(cmd, "claude --model {model} -p 'research 42'");
+    }
+
+    #[test]
+    fn plan_template_substitutes_model_and_strategy() {
+        let result = spawn_template(
+            "claude --model {model} -p 'plan {id}'",
+            "7",
+            &PlanArgs {
+                id: Some("7".to_string()),
+                strategy: Some("by-layer".to_string()),
+                auto: false,
+                force: false,
+                dry_run: true,
+            },
+            Some("haiku"),
+        );
+
+        assert!(result.is_ok());
     }
 
     #[test]
