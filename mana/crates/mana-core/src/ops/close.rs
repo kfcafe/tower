@@ -156,21 +156,24 @@ pub fn close(mana_dir: &Path, id: &str, opts: CloseOpts) -> Result<CloseOutcome>
             let agent = std::env::var("BEANS_AGENT").ok();
 
             if !verify_result.passed {
+                // Build combined output — on timeout, synthesize a message
+                let combined_output = if verify_result.timed_out {
+                    format!("Verify timed out after {}s", timeout_secs.unwrap_or(0))
+                } else {
+                    let stdout = verify_result.stdout.trim();
+                    let stderr = verify_result.stderr.trim();
+                    let sep = if !stdout.is_empty() && !stderr.is_empty() {
+                        "\n"
+                    } else {
+                        ""
+                    };
+                    format!("{}{}{}", stdout, sep, stderr)
+                };
+
                 // Record the failure
                 let failure = VerifyFailure {
                     exit_code: verify_result.exit_code,
-                    output: format!(
-                        "{}{}{}",
-                        verify_result.stdout.trim(),
-                        if !verify_result.stdout.trim().is_empty()
-                            && !verify_result.stderr.trim().is_empty()
-                        {
-                            "\n"
-                        } else {
-                            ""
-                        },
-                        verify_result.stderr.trim()
-                    ),
+                    output: combined_output,
                     timed_out: verify_result.timed_out,
                     duration_secs,
                     started_at,
