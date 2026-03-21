@@ -1,0 +1,12 @@
+# Tower workspace Cargo config
+# Optimizes build speed for iterative agent-driven development.
+
+[build]
+# sccache: shared compilation cache across builds and agents.
+# Eliminates redundant recompilation of unchanged dependencies.
+rustc-wrapper = "sccache"
+
+[target.aarch64-apple-darwin]
+# mold: fast linker (5-10x faster than default for incremental builds).
+linker = "clang"
+rustflags = ["-C", "link-arg=-fuse-ld=/opt/homebrew/bin/mold"]

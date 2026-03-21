@@ -2,6 +2,7 @@ use std::path::Path;
 
 use anyhow::Result;
 
+use crate::config::DEFAULT_COMMIT_TEMPLATE;
 use crate::unit::Unit;
 use crate::worktree;
 
@@ -28,10 +29,12 @@ pub(crate) fn detect_valid_worktree(project_root: &Path) -> Option<worktree::Wor
 /// Returns Ok(false) if there was a conflict (caller should abort the close).
 pub(crate) fn handle_merge(wt_info: &worktree::WorktreeInfo, unit: &Unit) -> Result<bool> {
     // Commit any uncommitted changes in the worktree directory
-    worktree::commit_worktree_changes(
-        &wt_info.worktree_path,
-        &format!("Close unit {}: {}", unit.id, unit.title),
-    )?;
+    let message = DEFAULT_COMMIT_TEMPLATE
+        .replace("{id}", &unit.id)
+        .replace("{title}", &unit.title)
+        .replace("{parent_id}", unit.parent.as_deref().unwrap_or(""))
+        .replace("{labels}", &unit.labels.join(","));
+    worktree::commit_worktree_changes(&wt_info.worktree_path, &message)?;
 
     // Merge to main
     match worktree::merge_to_main(wt_info, &unit.id)? {
@@ -53,7 +56,11 @@ pub(crate) fn cleanup(wt_info: &worktree::WorktreeInfo) {
 
 /// Auto-commit changes on close (non-worktree mode).
 pub(crate) fn auto_commit_on_close(project_root: &Path, id: &str, title: &str) {
-    let message = format!("Close unit {}: {}", id, title);
+    let message = DEFAULT_COMMIT_TEMPLATE
+        .replace("{id}", id)
+        .replace("{title}", title)
+        .replace("{parent_id}", "")
+        .replace("{labels}", "");
 
     // Stage all changes
     let add_status = std::process::Command::new("git")

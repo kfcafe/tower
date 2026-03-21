@@ -1176,7 +1176,7 @@ fn rebuild_index(mana_dir: &Path) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::Config;
+    use crate::config::{Config, DEFAULT_COMMIT_TEMPLATE};
     use std::fs;
     use tempfile::TempDir;
 
@@ -1224,6 +1224,59 @@ mod tests {
         .unwrap();
 
         (dir, mana_dir)
+    }
+
+    fn setup_git_mana_dir_with_config(config: Config) -> (TempDir, PathBuf) {
+        let dir = TempDir::new().unwrap();
+        let project_root = dir.path();
+        let mana_dir = project_root.join(".mana");
+        fs::create_dir(&mana_dir).unwrap();
+        config.save(&mana_dir).unwrap();
+
+        run_git(project_root, &["init"]);
+        run_git(project_root, &["config", "user.email", "test@test.com"]);
+        run_git(project_root, &["config", "user.name", "Test"]);
+
+        fs::write(project_root.join("initial.txt"), "initial").unwrap();
+        run_git(project_root, &["add", "-A"]);
+        run_git(project_root, &["commit", "-m", "Initial commit"]);
+
+        (dir, mana_dir)
+    }
+
+    fn run_git(dir: &Path, args: &[&str]) {
+        let output = std::process::Command::new("git")
+            .args(args)
+            .current_dir(dir)
+            .output()
+            .unwrap_or_else(|e| unreachable!("git {:?} failed to execute: {}", args, e));
+        assert!(
+            output.status.success(),
+            "git {:?} in {} failed (exit {:?}):\nstdout: {}\nstderr: {}",
+            args,
+            dir.display(),
+            output.status.code(),
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr),
+        );
+    }
+
+    fn git_stdout(dir: &Path, args: &[&str]) -> String {
+        let output = std::process::Command::new("git")
+            .args(args)
+            .current_dir(dir)
+            .output()
+            .unwrap_or_else(|e| unreachable!("git {:?} failed to execute: {}", args, e));
+        assert!(
+            output.status.success(),
+            "git {:?} in {} failed (exit {:?}):\nstdout: {}\nstderr: {}",
+            args,
+            dir.display(),
+            output.status.code(),
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr),
+        );
+        String::from_utf8(output.stdout).unwrap()
     }
 
     fn write_unit(mana_dir: &Path, unit: &Unit) {
@@ -1661,5 +1714,71 @@ mod tests {
         assert!(note.contains("## Attempt 1"));
         assert!(note.contains("Exit code: 1"));
         assert!(note.contains("error message"));
+    }
+
+    #[test]
+    fn expand_commit_template_substitutes_all_placeholders() {
+        let message = expand_commit_template(
+            "feat(bean-{id}): {title} [{parent_id}] {labels}",
+            "2.3",
+            "Ship it",
+            Some("2"),
+            &["feature".to_string(), "git".to_string()],
+        );
+
+        assert_eq!(message, "feat(bean-2.3): Ship it [2] feature,git");
+    }
+
+    #[test]
+    fn close_auto_commit_uses_default_template_and_includes_index_updates() {
+        let config = Config {
+            project: "test".to_string(),
+            next_id: 100,
+            auto_commit: true,
+            ..Config::default()
+        };
+        let (_dir, mana_dir) = setup_git_mana_dir_with_config(config);
+        let project_root = mana_dir.parent().unwrap();
+
+        let parent = Unit::new("1", "Parent");
+        write_unit(&mana_dir, &parent);
+
+        let mut child = Unit::new("1.1", "Child");
+        child.parent = Some("1".to_string());
+        write_unit(&mana_dir, &child);
+
+        let result = close(
+            &mana_dir,
+            "1.1",
+            CloseOpts {
+                reason: None,
+                force: false,
+            },
+        )
+        .unwrap();
+
+        let close_result = match result {
+            CloseOutcome::Closed(result) => result,
+            other => panic!("Expected Closed outcome, got {:?}", other),
+        };
+        let auto_commit = close_result
+            .auto_commit_result
+            .expect("auto-commit result should be present when enabled");
+        assert!(auto_commit.committed);
+        assert_eq!(
+            auto_commit.message,
+            DEFAULT_COMMIT_TEMPLATE
+                .replace("{id}", "1.1")
+                .replace("{title}", "Child")
+        );
+        assert_eq!(close_result.auto_closed_parents, vec!["1".to_string()]);
+
+        let head_subject = git_stdout(project_root, &["log", "-1", "--pretty=%s"]);
+        assert_eq!(head_subject.trim(), "feat(bean-1.1): Child");
+
+        let changed_files = git_stdout(project_root, &["show", "--name-only", "--format=", "HEAD"]);
+        assert!(changed_files.contains(".mana/index.yaml"), "{changed_files}");
+        assert!(changed_files.contains("1-parent.md"), "{changed_files}");
+        assert!(changed_files.contains("1.1-child.md"), "{changed_files}");
     }
 }
