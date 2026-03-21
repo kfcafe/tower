@@ -568,6 +568,20 @@ mod tests {
     }
 
     #[test]
+    fn plan_template_prefers_unit_model_override() {
+        let config_model = Some("haiku");
+        let unit_model = Some("opus");
+        let cmd = build_plan_template_command(
+            "claude --model {model} -p 'plan {id}'",
+            "7",
+            None,
+            unit_model.or(config_model),
+        );
+
+        assert_eq!(cmd, "claude --model opus -p 'plan 7'");
+    }
+
+    #[test]
     fn builtin_plan_command_includes_model_when_set() {
         let cmd = build_builtin_plan_command(
             ".mana/7-plan.md",

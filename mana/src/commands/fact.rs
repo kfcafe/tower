@@ -173,7 +173,7 @@ mod tests {
         let id = cmd_fact(
             &mana_dir,
             "Config file format".to_string(),
-            "true".to_string(),
+            "grep -q 'project: test' .mana/config.yaml".to_string(),
             None,
             Some("src/config.rs, src/main.rs".to_string()),
             None,
@@ -194,7 +194,7 @@ mod tests {
         let id = cmd_fact(
             &mana_dir,
             "Short-lived fact".to_string(),
-            "true".to_string(),
+            "grep -q 'project: test' .mana/config.yaml".to_string(),
             None,
             None,
             Some(7), // 7 days

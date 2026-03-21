@@ -809,6 +809,44 @@ mod tests {
         .unwrap();
     }
 
+    #[test]
+    fn direct_pi_command_includes_model_flag() {
+        let prompt_result = crate::prompt::PromptResult {
+            system_prompt: "system".to_string(),
+            user_message: "implement it".to_string(),
+            file_ref: "@.mana/1-task.md".to_string(),
+        };
+
+        let cmd = build_direct_pi_command(&prompt_result, Some("sonnet"));
+        let args: Vec<String> = cmd
+            .get_args()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect();
+
+        assert!(args
+            .windows(2)
+            .any(|window| window == ["--model", "sonnet"]));
+        assert!(args.contains(&"@.mana/1-task.md".to_string()));
+        assert!(args.contains(&"implement it".to_string()));
+    }
+
+    #[test]
+    fn direct_pi_command_omits_model_flag_when_unset() {
+        let prompt_result = crate::prompt::PromptResult {
+            system_prompt: String::new(),
+            user_message: "implement it".to_string(),
+            file_ref: String::new(),
+        };
+
+        let cmd = build_direct_pi_command(&prompt_result, None);
+        let args: Vec<String> = cmd
+            .get_args()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect();
+
+        assert!(!args.iter().any(|arg| arg == "--model"));
+    }
+
     fn make_sized_bean(
         id: &str,
         deps: Vec<&str>,
