@@ -113,9 +113,11 @@ pub fn all_deps_closed(entry: &IndexEntry, index: &Index, archive: &ArchiveIndex
     }
 
     for required in &entry.requires {
-        if let Some(producer) = index.units.iter().find(|e| {
-            e.id != entry.id && e.parent == entry.parent && e.produces.contains(required)
-        }) {
+        if let Some(producer) = index
+            .units
+            .iter()
+            .find(|e| e.id != entry.id && e.parent == entry.parent && e.produces.contains(required))
+        {
             if producer.status != Status::Closed {
                 return false;
             }
@@ -397,12 +399,7 @@ mod tests {
     use super::*;
     use std::collections::HashSet;
 
-    fn make_unit(
-        id: &str,
-        deps: Vec<&str>,
-        produces: Vec<&str>,
-        requires: Vec<&str>,
-    ) -> ReadyUnit {
+    fn make_unit(id: &str, deps: Vec<&str>, produces: Vec<&str>, requires: Vec<&str>) -> ReadyUnit {
         ReadyUnit {
             id: id.to_string(),
             title: format!("Unit {}", id),
@@ -453,16 +450,22 @@ mod tests {
     #[test]
     fn all_deps_closed_archived_dep_satisfied() {
         let entry_a = make_index_entry("A", Status::Open, vec!["B"], None, vec![], vec![]);
-        let index = Index { units: vec![entry_a.clone()] };
+        let index = Index {
+            units: vec![entry_a.clone()],
+        };
         let archived_b = make_index_entry("B", Status::Closed, vec![], None, vec![], vec![]);
-        let archive = ArchiveIndex { units: vec![archived_b] };
+        let archive = ArchiveIndex {
+            units: vec![archived_b],
+        };
         assert!(all_deps_closed(&entry_a, &index, &archive));
     }
 
     #[test]
     fn all_deps_closed_missing_dep_unsatisfied() {
         let entry_a = make_index_entry("A", Status::Open, vec!["B"], None, vec![], vec![]);
-        let index = Index { units: vec![entry_a.clone()] };
+        let index = Index {
+            units: vec![entry_a.clone()],
+        };
         let archive = ArchiveIndex { units: vec![] };
         assert!(!all_deps_closed(&entry_a, &index, &archive));
     }
@@ -471,7 +474,9 @@ mod tests {
     fn all_deps_closed_active_closed_dep_satisfied() {
         let entry_a = make_index_entry("A", Status::Open, vec!["B"], None, vec![], vec![]);
         let entry_b = make_index_entry("B", Status::Closed, vec![], None, vec![], vec![]);
-        let index = Index { units: vec![entry_a.clone(), entry_b] };
+        let index = Index {
+            units: vec![entry_a.clone(), entry_b],
+        };
         let archive = ArchiveIndex { units: vec![] };
         assert!(all_deps_closed(&entry_a, &index, &archive));
     }
@@ -480,7 +485,9 @@ mod tests {
     fn all_deps_closed_active_open_dep_unsatisfied() {
         let entry_a = make_index_entry("A", Status::Open, vec!["B"], None, vec![], vec![]);
         let entry_b = make_index_entry("B", Status::Open, vec![], None, vec![], vec![]);
-        let index = Index { units: vec![entry_a.clone(), entry_b] };
+        let index = Index {
+            units: vec![entry_a.clone(), entry_b],
+        };
         let archive = ArchiveIndex { units: vec![] };
         assert!(!all_deps_closed(&entry_a, &index, &archive));
     }

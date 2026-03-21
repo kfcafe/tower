@@ -217,7 +217,6 @@ pub(super) fn print_plan(plan: &DispatchPlan) {
                 sb.id, sb.title, sb.action, weight_note, critical_note, conflict_str, warning
             );
         }
-        let _ = wave_idx; // suppress unused warning when no conflicts printed
     }
 
     if !plan.skipped.is_empty() {
@@ -651,16 +650,6 @@ mod tests {
         // Effective parallelism: 2 (A+C or B+C, not A+B)
         let eff = super::super::wave::compute_effective_parallelism(&plan.waves[0].units);
         assert_eq!(eff, 2);
-    }
-
-    /// Helper: capture stdout from a closure.
-    fn capture_stdout<F: FnOnce()>(f: F) -> String {
-        use std::sync::{Arc, Mutex};
-        // We can't easily capture real stdout in unit tests without unsafe tricks.
-        // Instead, call print_plan and check the plan data directly.
-        // This helper exists as a placeholder — the tests below inspect plan data.
-        let _ = f;
-        String::new()
     }
 
     #[test]

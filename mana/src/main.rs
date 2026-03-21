@@ -96,12 +96,23 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
+    // Onboard doesn't need mana_dir — works on any project directory
+    if let Command::Onboard { dir } = cli.command {
+        let project_root = if dir == std::path::PathBuf::from(".") {
+            env::current_dir()?
+        } else {
+            dir
+        };
+        return cmd_onboard(&project_root);
+    }
+
     // All other commands need mana_dir
     let mana_dir = find_mana_dir(&env::current_dir()?)?;
 
     match cli.command {
         Command::Init { .. } => unreachable!(),
         Command::Completions { .. } => unreachable!(),
+        Command::Onboard { .. } => unreachable!(),
 
         Command::Create { args } => {
             let CreateOpts {
@@ -860,6 +871,11 @@ fn main() -> Result<()> {
                     json: auto_json(json, no_json),
                 },
             )
+        }
+
+        Command::Onboard { dir } => {
+            use mana::commands::onboard::cmd_onboard;
+            cmd_onboard(&dir)
         }
 
         Command::Review { id, diff, model } => {
