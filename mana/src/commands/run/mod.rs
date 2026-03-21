@@ -35,6 +35,7 @@ use anyhow::Result;
 use crate::commands::review::{cmd_review, ReviewArgs};
 use crate::config::Config;
 use crate::stream::{self, StreamEvent};
+use crate::unit::Unit;
 
 use plan::{plan_dispatch, print_plan, print_plan_json};
 use ready_queue::run_ready_queue_direct;
@@ -180,6 +181,106 @@ enum SpawnMode {
     },
     /// Spawn pi directly with JSON output and monitoring.
     Direct,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct DecisionWarning {
+    id: String,
+    title: String,
+    decisions: Vec<String>,
+}
+
+fn collect_decision_warnings(
+    mana_dir: &Path,
+    beans: &[SizedBean],
+    index: &crate::index::Index,
+) -> Result<Vec<DecisionWarning>> {
+    let mut warnings = Vec::new();
+
+    for bean in beans {
+        let Some(entry) = index.units.iter().find(|entry| entry.id == bean.id) else {
+            continue;
+        };
+
+        if !entry.has_decisions {
+            continue;
+        }
+
+        let unit_path = crate::discovery::find_unit_file(mana_dir, &bean.id)?;
+        let unit = Unit::from_file(&unit_path)?;
+        if unit.decisions.is_empty() {
+            continue;
+        }
+
+        warnings.push(DecisionWarning {
+            id: unit.id,
+            title: unit.title,
+            decisions: unit.decisions,
+        });
+    }
+
+    warnings.sort_by(|a, b| crate::util::natural_cmp(&a.id, &b.id));
+    Ok(warnings)
+}
+
+fn format_decision_warning_message(warnings: &[DecisionWarning]) -> String {
+    let mut message = String::new();
+
+    if warnings.len() == 1 {
+        let warning = &warnings[0];
+        message.push_str(&format!(
+            "⚠ Unit {} has {} unresolved decision{} — agent may make wrong choices:\n",
+            warning.id,
+            warning.decisions.len(),
+            if warning.decisions.len() == 1 {
+                ""
+            } else {
+                "s"
+            }
+        ));
+        for (idx, decision) in warning.decisions.iter().enumerate() {
+            message.push_str(&format!("  {}: {}\n", idx, decision));
+        }
+        return message;
+    }
+
+    message.push_str(&format!(
+        "⚠ {} units have unresolved decisions — agents may make wrong choices:\n",
+        warnings.len()
+    ));
+    for warning in warnings {
+        message.push_str(&format!(
+            "Unit {}: {} ({} unresolved)\n",
+            warning.id,
+            warning.title,
+            warning.decisions.len()
+        ));
+        for (idx, decision) in warning.decisions.iter().enumerate() {
+            message.push_str(&format!("  {}: {}\n", idx, decision));
+        }
+    }
+
+    message
+}
+
+fn confirm_dispatch_with_decisions(
+    warnings: &[DecisionWarning],
+    json_stream: bool,
+) -> Result<bool> {
+    if warnings.is_empty() {
+        return Ok(true);
+    }
+
+    eprint!("{}", format_decision_warning_message(warnings));
+
+    if json_stream || !std::io::stdin().is_terminal() {
+        return Ok(true);
+    }
+
+    eprint!("Dispatch anyway? [y/N] ");
+    let mut input = String::new();
+    std::io::stdin().read_line(&mut input)?;
+    Ok(input.trim().eq_ignore_ascii_case("y"))
 }
 
 /// Execute the `mana run` command.

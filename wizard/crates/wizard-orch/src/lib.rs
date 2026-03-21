@@ -581,13 +581,17 @@ impl RuntimeSupervisor {
         &self,
         unit_id: &str,
     ) -> Result<bool, Box<dyn std::error::Error>> {
-        // Try to find and load the unit from .mana/
-        let mana_dir = mana_core::discovery::find_mana_dir(Path::new("."))?;
+        // Try to find and load the unit from .mana/. Some tests exercise the
+        // runtime supervisor outside a mana project, so missing project state is
+        // treated as "no acceptance criteria available" rather than a hard error.
+        let Ok(mana_dir) = mana_core::discovery::find_mana_dir(Path::new(".")) else {
+            return Ok(false);
+        };
         let index = mana_core::api::load_index(&mana_dir)?;
 
         if let Some(_unit) = index.units.iter().find(|u| u.id == unit_id) {
-            // For now, consider unit verified if it exists and has a title
-            // In a real implementation, this would check specific acceptance criteria
+            // For now, consider unit verified if it exists and has a title.
+            // In a real implementation, this would check specific acceptance criteria.
             Ok(true)
         } else {
             Ok(false)
@@ -599,14 +603,17 @@ impl RuntimeSupervisor {
         &self,
         unit_id: &str,
     ) -> Result<Option<String>, Box<dyn std::error::Error>> {
-        // Try to find the unit and get its verify command
-        let mana_dir = mana_core::discovery::find_mana_dir(Path::new("."))?;
+        // Try to find the unit and get its verify command. Outside a mana project,
+        // verification falls back to "no unit-specific verify command".
+        let Ok(mana_dir) = mana_core::discovery::find_mana_dir(Path::new(".")) else {
+            return Ok(None);
+        };
         let index = mana_core::api::load_index(&mana_dir)?;
 
         if let Some(unit) = index.units.iter().find(|u| u.id == unit_id) {
             if let Some(verify_cmd) = &unit.verify {
-                // For now, mock the verify command execution
-                // In a real implementation, this would execute the actual command
+                // For now, mock the verify command execution.
+                // In a real implementation, this would execute the actual command.
                 if verify_cmd.contains("cargo check") {
                     Ok(Some("PASS: Cargo check completed successfully".to_string()))
                 } else if verify_cmd.contains("test") {

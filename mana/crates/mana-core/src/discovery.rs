@@ -6,14 +6,30 @@ use anyhow::{bail, Context, Result};
 /// Returns the path to the `.mana/` directory if found.
 /// Errors if no `.mana/` directory exists in any ancestor.
 pub fn find_mana_dir(start: &Path) -> Result<PathBuf> {
+    if let Some(found) = find_mana_dir_in_ancestors(start) {
+        return Ok(found);
+    }
+
+    if let Ok(canonical_start) = start.canonicalize() {
+        if canonical_start != start {
+            if let Some(found) = find_mana_dir_in_ancestors(&canonical_start) {
+                return Ok(found);
+            }
+        }
+    }
+
+    bail!("No .mana/ directory found. Run `mana init` first.");
+}
+
+fn find_mana_dir_in_ancestors(start: &Path) -> Option<PathBuf> {
     let mut current = start.to_path_buf();
     loop {
         let candidate = current.join(".mana");
         if candidate.is_dir() {
-            return Ok(candidate);
+            return Some(candidate);
         }
         if !current.pop() {
-            bail!("No .mana/ directory found. Run `mana init` first.");
+            return None;
         }
     }
 }
@@ -195,6 +211,24 @@ mod tests {
         fs::create_dir(&child).unwrap();
 
         let result = find_mana_dir(&child).unwrap();
+        assert_eq!(result, dir.path().join(".mana"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn finds_beans_through_symlinked_start_path() {
+        use std::os::unix::fs::symlink;
+
+        let dir = tempfile::tempdir().unwrap();
+        fs::create_dir(dir.path().join(".mana")).unwrap();
+        let real_child = dir.path().join("project");
+        fs::create_dir(&real_child).unwrap();
+
+        let symlink_root = tempfile::tempdir().unwrap();
+        let link_path = symlink_root.path().join("linked-project");
+        symlink(&real_child, &link_path).unwrap();
+
+        let result = find_mana_dir(&link_path).unwrap();
         assert_eq!(result, dir.path().join(".mana"));
     }
 
