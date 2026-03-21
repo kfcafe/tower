@@ -191,6 +191,9 @@ pub(super) fn run_ready_queue_direct(
         m
     };
 
+    // Compute downstream weights for critical-path prioritization
+    let weight_map = compute_downstream_weights(all_beans);
+
     loop {
         // Find units that are ready and we have capacity for
         let mut newly_started = 0;
@@ -208,6 +211,12 @@ pub(super) fn run_ready_queue_direct(
         ready_beans.sort_by(|a, b| {
             a.priority
                 .cmp(&b.priority)
+                .then_with(|| {
+                    // Higher weight = more downstream work blocked = schedule first
+                    let wa = weight_map.get(&a.id).copied().unwrap_or(1);
+                    let wb = weight_map.get(&b.id).copied().unwrap_or(1);
+                    wb.cmp(&wa)
+                })
                 .then_with(|| natural_cmp(&a.id, &b.id))
         });
 
