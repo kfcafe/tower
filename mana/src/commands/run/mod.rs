@@ -23,6 +23,7 @@ pub use plan::{DispatchPlan, SizedBean};
 pub use wave::Wave;
 
 use std::fmt;
+use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
