@@ -2075,4 +2075,121 @@ mod tests {
             err_msg
         );
     }
+
+    // =========================================================================
+    // --feature Flag Tests
+    // =========================================================================
+
+    #[test]
+    fn create_feature_sets_feature_flag() {
+        let (_dir, mana_dir) = setup_beans_dir_with_config();
+
+        let args = CreateArgs {
+            title: "User onboarding flow".to_string(),
+            description: Some("Product feature for onboarding".to_string()),
+            acceptance: None,
+            notes: None,
+            design: None,
+            verify: None,
+            priority: None,
+            labels: None,
+            assignee: None,
+            deps: None,
+            parent: None,
+            produces: None,
+            requires: None,
+            paths: None,
+            on_fail: None,
+            pass_ok: true,
+            feature: true,
+            claim: false,
+            by: None,
+            verify_timeout: None,
+        };
+
+        let id = cmd_create(&mana_dir, args).unwrap();
+        let bean_path = mana_dir.join(format!("{}-user-onboarding-flow.md", id));
+        assert!(bean_path.exists());
+
+        let unit = Unit::from_file(&bean_path).unwrap();
+        assert!(unit.feature, "Unit should have feature flag set");
+        assert_eq!(unit.title, "User onboarding flow");
+    }
+
+    #[test]
+    fn create_feature_works_without_verify() {
+        let (_dir, mana_dir) = setup_beans_dir_with_config();
+
+        // --feature should work without --verify (features have no verify gate)
+        let args = CreateArgs {
+            title: "Dashboard redesign".to_string(),
+            description: None,
+            acceptance: None,
+            notes: None,
+            design: None,
+            verify: None,
+            priority: None,
+            labels: None,
+            assignee: None,
+            deps: None,
+            parent: None,
+            produces: None,
+            requires: None,
+            paths: None,
+            on_fail: None,
+            pass_ok: true,
+            feature: true,
+            claim: false,
+            by: None,
+            verify_timeout: None,
+        };
+
+        let result = cmd_create(&mana_dir, args);
+        assert!(
+            result.is_ok(),
+            "Feature should be creatable without --verify"
+        );
+
+        let bean_path = mana_dir.join("1-dashboard-redesign.md");
+        let unit = Unit::from_file(&bean_path).unwrap();
+        assert!(unit.feature);
+        assert!(unit.verify.is_none());
+    }
+
+    #[test]
+    fn create_without_feature_preserves_existing_behavior() {
+        let (_dir, mana_dir) = setup_beans_dir_with_config();
+
+        // Without --feature, existing behavior unchanged: non-claimed units
+        // can still be created without verify (goal/parent units)
+        let args = CreateArgs {
+            title: "Regular unit".to_string(),
+            description: None,
+            acceptance: Some("Done".to_string()),
+            notes: None,
+            design: None,
+            verify: None,
+            priority: None,
+            labels: None,
+            assignee: None,
+            deps: None,
+            parent: None,
+            produces: None,
+            requires: None,
+            paths: None,
+            on_fail: None,
+            pass_ok: true,
+            feature: false,
+            claim: false,
+            by: None,
+            verify_timeout: None,
+        };
+
+        let result = cmd_create(&mana_dir, args);
+        assert!(result.is_ok(), "Non-feature unit should work as before");
+
+        let bean_path = mana_dir.join("1-regular-unit.md");
+        let unit = Unit::from_file(&bean_path).unwrap();
+        assert!(!unit.feature, "Non-feature unit should have feature=false");
+    }
 }
