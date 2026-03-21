@@ -24,6 +24,7 @@ pub mod mcp;
 pub mod output;
 pub(crate) mod pi_output;
 pub(crate) mod project;
+#[allow(dead_code)]
 pub(crate) mod spawner;
 pub(crate) mod stream;
 pub(crate) mod timeout;

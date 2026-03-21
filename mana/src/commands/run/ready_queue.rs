@@ -17,7 +17,7 @@ use crate::unit::{Status, Unit};
 use crate::util::natural_cmp;
 
 use super::plan::SizedBean;
-use super::wave::compute_waves;
+use super::wave::{compute_downstream_weights, compute_waves};
 use super::{format_duration, AgentResult};
 
 /// Check if all dependencies of an index entry are closed.
@@ -83,6 +83,11 @@ fn is_bean_ready(
     });
 
     explicit_ok && requires_ok
+}
+
+/// Check if a bean's paths conflict with currently-running beans.
+fn has_path_conflict(bean: &SizedBean, running_paths: &HashSet<String>) -> bool {
+    bean.paths.iter().any(|p| running_paths.contains(p))
 }
 
 /// Format a human-friendly token count (e.g. 15000 → "15k").
@@ -165,6 +170,11 @@ pub(super) fn run_ready_queue_direct(
     let mut running_count: usize = 0;
     let mut any_failed = false;
 
+    // Track file paths of currently-running beans to avoid scheduling conflicts
+    let mut running_paths: HashSet<String> = HashSet::new();
+    // Map bean ID → its paths, so we can remove them when the bean finishes
+    let mut running_bean_paths: HashMap<String, Vec<String>> = HashMap::new();
+
     // Channel for completed agents to report back
     let (tx, rx) = mpsc::channel::<AgentResult>();
 
@@ -211,8 +221,20 @@ pub(super) fn run_ready_queue_direct(
                 break;
             }
 
+            // Skip beans whose paths conflict with currently-running beans
+            if has_path_conflict(&sb, &running_paths) {
+                continue;
+            }
+
             remaining.remove(&sb.id);
             running_count += 1;
+
+            // Register this bean's paths as occupied
+            for p in &sb.paths {
+                running_paths.insert(p.clone());
+            }
+            running_bean_paths.insert(sb.id.clone(), sb.paths.clone());
+
             let round = wave_map.get(&sb.id).copied().unwrap_or(1);
 
             if json_stream {
@@ -308,6 +330,13 @@ pub(super) fn run_ready_queue_direct(
                 }
             };
             running_count -= 1;
+
+            // Release this bean's paths so deferred beans can be scheduled
+            if let Some(paths) = running_bean_paths.remove(&result.id) {
+                for p in &paths {
+                    running_paths.remove(p);
+                }
+            }
 
             let success = result.success;
             let bean_id = result.id.clone();
@@ -1071,5 +1100,72 @@ mod tests {
         };
 
         assert!(all_deps_closed(&entry_c, &index, &archive));
+    }
+
+    // -- file conflict avoidance tests --
+
+    fn make_sized_bean_with_paths(id: &str, paths: Vec<&str>) -> SizedBean {
+        SizedBean {
+            id: id.to_string(),
+            title: format!("Unit {}", id),
+            action: BeanAction::Implement,
+            priority: 2,
+            dependencies: vec![],
+            parent: Some("parent".to_string()),
+            produces: vec![],
+            requires: vec![],
+            paths: paths.into_iter().map(|s| s.to_string()).collect(),
+        }
+    }
+
+    #[test]
+    fn file_conflict_detected() {
+        let bean = make_sized_bean_with_paths("A", vec!["src/lib.rs", "src/util.rs"]);
+        let mut running = HashSet::new();
+        running.insert("src/lib.rs".to_string());
+
+        assert!(has_path_conflict(&bean, &running));
+    }
+
+    #[test]
+    fn file_conflict_no_overlap() {
+        let bean = make_sized_bean_with_paths("A", vec!["src/foo.rs"]);
+        let mut running = HashSet::new();
+        running.insert("src/bar.rs".to_string());
+
+        assert!(!has_path_conflict(&bean, &running));
+    }
+
+    #[test]
+    fn file_conflict_empty_paths() {
+        let bean = make_sized_bean_with_paths("A", vec![]);
+        let mut running = HashSet::new();
+        running.insert("src/lib.rs".to_string());
+
+        // Empty paths never conflict
+        assert!(!has_path_conflict(&bean, &running));
+    }
+
+    #[test]
+    fn file_conflict_partial_overlap() {
+        // Bean touches 3 files, only 1 overlaps with running set
+        let bean = make_sized_bean_with_paths("A", vec!["src/a.rs", "src/b.rs", "src/c.rs"]);
+        let mut running = HashSet::new();
+        running.insert("src/b.rs".to_string());
+
+        assert!(has_path_conflict(&bean, &running));
+    }
+
+    #[test]
+    fn file_conflict_multiple_running() {
+        // Running set is the union of multiple beans' paths
+        let bean = make_sized_bean_with_paths("C", vec!["src/shared.rs"]);
+        let mut running = HashSet::new();
+        // Bean A's paths
+        running.insert("src/foo.rs".to_string());
+        // Bean B's paths
+        running.insert("src/shared.rs".to_string());
+
+        assert!(has_path_conflict(&bean, &running));
     }
 }

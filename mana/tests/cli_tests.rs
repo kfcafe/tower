@@ -65,6 +65,7 @@ fn create_claim_without_criteria_shows_error() {
         claim: true,
         by: Some("agent-1".to_string()),
         verify_timeout: None,
+        decisions: vec![],
     };
 
     let result = cmd_create(&mana_dir, args);
@@ -105,6 +106,7 @@ fn create_claim_with_acceptance_succeeds() {
         claim: true,
         by: None,
         verify_timeout: None,
+        decisions: vec![],
     };
 
     let result = cmd_create(&mana_dir, args);
@@ -136,6 +138,7 @@ fn create_claim_with_verify_succeeds() {
         claim: true,
         by: None,
         verify_timeout: None,
+        decisions: vec![],
     };
 
     let result = cmd_create(&mana_dir, args);
@@ -167,6 +170,7 @@ fn create_without_claim_no_criteria_succeeds() {
         claim: false,
         by: None,
         verify_timeout: None,
+        decisions: vec![],
     };
 
     let result = cmd_create(&mana_dir, args);
@@ -202,6 +206,7 @@ fn create_claim_with_parent_no_criteria_succeeds() {
         claim: false,
         by: None,
         verify_timeout: None,
+        decisions: vec![],
     };
     cmd_create(&mana_dir, parent_args).unwrap();
 
@@ -227,6 +232,7 @@ fn create_claim_with_parent_no_criteria_succeeds() {
         claim: true,
         by: Some("agent-2".to_string()),
         verify_timeout: None,
+        decisions: vec![],
     };
 
     let result = cmd_create(&mana_dir, child_args);

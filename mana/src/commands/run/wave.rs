@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::process::Command;
 use std::sync::{Arc, Mutex};
@@ -89,6 +89,73 @@ pub(super) fn compute_waves(units: &[SizedBean], index: &Index) -> Vec<Wave> {
     }
 
     waves
+}
+
+/// Compute downstream weight for each bean.
+/// Weight = 1 + count of all transitively dependent beans.
+/// Beans on the critical path will have the highest weights.
+pub(super) fn compute_downstream_weights(beans: &[SizedBean]) -> HashMap<String, u32> {
+    let bean_ids: HashSet<String> = beans.iter().map(|b| b.id.clone()).collect();
+
+    // Build reverse dependency graph: for each bean, which beans directly depend on it.
+    let mut reverse_deps: HashMap<String, Vec<String>> = HashMap::new();
+
+    for b in beans {
+        reverse_deps.entry(b.id.clone()).or_default();
+
+        // Explicit dependencies: b depends on dep → dep's reverse_deps includes b
+        for dep in &b.dependencies {
+            if bean_ids.contains(dep) {
+                reverse_deps
+                    .entry(dep.clone())
+                    .or_default()
+                    .push(b.id.clone());
+            }
+        }
+
+        // Requires/produces: if b requires artifact X and producer makes X
+        // (same parent), then b depends on producer.
+        for req in &b.requires {
+            if let Some(producer) = beans.iter().find(|other| {
+                other.id != b.id && other.parent == b.parent && other.produces.contains(req)
+            }) {
+                if bean_ids.contains(&producer.id) {
+                    reverse_deps
+                        .entry(producer.id.clone())
+                        .or_default()
+                        .push(b.id.clone());
+                }
+            }
+        }
+    }
+
+    // For each bean, count all transitively reachable descendants via BFS.
+    let mut weights: HashMap<String, u32> = HashMap::new();
+
+    for b in beans {
+        let mut visited: HashSet<String> = HashSet::new();
+        let mut queue: Vec<String> = Vec::new();
+
+        // Seed with direct dependents
+        for dep in reverse_deps.get(&b.id).unwrap_or(&Vec::new()) {
+            if visited.insert(dep.clone()) {
+                queue.push(dep.clone());
+            }
+        }
+
+        // BFS to find all transitive dependents
+        while let Some(current) = queue.pop() {
+            for next in reverse_deps.get(&current).unwrap_or(&Vec::new()) {
+                if visited.insert(next.clone()) {
+                    queue.push(next.clone());
+                }
+            }
+        }
+
+        weights.insert(b.id.clone(), 1 + visited.len() as u32);
+    }
+
+    weights
 }
 
 // ---------------------------------------------------------------------------
@@ -538,5 +605,85 @@ mod tests {
         assert_eq!(results.len(), 1);
         assert!(!results[0].success);
         assert!(results[0].error.is_some());
+    }
+
+    // -- downstream weight tests --
+
+    fn make_bean(id: &str, deps: Vec<&str>, produces: Vec<&str>, requires: Vec<&str>) -> SizedBean {
+        SizedBean {
+            id: id.to_string(),
+            title: format!("Bean {}", id),
+            action: BeanAction::Implement,
+            priority: 2,
+            dependencies: deps.into_iter().map(|s| s.to_string()).collect(),
+            parent: Some("p".to_string()),
+            produces: produces.into_iter().map(|s| s.to_string()).collect(),
+            requires: requires.into_iter().map(|s| s.to_string()).collect(),
+            paths: vec![],
+        }
+    }
+
+    #[test]
+    fn downstream_weights_single_bean() {
+        let beans = vec![make_bean("A", vec![], vec![], vec![])];
+        let weights = compute_downstream_weights(&beans);
+        assert_eq!(weights.get("A").copied(), Some(1));
+    }
+
+    #[test]
+    fn downstream_weights_linear_chain() {
+        // A → B → C (B depends on A, C depends on B)
+        let beans = vec![
+            make_bean("A", vec![], vec![], vec![]),
+            make_bean("B", vec!["A"], vec![], vec![]),
+            make_bean("C", vec!["B"], vec![], vec![]),
+        ];
+        let weights = compute_downstream_weights(&beans);
+        assert_eq!(weights.get("A").copied(), Some(3)); // blocks B and C
+        assert_eq!(weights.get("B").copied(), Some(2)); // blocks C
+        assert_eq!(weights.get("C").copied(), Some(1)); // leaf
+    }
+
+    #[test]
+    fn downstream_weights_diamond() {
+        // A → (B, C) → D
+        let beans = vec![
+            make_bean("A", vec![], vec![], vec![]),
+            make_bean("B", vec!["A"], vec![], vec![]),
+            make_bean("C", vec!["A"], vec![], vec![]),
+            make_bean("D", vec!["B", "C"], vec![], vec![]),
+        ];
+        let weights = compute_downstream_weights(&beans);
+        assert_eq!(weights.get("D").copied(), Some(1)); // leaf
+        assert_eq!(weights.get("B").copied(), Some(2)); // blocks D
+        assert_eq!(weights.get("C").copied(), Some(2)); // blocks D
+        assert_eq!(weights.get("A").copied(), Some(4)); // blocks B, C, D (3 descendants + 1)
+    }
+
+    #[test]
+    fn downstream_weights_independent() {
+        let beans = vec![
+            make_bean("A", vec![], vec![], vec![]),
+            make_bean("B", vec![], vec![], vec![]),
+        ];
+        let weights = compute_downstream_weights(&beans);
+        assert_eq!(weights.get("A").copied(), Some(1));
+        assert_eq!(weights.get("B").copied(), Some(1));
+    }
+
+    #[test]
+    fn downstream_weights_wide_fan() {
+        // A → (B, C, D)
+        let beans = vec![
+            make_bean("A", vec![], vec![], vec![]),
+            make_bean("B", vec!["A"], vec![], vec![]),
+            make_bean("C", vec!["A"], vec![], vec![]),
+            make_bean("D", vec!["A"], vec![], vec![]),
+        ];
+        let weights = compute_downstream_weights(&beans);
+        assert_eq!(weights.get("A").copied(), Some(4)); // 1 + 1 + 1 + 1
+        assert_eq!(weights.get("B").copied(), Some(1));
+        assert_eq!(weights.get("C").copied(), Some(1));
+        assert_eq!(weights.get("D").copied(), Some(1));
     }
 }

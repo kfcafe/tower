@@ -5,10 +5,7 @@ use anyhow::{Context, Result};
 use crate::ctx_assembler::assemble_context;
 use crate::discovery::find_unit_file;
 use crate::prompt::{build_agent_prompt, FileOverlap, PromptOptions};
-use mana_core::ops::context::{
-    assemble_agent_context, format_attempt_notes, load_rules, merge_paths, AgentContext,
-    DepProvider,
-};
+use mana_core::ops::context::{assemble_agent_context, merge_paths, AgentContext, DepProvider};
 use mana_core::unit::Unit;
 
 // ─── Formatting helpers (CLI-only) ──────────────────────────────────────────
@@ -57,6 +54,16 @@ fn format_bean_spec_section(unit: &Unit) -> String {
     }
     if let Some(ref parent) = unit.parent {
         s.push_str(&format!("Parent: {}\n", parent));
+    }
+
+    if !unit.decisions.is_empty() {
+        s.push_str(&format!(
+            "\n⚠ UNRESOLVED DECISIONS ({}):\n",
+            unit.decisions.len()
+        ));
+        for (i, decision) in unit.decisions.iter().enumerate() {
+            s.push_str(&format!("  {}: {}\n", i, decision));
+        }
     }
 
     if let Some(ref desc) = unit.description {
@@ -317,6 +324,7 @@ fn output_text(ctx: &AgentContext, project_dir: &Path, structure_only: bool) -> 
 mod tests {
     use super::*;
     use mana_core::ops::context::format_attempt_notes as core_format_attempt_notes;
+    use mana_core::ops::context::load_rules;
     use std::fs;
     use tempfile::TempDir;
 

@@ -73,6 +73,14 @@ fn render_bean(unit: &Unit, show_all_history: bool) -> Result<()> {
         println!("{}", formatted);
     }
 
+    // Print decisions
+    if !unit.decisions.is_empty() {
+        println!("\n**Decisions ({} unresolved):**", unit.decisions.len());
+        for (i, decision) in unit.decisions.iter().enumerate() {
+            println!("  {}: {}", i, decision);
+        }
+    }
+
     // Print notes
     if let Some(notes) = &unit.notes {
         println!("\n**Notes**");

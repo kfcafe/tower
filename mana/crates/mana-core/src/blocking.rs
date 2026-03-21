@@ -128,6 +128,7 @@ mod tests {
             attempts: 0,
             paths: vec![],
             feature: false,
+            has_decisions: false,
         }
     }
 

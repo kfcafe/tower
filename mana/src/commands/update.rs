@@ -118,7 +118,11 @@ pub fn cmd_update(
             if idx < unit.decisions.len() {
                 unit.decisions.remove(idx);
             } else {
-                return Err(anyhow!("Decision index {} out of range (unit has {} decisions)", idx, unit.decisions.len()));
+                return Err(anyhow!(
+                    "Decision index {} out of range (unit has {} decisions)",
+                    idx,
+                    unit.decisions.len()
+                ));
             }
         } else {
             let before = unit.decisions.len();
@@ -540,8 +544,8 @@ mod tests {
                 None,
                 None,
                 None,
-            vec![],
-            vec![],
+                vec![],
+                vec![],
             );
             assert!(result.is_ok(), "Priority {} should be valid", priority);
 

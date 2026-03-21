@@ -159,7 +159,7 @@ pub fn cmd_list(
         // Tree format with status indicators
         let tree = render_tree(&filtered, &combined_index);
         println!("{}", tree);
-        println!("Legend: [ ] open  [-] in_progress  [x] closed  [!] blocked");
+        println!("Legend: [ ] open  [-] in_progress  [x] closed  [!] blocked  [?] has decisions");
     }
 
     Ok(())
@@ -231,9 +231,13 @@ fn get_status_indicator(entry: &IndexEntry, index: &Index) -> (String, String) {
             Status::Closed => "[x]",
         };
         // Scope warnings are non-blocking annotations
-        let suffix = crate::blocking::check_scope_warning(entry)
+        let mut suffix = crate::blocking::check_scope_warning(entry)
             .map(|w| format!("  (⚠ {})", w))
             .unwrap_or_default();
+        // Add decisions indicator
+        if entry.has_decisions {
+            suffix.push_str("  [?]");
+        }
         (indicator.to_string(), suffix)
     }
 }
