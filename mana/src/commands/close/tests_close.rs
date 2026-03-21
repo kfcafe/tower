@@ -2298,16 +2298,6 @@ fn test_close_failed_without_reason() {
 mod worktree_merge_tests {
     use super::*;
     use std::path::PathBuf;
-    use std::sync::Mutex;
-
-    static CWD_LOCK: Mutex<()> = Mutex::new(());
-
-    struct CwdGuard(PathBuf);
-    impl Drop for CwdGuard {
-        fn drop(&mut self) {
-            let _ = std::env::set_current_dir(&self.0);
-        }
-    }
 
     fn run_git(dir: &Path, args: &[&str]) {
         let output = std::process::Command::new("git")
@@ -2326,6 +2316,11 @@ mod worktree_merge_tests {
         );
     }
 
+    /// Set up a git repo with a worktree. Returns (TempDir, main_dir, worktree_mana_dir).
+    ///
+    /// Each test gets a fully isolated temp directory — no shared state, no CWD mutation.
+    /// The `detect_worktree` and `commit_worktree_changes` functions now accept explicit
+    /// path arguments, so tests no longer need `std::env::set_current_dir`.
     fn setup_git_worktree() -> (TempDir, PathBuf, PathBuf) {
         let dir = TempDir::new().unwrap();
         let base = std::fs::canonicalize(dir.path()).unwrap();
@@ -2366,9 +2361,6 @@ mod worktree_merge_tests {
 
     #[test]
     fn test_close_in_worktree_commits_and_merges() {
-        let _lock = CWD_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        let _guard = CwdGuard(std::env::current_dir().unwrap());
-
         let (_dir, main_dir, worktree_beans_dir) = setup_git_worktree();
         let worktree_dir = worktree_beans_dir.parent().unwrap();
 
@@ -2379,8 +2371,7 @@ mod worktree_merge_tests {
 
         fs::write(worktree_dir.join("feature.txt"), "feature content").unwrap();
 
-        std::env::set_current_dir(worktree_dir).unwrap();
-
+        // No set_current_dir needed — detect_worktree now takes an explicit path
         cmd_close(&worktree_beans_dir, vec!["1".to_string()], None, false).unwrap();
 
         assert!(
@@ -2393,9 +2384,6 @@ mod worktree_merge_tests {
 
     #[test]
     fn test_close_with_merge_conflict_aborts() {
-        let _lock = CWD_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        let _guard = CwdGuard(std::env::current_dir().unwrap());
-
         let (_dir, main_dir, worktree_beans_dir) = setup_git_worktree();
         let worktree_dir = worktree_beans_dir.parent().unwrap();
 
@@ -2410,8 +2398,7 @@ mod worktree_merge_tests {
         unit.to_file(worktree_beans_dir.join(format!("1-{}.md", slug)))
             .unwrap();
 
-        std::env::set_current_dir(worktree_dir).unwrap();
-
+        // No set_current_dir needed
         cmd_close(&worktree_beans_dir, vec!["1".to_string()], None, false).unwrap();
 
         let bean_file = crate::discovery::find_unit_file(&worktree_beans_dir, "1").unwrap();
@@ -2425,9 +2412,6 @@ mod worktree_merge_tests {
 
     #[test]
     fn test_close_in_main_worktree_skips_merge() {
-        let _lock = CWD_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        let _guard = CwdGuard(std::env::current_dir().unwrap());
-
         let dir = TempDir::new().unwrap();
         let base = std::fs::canonicalize(dir.path()).unwrap();
         let repo_dir = base.join("repo");
@@ -2450,8 +2434,7 @@ mod worktree_merge_tests {
         unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
             .unwrap();
 
-        std::env::set_current_dir(&repo_dir).unwrap();
-
+        // No set_current_dir needed
         cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
 
         let archived = crate::discovery::find_archived_unit(&mana_dir, "1").unwrap();
@@ -2462,9 +2445,6 @@ mod worktree_merge_tests {
 
     #[test]
     fn test_close_outside_git_repo_works() {
-        let _lock = CWD_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        let _guard = CwdGuard(std::env::current_dir().unwrap());
-
         let dir = TempDir::new().unwrap();
         let base = std::fs::canonicalize(dir.path()).unwrap();
         let mana_dir = base.join(".mana");
@@ -2475,8 +2455,7 @@ mod worktree_merge_tests {
         unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
             .unwrap();
 
-        std::env::set_current_dir(&base).unwrap();
-
+        // No set_current_dir needed
         cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
 
         let archived = crate::discovery::find_archived_unit(&mana_dir, "1").unwrap();
