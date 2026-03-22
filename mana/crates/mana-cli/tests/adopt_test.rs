@@ -45,6 +45,7 @@ fn setup_test_env() -> (TempDir, std::path::PathBuf) {
         review_model: None,
         research_model: None,
         batch_verify: false,
+        memory_reserve_mb: 0,
     };
     config.save(&mana_dir).unwrap();
 

@@ -15,6 +15,7 @@
 //! - **Direct mode**: If no template is configured but `pi` is on PATH, spawn pi directly
 //!   with `--mode json --print --no-session`, monitoring with timeouts and parsing events.
 
+pub(super) mod memory;
 mod plan;
 mod ready_queue;
 mod wave;
@@ -53,6 +54,8 @@ pub(super) struct RunConfig {
     /// When true, agents defer verify by exiting with AwaitingVerify status.
     /// The runner collects all deferred units and runs each unique verify command once.
     pub batch_verify: bool,
+    /// Minimum available system memory (MB) to reserve. 0 = disabled.
+    pub memory_reserve_mb: u64,
 }
 
 /// Arguments for cmd_run, matching the CLI definition.
@@ -449,6 +452,7 @@ fn run_once(
         file_locking: config.file_locking,
         run_model: config.run_model.clone(),
         batch_verify: config.batch_verify,
+        memory_reserve_mb: config.memory_reserve_mb,
     };
     let run_start = Instant::now();
     let total_done;
@@ -987,6 +991,7 @@ mod tests {
             review_model: None,
             research_model: None,
             batch_verify: false,
+            memory_reserve_mb: 0,
         };
         let mode = determine_spawn_mode(&config);
         assert_eq!(
@@ -1028,6 +1033,7 @@ mod tests {
             review_model: None,
             research_model: None,
             batch_verify: false,
+            memory_reserve_mb: 0,
         };
         let mode = determine_spawn_mode(&config);
         assert_eq!(mode, SpawnMode::Direct);

@@ -767,6 +767,7 @@ mod tests {
             review_model: None,
             research_model: None,
             batch_verify: false,
+            memory_reserve_mb: 0,
             worktree: false,
         };
 
@@ -806,6 +807,7 @@ mod tests {
             review_model: None,
             research_model: None,
             batch_verify: false,
+            memory_reserve_mb: 0,
             worktree: false,
         };
 

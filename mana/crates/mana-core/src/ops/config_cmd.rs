@@ -31,6 +31,7 @@ pub fn config_get(mana_dir: &Path, key: &str) -> Result<String> {
         "on_close" => config.on_close.unwrap_or_default(),
         "on_fail" => config.on_fail.unwrap_or_default(),
         "post_plan" => config.post_plan.unwrap_or_default(),
+        "memory_reserve_mb" => config.memory_reserve_mb.to_string(),
         "user" => {
             if let Some(user) = config.user {
                 user
@@ -183,6 +184,14 @@ pub fn config_set(mana_dir: &Path, key: &str, value: &str) -> Result<()> {
             } else {
                 config.post_plan = Some(value.to_string());
             }
+        }
+        "memory_reserve_mb" => {
+            config.memory_reserve_mb = value.parse().map_err(|_| {
+                anyhow!(
+                    "Invalid value for memory_reserve_mb: {} (expected non-negative integer in MB)",
+                    value
+                )
+            })?;
         }
         "user" => {
             if value.is_empty() || value == "none" || value == "unset" {

@@ -752,6 +752,7 @@ fn setup_test_mana_dir_with_config() -> (TempDir, std::path::PathBuf) {
         review_model: None,
         research_model: None,
         batch_verify: false,
+        memory_reserve_mb: 0,
     };
     config.save(&mana_dir).unwrap();
 
@@ -869,6 +870,7 @@ fn test_auto_close_disabled_via_config() {
         review_model: None,
         research_model: None,
         batch_verify: false,
+        memory_reserve_mb: 0,
     };
     config.save(&mana_dir).unwrap();
 
@@ -1967,6 +1969,7 @@ fn setup_mana_dir_with_max_loops(max_loops: u32) -> (TempDir, std::path::PathBuf
         review_model: None,
         research_model: None,
         batch_verify: false,
+        memory_reserve_mb: 0,
     };
     config.save(&mana_dir).unwrap();
 

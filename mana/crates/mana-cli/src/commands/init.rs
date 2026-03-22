@@ -299,6 +299,7 @@ pub fn cmd_init(path: Option<&Path>, args: InitArgs) -> Result<()> {
         review_model: None,
         research_model: None,
         batch_verify: false,
+        memory_reserve_mb: 0,
     };
 
     config.save(&mana_dir)?;

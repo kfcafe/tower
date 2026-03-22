@@ -152,6 +152,7 @@ pub(super) fn run_ready_queue_direct(
     let json_stream = cfg.json_stream;
     let file_locking = cfg.file_locking;
     let batch_verify = cfg.batch_verify;
+    let memory_reserve_mb = cfg.memory_reserve_mb;
     let all_unit_ids: HashSet<String> = all_units.iter().map(|b| b.id.clone()).collect();
 
     // Already-closed units count as completed (same logic as compute_waves)
@@ -221,6 +222,8 @@ pub(super) fn run_ready_queue_direct(
                 .then_with(|| natural_cmp(&a.id, &b.id))
         });
 
+        let mut memory_blocked = false;
+
         for sb in ready_units {
             if running_count >= max_jobs {
                 break;
@@ -228,6 +231,21 @@ pub(super) fn run_ready_queue_direct(
 
             // Don't spawn new agents if shutdown was requested
             if super::shutdown_requested() {
+                break;
+            }
+
+            // Check system memory before spawning
+            if !super::memory::has_sufficient_memory(memory_reserve_mb) {
+                memory_blocked = true;
+                if !json_stream {
+                    let avail = super::memory::available_memory_mb()
+                        .map(|mb| format!("{}MB", mb))
+                        .unwrap_or_else(|| "unknown".to_string());
+                    eprintln!(
+                        "  ⏸ Memory pressure — {}MB reserve, {} available, waiting",
+                        memory_reserve_mb, avail
+                    );
+                }
                 break;
             }
 
@@ -284,7 +302,19 @@ pub(super) fn run_ready_queue_direct(
 
         // If nothing is running and nothing can start, we're done (or stuck)
         if running_count == 0 && newly_started == 0 {
-            if !remaining.is_empty() {
+            if memory_blocked {
+                // System memory is too low and no agents running to free it
+                let msg = format!(
+                    "Cannot spawn agents — system memory below {}MB reserve and no agents running. \
+                     Free memory and re-run, or set memory_reserve_mb to 0 in config.",
+                    memory_reserve_mb
+                );
+                if json_stream {
+                    stream::emit_error(&msg);
+                } else {
+                    eprintln!("{}", msg);
+                }
+            } else if !remaining.is_empty() {
                 // Remaining units have unresolvable deps
                 if json_stream {
                     stream::emit_error(&format!(

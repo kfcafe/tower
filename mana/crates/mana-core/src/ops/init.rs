@@ -88,6 +88,7 @@ pub fn init(path: Option<&Path>, params: InitParams) -> Result<InitResult> {
         review_model: None,
         research_model: None,
         batch_verify: false,
+        memory_reserve_mb: 0,
     };
 
     config.save(&mana_dir)?;

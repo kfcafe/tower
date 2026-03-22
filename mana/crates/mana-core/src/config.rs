@@ -597,6 +597,7 @@ mod tests {
             review_model: None,
             research_model: None,
             batch_verify: false,
+            memory_reserve_mb: 0,
         };
 
         config.save(dir.path()).unwrap();
@@ -635,6 +636,7 @@ mod tests {
             review_model: None,
             research_model: None,
             batch_verify: false,
+            memory_reserve_mb: 0,
         };
 
         assert_eq!(config.increment_id(), 1);
@@ -689,6 +691,7 @@ mod tests {
             review_model: None,
             research_model: None,
             batch_verify: false,
+            memory_reserve_mb: 0,
         };
         config.save(dir.path()).unwrap();
 
@@ -742,6 +745,7 @@ mod tests {
             review_model: None,
             research_model: None,
             batch_verify: false,
+            memory_reserve_mb: 0,
         };
         config.save(dir.path()).unwrap();
 
@@ -807,6 +811,7 @@ mod tests {
             review_model: None,
             research_model: None,
             batch_verify: false,
+            memory_reserve_mb: 0,
         };
         config.save(dir.path()).unwrap();
 
@@ -848,6 +853,7 @@ mod tests {
             review_model: None,
             research_model: None,
             batch_verify: false,
+            memory_reserve_mb: 0,
         };
         config.save(dir.path()).unwrap();
 
@@ -899,6 +905,7 @@ mod tests {
             review_model: None,
             research_model: None,
             batch_verify: false,
+            memory_reserve_mb: 0,
         };
         config.save(dir.path()).unwrap();
 
@@ -1124,6 +1131,7 @@ mod tests {
             review_model: None,
             research_model: None,
             batch_verify: false,
+            memory_reserve_mb: 0,
         };
         config.save(dir.path()).unwrap();
 
@@ -1190,6 +1198,7 @@ mod tests {
             review_model: None,
             research_model: None,
             batch_verify: false,
+            memory_reserve_mb: 0,
         };
         config.save(dir.path()).unwrap();
 
@@ -1228,6 +1237,7 @@ mod tests {
             review_model: None,
             research_model: None,
             batch_verify: false,
+            memory_reserve_mb: 0,
         };
         config.save(dir.path()).unwrap();
 
@@ -1279,6 +1289,7 @@ mod tests {
             review_model: None,
             research_model: None,
             batch_verify: false,
+            memory_reserve_mb: 0,
         };
         config.save(dir.path()).unwrap();
 
@@ -1330,6 +1341,7 @@ mod tests {
             review_model: None,
             research_model: None,
             batch_verify: false,
+            memory_reserve_mb: 0,
         };
         config.save(dir.path()).unwrap();
 
@@ -1446,6 +1458,7 @@ mod tests {
             review_model: None,
             research_model: None,
             batch_verify: false,
+            memory_reserve_mb: 0,
         };
 
         config.save(dir.path()).unwrap();
