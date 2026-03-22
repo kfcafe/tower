@@ -1,4 +1,5 @@
 pub mod adopt;
+pub mod batch_verify;
 pub mod claim;
 pub mod close;
 pub mod config_cmd;

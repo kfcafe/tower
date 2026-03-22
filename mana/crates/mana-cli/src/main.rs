@@ -515,6 +515,7 @@ fn main() -> Result<()> {
             reason,
             force,
             failed,
+            defer_verify,
             stdin,
         } => {
             let ids = if stdin {
@@ -526,10 +527,12 @@ fn main() -> Result<()> {
                 validate_bean_id(id)?;
             }
             let resolved_ids = resolve_bean_ids(ids, &mana_dir)?;
+            // MANA_BATCH_VERIFY=1 auto-defers verify, same as --defer-verify
+            let defer = defer_verify || std::env::var("MANA_BATCH_VERIFY").as_deref() == Ok("1");
             if failed {
                 mana::commands::close::cmd_close_failed(&mana_dir, resolved_ids, reason)
             } else {
-                cmd_close(&mana_dir, resolved_ids, reason, force)
+                cmd_close(&mana_dir, resolved_ids, reason, force, defer)
             }
         }
 

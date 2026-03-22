@@ -117,6 +117,7 @@ pub fn cmd_close(
     ids: Vec<String>,
     reason: Option<String>,
     force: bool,
+    defer_verify: bool,
 ) -> Result<()> {
     if ids.is_empty() {
         return Err(anyhow!("At least one unit ID is required"));
@@ -132,6 +133,7 @@ pub fn cmd_close(
             CloseOpts {
                 reason: reason.clone(),
                 force,
+                defer_verify,
             },
         )?;
 
@@ -250,6 +252,7 @@ pub fn cmd_close(
                     CloseOpts {
                         reason: reason.clone(),
                         force: true,
+                        defer_verify: false,
                     },
                 );
                 match outcome {
@@ -292,6 +295,12 @@ pub fn cmd_close(
                 print_close_warnings(id, &warnings);
                 eprintln!("Merge conflict in files: {:?}", files);
                 eprintln!("Resolve conflicts and run `mana close {}` again", id);
+            }
+            CloseOutcome::DeferredVerify { unit_id } => {
+                println!(
+                    "Deferred verify for unit {} — status set to awaiting_verify",
+                    unit_id
+                );
             }
         }
     }

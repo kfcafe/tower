@@ -537,6 +537,7 @@ fn run_wave_direct(
                     config_run_model.as_deref(),
                     json_stream,
                     file_locking,
+                    false, // batch_verify not used in template/wave mode
                 );
                 results.lock().unwrap().push(result);
             });

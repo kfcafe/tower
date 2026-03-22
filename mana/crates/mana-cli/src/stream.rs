@@ -82,6 +82,11 @@ pub enum StreamEvent {
         total_failed: usize,
         duration_secs: u64,
     },
+    BatchVerify {
+        commands_run: usize,
+        passed: Vec<String>,
+        failed: Vec<String>,
+    },
     DryRun {
         parent_id: String,
         rounds: Vec<RoundPlan>,

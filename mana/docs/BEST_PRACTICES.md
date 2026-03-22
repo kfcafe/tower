@@ -49,7 +49,7 @@ Every unit has fields that serve specific purposes. Understand what goes where.
 # IDENTITY
 id: '3.2.1'                                    # Auto-assigned, read-only
 title: Implement token refresh logic           # One-liner summary (required)
-status: open                                   # open | in_progress | closed
+status: open                                   # open | in_progress | awaiting_verify | closed
 priority: 2                                    # 0-4 (P0 critical, P4 trivial)
 created_at: 2026-01-26T15:00:00Z              # Auto-set, read-only
 updated_at: 2026-01-26T15:00:00Z              # Auto-updated, read-only
@@ -113,7 +113,7 @@ assignee: alice@example.com                   # Human owner (optional)
 |-------|----------|-----|---------|
 | `id` | System | Unique identifier | No |
 | `title` | Creator | Brief summary | Yes |
-| `status` | System (via commands) | Workflow state | No (use `claim`, `close`) |
+| `status` | System (via commands) | Workflow state (`open`, `in_progress`, `awaiting_verify`, `closed`) | No (use `claim`, `close`) |
 | `priority` | Creator | Scheduling priority | Yes |
 | `description` | Creator | Agent prompt (full context) | Yes |
 | `acceptance` | Creator | What "done" means | Yes |
@@ -539,6 +539,8 @@ mana claim 1.1
 ```
 
 Status transitions: **open → in_progress**. The unit is now claimed by this agent.
+
+> **Batch verify mode:** When `batch_verify: true` is configured, agents skip running the verify command themselves. Instead, `mana close` marks the unit as `awaiting_verify` and the runner batches shared verify commands after all agents complete. This eliminates redundant builds (e.g. multiple agents all running `cargo build`) and cargo lock contention. Agents should use scoped checks like `cargo check -p <crate>` for fast feedback during work.
 
 **What the agent sees via `mana context 1.1`:**
 - Full description with context

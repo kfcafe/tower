@@ -401,6 +401,13 @@ Examples:
         #[arg(long)]
         failed: bool,
 
+        /// Skip verify and mark unit as awaiting_verify (for batch runner)
+        ///
+        /// Also activated automatically when MANA_BATCH_VERIFY=1 is set.
+        /// The runner is responsible for running verify and finalizing the unit.
+        #[arg(long, conflicts_with = "force", conflicts_with = "failed")]
+        defer_verify: bool,
+
         /// Read unit IDs from stdin (one per line)
         #[arg(long)]
         stdin: bool,

@@ -50,6 +50,9 @@ pub(super) struct RunConfig {
     pub file_locking: bool,
     /// Config-level model for run/implement (substituted into `{model}` in templates).
     pub run_model: Option<String>,
+    /// When true, agents defer verify by exiting with AwaitingVerify status.
+    /// The runner collects all deferred units and runs each unique verify command once.
+    pub batch_verify: bool,
 }
 
 /// Arguments for cmd_run, matching the CLI definition.
@@ -445,11 +448,12 @@ fn run_once(
         json_stream: args.json_stream,
         file_locking: config.file_locking,
         run_model: config.run_model.clone(),
+        batch_verify: config.batch_verify,
     };
     let run_start = Instant::now();
     let total_done;
-    let total_failed;
-    let any_failed;
+    let mut total_failed;
+    let mut any_failed;
     let mut total_tokens: u64 = 0;
     let mut total_cost: f64 = 0.0;
     // Collect IDs of successfully closed units for --review post-processing
@@ -512,6 +516,40 @@ fn run_once(
             total_done = done;
             total_failed = failed;
             any_failed = had_failure;
+
+            // After all agents complete, run batch verification if enabled.
+            // Each agent exits with AwaitingVerify status; the runner now resolves them.
+            if run_cfg.batch_verify {
+                match mana_core::ops::batch_verify::batch_verify(mana_dir) {
+                    Ok(bv) => {
+                        // Promote agent successes that passed verify into successful_ids
+                        for id in &bv.passed {
+                            if !successful_ids.contains(id) {
+                                successful_ids.push(id.clone());
+                            }
+                        }
+                        // Failures from batch verify count as failed units
+                        total_failed += bv.failed.len() as u32;
+                        if !bv.failed.is_empty() {
+                            any_failed = true;
+                        }
+
+                        if args.json_stream {
+                            stream::emit(&StreamEvent::BatchVerify {
+                                commands_run: bv.commands_run,
+                                passed: bv.passed.clone(),
+                                failed: bv.failed.iter().map(|f| f.unit_id.clone()).collect(),
+                            });
+                        } else {
+                            print_batch_verify_result(&bv);
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Batch verify error: {}", e);
+                        any_failed = true;
+                    }
+                }
+            }
         }
 
         SpawnMode::Template { .. } => {
@@ -736,6 +774,66 @@ fn run_loop(
 
     eprintln!("Reached max_loops ({}). Stopping.", max_loops);
     Ok(())
+}
+
+/// Print a human-readable summary of a batch verify run.
+///
+/// Example output:
+///   Batch verify: 2 commands, 3/4 units passed
+///     ✓ cargo check -p mana-cli  (units: 1.1, 1.2, 1.3)
+///     ✗ cargo test -p mana-core  (unit: 1.4) — exit code 1
+fn print_batch_verify_result(result: &mana_core::ops::batch_verify::BatchVerifyResult) {
+    let total = result.passed.len() + result.failed.len();
+    eprintln!(
+        "\nBatch verify: {} command{}, {}/{} unit{} passed",
+        result.commands_run,
+        if result.commands_run == 1 { "" } else { "s" },
+        result.passed.len(),
+        total,
+        if total == 1 { "" } else { "s" },
+    );
+
+    if !result.passed.is_empty() {
+        eprintln!(
+            "  ✓ {} unit{} passed",
+            result.passed.len(),
+            if result.passed.len() == 1 { "" } else { "s" }
+        );
+    }
+
+    // Group failures by verify command for compact display.
+    let mut by_cmd: std::collections::HashMap<&str, Vec<&str>> = std::collections::HashMap::new();
+    for failure in &result.failed {
+        by_cmd
+            .entry(&failure.verify_command)
+            .or_default()
+            .push(&failure.unit_id);
+    }
+
+    // Sort for deterministic output.
+    let mut cmd_entries: Vec<(&str, Vec<&str>)> = by_cmd.into_iter().collect();
+    cmd_entries.sort_by_key(|(cmd, _)| *cmd);
+
+    for (cmd, ids) in cmd_entries {
+        let ids_str = ids.join(", ");
+        let unit_word = if ids.len() == 1 { "unit" } else { "units" };
+        // Find exit code for this command from the first matching failure
+        let exit_info = result
+            .failed
+            .iter()
+            .find(|f| f.verify_command == cmd)
+            .map(|f| {
+                if f.timed_out {
+                    " — timed out".to_string()
+                } else if let Some(code) = f.exit_code {
+                    format!(" — exit code {}", code)
+                } else {
+                    String::new()
+                }
+            })
+            .unwrap_or_default();
+        eprintln!("  ✗ {}  ({}: {}){}", cmd, unit_word, ids_str, exit_info);
+    }
 }
 
 /// Format a duration as M:SS.

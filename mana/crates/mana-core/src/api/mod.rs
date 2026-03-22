@@ -693,6 +693,7 @@ pub fn update_unit(
 /// let outcome = close_unit(Path::new("/project/.mana"), "1", CloseOpts {
 ///     reason: Some("Implemented and tested".to_string()),
 ///     force: false,
+///     defer_verify: false,
 /// }).unwrap();
 ///
 /// match outcome {

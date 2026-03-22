@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Batch verify** — `batch_verify: true` config option groups shared verify commands and runs each once after agents complete, instead of each agent running verify independently. Eliminates cargo lock contention and redundant builds when parallel agents share the same verify command (e.g. `cargo build`).
+- New `AwaitingVerify` unit status for runner-mediated verification
+- `mana close --defer-verify` flag and `MANA_BATCH_VERIFY=1` env var for deferred verification
+- `BatchVerify` JSON stream event for programmatic consumers
+
 ## [0.3.0] - 2026-03-18
 
 ### Added

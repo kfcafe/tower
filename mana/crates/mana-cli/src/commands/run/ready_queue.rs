@@ -151,6 +151,7 @@ pub(super) fn run_ready_queue_direct(
     let idle_timeout_minutes = cfg.idle_timeout_minutes;
     let json_stream = cfg.json_stream;
     let file_locking = cfg.file_locking;
+    let batch_verify = cfg.batch_verify;
     let all_bean_ids: HashSet<String> = all_beans.iter().map(|b| b.id.clone()).collect();
 
     // Already-closed units count as completed (same logic as compute_waves)
@@ -274,6 +275,7 @@ pub(super) fn run_ready_queue_direct(
                     config_run_model.as_deref(),
                     json_stream,
                     file_locking,
+                    batch_verify,
                 );
                 let _ = tx.send(result);
             });
@@ -462,6 +464,7 @@ fn build_pi_command(prompt_result: &crate::prompt::PromptResult, model: Option<&
 }
 
 /// Run a single unit by spawning an agent (imp or pi) directly.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn run_single_direct(
     mana_dir: &Path,
     sb: &SizedBean,
@@ -470,6 +473,7 @@ pub(super) fn run_single_direct(
     config_run_model: Option<&str>,
     json_stream: bool,
     file_locking: bool,
+    batch_verify: bool,
 ) -> AgentResult {
     let started = Instant::now();
 
@@ -570,6 +574,12 @@ pub(super) fn run_single_direct(
     let mut cmd = build_direct_command(agent, &prompt_result, effective_model, &sb.id);
     cmd.stdout(Stdio::piped());
     cmd.stderr(Stdio::piped());
+
+    // Signal the agent to defer verify — it should exit after completing work
+    // without running the verify command itself. The runner will batch-verify later.
+    if batch_verify {
+        cmd.env("MANA_BATCH_VERIFY", "1");
+    }
 
     // Spawn the process
     let mut child = match cmd.spawn() {

@@ -94,6 +94,7 @@ fn lifecycle_create_claim_force_close() {
         CloseOpts {
             reason: Some("Done".to_string()),
             force: true,
+            defer_verify: false,
         },
     )
     .unwrap();
@@ -130,6 +131,7 @@ fn lifecycle_verify_passes_and_closes() {
         CloseOpts {
             reason: None,
             force: false, // let it run verify
+            defer_verify: false,
         },
     )
     .unwrap();
@@ -157,6 +159,7 @@ fn lifecycle_verify_fails_and_stays_open() {
         CloseOpts {
             reason: None,
             force: false,
+            defer_verify: false,
         },
     )
     .unwrap();
@@ -242,6 +245,7 @@ fn list_units_returns_open_by_default() {
         CloseOpts {
             reason: None,
             force: true,
+            defer_verify: false,
         },
     )
     .unwrap();
@@ -412,6 +416,7 @@ fn ready_units_unblocked_after_dep_closed() {
         CloseOpts {
             reason: None,
             force: true,
+            defer_verify: false,
         },
     )
     .unwrap();
@@ -770,6 +775,7 @@ fn get_status_returns_correct_counts() {
         CloseOpts {
             reason: None,
             force: true,
+            defer_verify: false,
         },
     )
     .unwrap();
@@ -801,6 +807,7 @@ fn get_stats_tracks_completion_percentage() {
         CloseOpts {
             reason: None,
             force: true,
+            defer_verify: false,
         },
     )
     .unwrap();
@@ -898,6 +905,7 @@ fn close_nonexistent_unit_errors() {
         CloseOpts {
             reason: None,
             force: true,
+            defer_verify: false,
         },
     );
     assert!(result.is_err());

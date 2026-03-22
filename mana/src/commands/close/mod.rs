@@ -250,6 +250,7 @@ pub fn cmd_close(
                     CloseOpts {
                         reason: reason.clone(),
                         force: true,
+                        defer_verify: false,
                     },
                 );
                 match outcome {

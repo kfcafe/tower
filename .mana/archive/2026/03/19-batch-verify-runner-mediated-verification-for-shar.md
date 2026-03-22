@@ -2,15 +2,18 @@
 id: '19'
 title: 'Batch verify: runner-mediated verification for shared commands'
 slug: batch-verify-runner-mediated-verification-for-shar
-status: open
+status: closed
 priority: 1
 created_at: '2026-03-22T17:05:31.396246Z'
-updated_at: '2026-03-22T17:05:31.396246Z'
+updated_at: '2026-03-22T18:21:49.215244Z'
 labels:
 - feature
 - mana
 - performance
+closed_at: '2026-03-22T18:21:49.215244Z'
+close_reason: 'Auto-closed: all children completed'
 verify: cargo check -p mana-core -p mana-cli && cargo check -p imp-cli
+is_archived: true
 ---
 
 ## Summary

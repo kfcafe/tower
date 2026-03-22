@@ -482,14 +482,30 @@ fn format_approach(bean_id: &str) -> String {
 
 /// Format the verify gate section.
 fn format_verify_gate(unit: &Unit) -> String {
+    let batch_mode = std::env::var("MANA_BATCH_VERIFY").is_ok();
+
     if let Some(ref verify) = unit.verify {
-        format!(
-            "# Verify Gate\n\n\
-             Your verify command is:\n\
-             ```\n{}\n```\n\
-             This MUST exit 0 for the unit to close. Test it before declaring done.",
-            verify
-        )
+        if batch_mode {
+            format!(
+                "# Verify Gate\n\n\
+                 Your verify command is:\n\
+                 ```\n{verify}\n```\n\
+                 Batch verify mode: the orchestrator runs this command after you exit — \
+                 you do not need to run it yourself.\n\
+                 Use scoped checks (e.g. `cargo check -p <crate>`) for fast feedback during work.\n\
+                 Signal completion with: mana close {id}",
+                verify = verify,
+                id = unit.id
+            )
+        } else {
+            format!(
+                "# Verify Gate\n\n\
+                 Your verify command is:\n\
+                 ```\n{}\n```\n\
+                 This MUST exit 0 for the unit to close. Test it before declaring done.",
+                verify
+            )
+        }
     } else {
         format!(
             "# Verify Gate\n\n\

@@ -61,6 +61,11 @@ pub struct VerifyFailure {
 pub struct CloseOpts {
     pub reason: Option<String>,
     pub force: bool,
+    /// Skip verify and mark as AwaitingVerify instead of Closed.
+    ///
+    /// Set when `--defer-verify` is passed or `MANA_BATCH_VERIFY=1` is in the environment.
+    /// The runner is responsible for running verify later and finalizing the unit.
+    pub defer_verify: bool,
 }
 
 /// Structured warnings emitted during close lifecycle steps.
@@ -111,6 +116,11 @@ pub enum CloseOutcome {
         files: Vec<String>,
         warnings: Vec<CloseWarning>,
     },
+    /// Verify was deferred — unit is now AwaitingVerify.
+    ///
+    /// Emitted when `CloseOpts::defer_verify` is true. The runner is expected to
+    /// run verify later and transition the unit to Closed or back to Open.
+    DeferredVerify { unit_id: String },
 }
 
 /// Details of a successful close.
@@ -206,6 +216,21 @@ pub fn close(mana_dir: &Path, id: &str, opts: CloseOpts) -> Result<CloseOutcome>
     let mut warnings = Vec::new();
     if let Some(warning) = pre_close.warning {
         warnings.push(warning);
+    }
+
+    // 1b. Defer verify — mark as AwaitingVerify and return immediately.
+    //
+    // The runner will collect all AwaitingVerify units after agents complete,
+    // run each unique verify command once, and finalize units accordingly.
+    if opts.defer_verify {
+        unit.status = Status::AwaitingVerify;
+        unit.updated_at = Utc::now();
+        unit.to_file(&bean_path)
+            .with_context(|| format!("Failed to save unit: {}", id))?;
+        rebuild_index(mana_dir)?;
+        return Ok(CloseOutcome::DeferredVerify {
+            unit_id: id.to_string(),
+        });
     }
 
     // 2. Verify (if applicable and not force)
@@ -1302,6 +1327,7 @@ mod tests {
             CloseOpts {
                 reason: None,
                 force: false,
+                defer_verify: false,
             },
         )
         .unwrap();
@@ -1329,6 +1355,7 @@ mod tests {
             CloseOpts {
                 reason: Some("Fixed".to_string()),
                 force: false,
+                defer_verify: false,
             },
         )
         .unwrap();
@@ -1354,6 +1381,7 @@ mod tests {
             CloseOpts {
                 reason: None,
                 force: false,
+                defer_verify: false,
             },
         )
         .unwrap();
@@ -1382,6 +1410,7 @@ mod tests {
             CloseOpts {
                 reason: None,
                 force: false,
+                defer_verify: false,
             },
         )
         .unwrap();
@@ -1408,6 +1437,7 @@ mod tests {
             CloseOpts {
                 reason: None,
                 force: true,
+                defer_verify: false,
             },
         )
         .unwrap();
@@ -1435,6 +1465,7 @@ mod tests {
             CloseOpts {
                 reason: None,
                 force: false,
+                defer_verify: false,
             },
         )
         .unwrap();
@@ -1451,6 +1482,7 @@ mod tests {
             CloseOpts {
                 reason: None,
                 force: false,
+                defer_verify: false,
             },
         );
         assert!(result.is_err());
@@ -1535,6 +1567,7 @@ mod tests {
             CloseOpts {
                 reason: None,
                 force: false,
+                defer_verify: false,
             },
         )
         .unwrap();
@@ -1564,6 +1597,7 @@ mod tests {
             CloseOpts {
                 reason: None,
                 force: false,
+                defer_verify: false,
             },
         )
         .unwrap();
@@ -1754,6 +1788,7 @@ mod tests {
             CloseOpts {
                 reason: None,
                 force: false,
+                defer_verify: false,
             },
         )
         .unwrap();
@@ -1784,5 +1819,102 @@ mod tests {
         );
         assert!(changed_files.contains("1-parent.md"), "{changed_files}");
         assert!(changed_files.contains("1.1-child.md"), "{changed_files}");
+    }
+
+    // =====================================================================
+    // close_defer tests — deferred verify via defer_verify: true
+    // =====================================================================
+
+    /// With defer_verify: true, close() skips the verify command and sets
+    /// status to AwaitingVerify instead of Closed.
+    #[test]
+    fn close_defer_skips_verify() {
+        let (_dir, mana_dir) = setup_mana_dir();
+        let mut unit = Unit::new("1", "Task");
+        // A failing verify — should NOT be run when defer_verify is true.
+        unit.verify = Some("false".to_string());
+        write_unit(&mana_dir, &unit);
+
+        let outcome = close(
+            &mana_dir,
+            "1",
+            CloseOpts {
+                reason: None,
+                force: false,
+                defer_verify: true,
+            },
+        )
+        .unwrap();
+
+        // Unit should be AwaitingVerify, not Closed, and no verify failure recorded.
+        match outcome {
+            CloseOutcome::DeferredVerify { .. } => {}
+            other => panic!("Expected DeferredVerify outcome, got {:?}", other),
+        }
+
+        // Confirm the on-disk state reflects AwaitingVerify.
+        let saved = Unit::from_file(
+            find_unit_file(&mana_dir, "1").expect("unit file should still be in active dir"),
+        )
+        .unwrap();
+        assert_eq!(saved.status, Status::AwaitingVerify);
+        // No verify was run — attempts counter stays at 0.
+        assert_eq!(saved.attempts, 0);
+    }
+
+    /// With defer_verify: true, the returned outcome is DeferredVerify containing
+    /// the correct unit ID.
+    #[test]
+    fn close_defer_returns_outcome() {
+        let (_dir, mana_dir) = setup_mana_dir();
+        let unit = Unit::new("42", "Deferred Task");
+        write_unit(&mana_dir, &unit);
+
+        let outcome = close(
+            &mana_dir,
+            "42",
+            CloseOpts {
+                reason: None,
+                force: false,
+                defer_verify: true,
+            },
+        )
+        .unwrap();
+
+        match outcome {
+            CloseOutcome::DeferredVerify { unit_id } => {
+                assert_eq!(unit_id, "42");
+            }
+            other => panic!("Expected DeferredVerify outcome, got {:?}", other),
+        }
+    }
+
+    /// Without defer_verify, the normal close lifecycle runs: a failing verify
+    /// returns VerifyFailed, not DeferredVerify.
+    #[test]
+    fn close_defer_normal_unchanged() {
+        let (_dir, mana_dir) = setup_mana_dir();
+        let mut unit = Unit::new("1", "Task");
+        unit.verify = Some("false".to_string());
+        write_unit(&mana_dir, &unit);
+
+        let outcome = close(
+            &mana_dir,
+            "1",
+            CloseOpts {
+                reason: None,
+                force: false,
+                defer_verify: false,
+            },
+        )
+        .unwrap();
+
+        match outcome {
+            CloseOutcome::VerifyFailed(r) => {
+                assert_eq!(r.unit.status, Status::Open);
+                assert_eq!(r.unit.attempts, 1);
+            }
+            other => panic!("Expected VerifyFailed outcome, got {:?}", other),
+        }
     }
 }

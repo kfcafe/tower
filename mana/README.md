@@ -217,6 +217,20 @@ mana run --review           # Adversarial review after each close
 mana run --dry-run          # Preview dispatch plan
 ```
 
+### Batch verify
+
+When parallel agents share the same verify command (e.g. `cargo build`), each agent running it independently causes lock contention and redundant work. Enable batch verify to run each unique command once:
+
+```bash
+mana config set batch_verify true
+```
+
+With batch verify enabled:
+1. Agents skip verify and exit after calling `mana close`
+2. The runner collects all completed units
+3. Groups them by verify command and runs each command once
+4. Passing units close normally; failing units reopen for retry
+
 ### Monitoring
 
 ```bash
@@ -349,6 +363,7 @@ mana quick "title" --verify "cmd"       # Create + claim
 mana claim <id>
 mana verify <id>
 mana close <id>
+mana close --defer-verify <id>
 mana close --failed <id>
 mana update <id>
 mana edit <id>
@@ -436,6 +451,7 @@ mana config set max_concurrent 4
 | `rules_file` | — | Path to rules file injected into `mana context`. |
 | `file_locking` | `false` | Lock unit `paths` files during concurrent work. |
 | `extends` | `[]` | Parent config files to inherit from. |
+| `batch_verify` | `false` | Batch shared verify commands: run each once after agents complete. |
 | `auto_commit` | `false` | Commit all changes on close. Skipped in worktree mode. |
 | `commit_template` | `feat(bean-{id}): {title}` | Template for auto-commit messages. Vars: `{id}`, `{title}`, `{parent_id}`, `{labels}`. |
 | `on_close` | — | Hook after close. Vars: `{id}`, `{title}`, `{status}`, `{branch}`. |

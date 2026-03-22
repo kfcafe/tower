@@ -80,6 +80,14 @@ pub struct AuthToken {
 - Don't change existing tests"
 ```
 
+## Batch Verify
+
+When `batch_verify: true` is in the project config, the runner handles verification centrally:
+- Agents skip verify and exit after `mana close`
+- The runner groups completed units by verify command and runs each once
+- Use scoped checks (`cargo check -p <crate>`) for fast feedback during work
+- Don't run the full verify command yourself in batch mode
+
 ## On Failure
 
 **Never retry with identical instructions.** Add what went wrong via `mana update <id> --note "..."`.
