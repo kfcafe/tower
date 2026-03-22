@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/mana-core",
     "crates/mana-cli",
+    "crates/mana-review",
 ]
 
 [workspace.package]
