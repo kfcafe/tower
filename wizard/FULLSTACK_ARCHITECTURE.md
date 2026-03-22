@@ -27,27 +27,29 @@ This document focuses on how these layers connect and where responsibilities sto
 └───────────────────────────────────────────────────────────────────┘
                                │
                                ▼
-┌─ Wizard Desktop (Tauri 2) ───────────────────────────────────────┐
+┌─ Wizard Desktop (Photon) ────────────────────────────────────────┐
 │                                                                   │
-│  SolidJS app                                                      │
-│  ├── canvas                                                       │
-│  ├── inspector                                                    │
-│  ├── CodeMirror editor panes                                      │
-│  ├── command palette                                              │
-│  └── runtime strip                                                │
+│  Photon renderer (Zig)                                            │
+│  ├── custom DOM + CSS + layout + GPU paint                        │
+│  ├── SolidJS app (on JSC via Bun)                                 │
+│  │   ├── canvas                                                   │
+│  │   ├── inspector                                                │
+│  │   ├── CodeMirror editor panes                                  │
+│  │   ├── command palette                                          │
+│  │   └── runtime strip                                            │
+│  ├── libghostty terminal panels (Zig-native compositing)          │
+│  └── browser panels (Photon rendering)                            │
 │                                                                   │
-│  Native panel hosts                                               │
-│  ├── libghostty terminal panels                                   │
-│  └── Tauri browser webviews                                       │
+│  Bun backend (TypeScript)                                         │
+│  └── wizard-proto client → daemon connection                      │
 └───────────────────────────────────────────────────────────────────┘
                                │
+                               │ WebSocket / Unix socket
                                ▼
-┌─ Wizard Backend ──────────────────────────────────────────────────┐
+┌─ Wizard Daemon ───────────────────────────────────────────────────┐
 │                                                                   │
 │  wizard-orch      daemon / projection / orchestration             │
 │  wizard-store     local `.wizard/` state                          │
-│  wizard-terminal  PTY + libghostty wrapper                        │
-│  wizard-browser   browser-panel lifecycle                         │
 │  wizard-proto     shared commands, events, snapshots              │
 └───────────────────────────────────────────────────────────────────┘
                                │
@@ -206,25 +208,27 @@ Wizard config exists so shared orchestration and repo-specific behavior can be e
 
 | Layer | Technology | Why |
 |---|---|---|
-| Desktop shell | Tauri 2 | native shell with system webview and native view integration |
-| UI framework | SolidJS | fine-grained reactivity for long-lived app state |
-| Editor | CodeMirror 6 | embeddable, flexible, sufficient for v1 focused editing |
-| Terminal | libghostty | real PTY, native quality, embeddable |
-| Browser panels | Tauri secondary webviews | use system engine, avoid bundling Gecko/Chromium |
-| Backend | Rust | fits mana/wizard ecosystem, strong systems and IPC story |
+| Rendering engine | Photon (Zig) | custom DOM/CSS/layout/GPU paint — we own the renderer, canvas-specific optimizations possible |
+| Desktop shell | Photon + Bun | Zig binary with Bun backend, no system webview |
+| UI framework | SolidJS (on JSC) | fine-grained reactivity, compiles to standard DOM APIs that map to Photon's JS bindings |
+| Editor | CodeMirror 6 (on Photon) | embeddable, flexible, sufficient for v1 focused editing |
+| Terminal | libghostty (Zig-native) | real PTY, native quality, composited directly by Photon — no FFI boundary |
+| Browser panels | Photon rendering | same engine renders URL content, progressive capability, no separate engine |
+| Daemon | Rust (wizard-orch) | orchestration, graph projection, imp supervision |
+| Daemon IPC | WebSocket or Unix socket | wizard-proto commands and events, same protocol as `wiz` CLI |
 | Canonical state | `.mana/` | durable, human-readable, language-agnostic |
 | Worker engine | imp | specialized agent engine |
 
 ## 7. Why This Shape Instead of Alternatives
 
-## 7.1 Why not one giant web app
-Because Wizard needs native-quality terminal integration, local filesystem access, and a daemon that survives UI closure.
+## 7.1 Why not Tauri + system webview
+Because we own Photon and Wizard benefits from controlling the rendering substrate. Canvas-specific GPU optimizations, Zig-native libghostty compositing, and progressive browser panel rendering are all natural on Photon but would require workarounds on Tauri. The daemon boundary means the rendering layer is replaceable if needed.
 
 ## 7.2 Why not full native Rust UI
-Because the canvas/editor/panel experimentation is faster in a webview, and the frontend needs rich editor and rendering ecosystems.
+Because the canvas/editor/panel experimentation is faster with SolidJS + DOM APIs, and the frontend needs rich editor and rendering ecosystems. Photon provides the native-quality rendering while SolidJS provides the rapid UI iteration.
 
 ## 7.3 Why not bundle Gecko or Chromium
-Because Wizard is not a browser. It needs inline URL viewing, not an independent rendering engine to maintain.
+Because Wizard is not a browser. Photon renders what Wizard needs. As Photon matures toward Phase 3, browser panels gain full web rendering without a separate engine.
 
 ## 7.4 Why not use Neovim/Helix/Zed as the default editor
 Because Wizard needs an integrated editor surface that is easy to compose with the canvas and panel system. CodeMirror 6 is the lower-risk default. Keep a path for optional Neovim later.
@@ -314,20 +318,20 @@ wizard/
 ## 12. Build Order Across the Stack
 
 ### Phase 1
-- `wizard-proto`
-- `wizard-orch` snapshot loader
-- Tauri + Solid shell
-- read-only graph canvas
+- `wizard-proto` with socket transport (WebSocket or Unix socket)
+- `wizard-orch` snapshot loader + event publisher
+- Photon + SolidJS shell with daemon connection
+- read-only graph canvas on Photon
 
 ### Phase 2
 - command palette
 - room state persistence
-- CodeMirror editor integration
-- verify terminal via libghostty
+- CodeMirror editor integration (on Photon)
+- verify terminal via libghostty (Zig-native compositing)
 
 ### Phase 3
 - agent supervision and runtime strip
-- browser panels
+- browser panels (Photon rendering for localhost/docs)
 - diff review
 - attempt/review surfaces
 
@@ -338,7 +342,8 @@ wizard/
 
 ### Phase 5
 - optional power-user editor path
-- performance upgrade to hybrid rendering if needed
+- WASM DOM optimization for canvas hot path if needed
+- browser panels gain full web rendering (Photon Phase 3)
 - collaboration-friendly exports and shared views
 
 ## 13. Design Tensions to Watch
@@ -354,11 +359,14 @@ wizard/
 | Question | Decision |
 |---|---|
 | Primary surface | Canvas |
-| Built-in editor | Yes, CodeMirror 6 |
+| Rendering engine | Photon (Zig) |
+| Built-in editor | Yes, CodeMirror 6 (on Photon) |
 | Power-user editor path | Maybe later, likely Neovim-backed |
-| Terminal | libghostty |
-| Browser | Tauri secondary webviews |
-| Backend split | daemon + desktop-native hosts |
+| Terminal | libghostty (Zig-native compositing) |
+| Browser panels | Photon rendering (progressive capability) |
+| Desktop shell | Photon + Bun |
+| Daemon | wizard-orch (Rust) via socket |
+| Daemon IPC | WebSocket or Unix socket, wizard-proto |
 | Canonical project truth | `.mana/` |
 | Local UX truth | `.wizard/` |
 | Worker engine | imp |

@@ -21,8 +21,9 @@ The frontend is **not** the source of truth for project work state. `.mana/` rem
 ## 2. Stack Decisions
 
 ## Shell
-- **Tauri 2** desktop shell
-- system webview for primary UI rendering
+- **Photon** rendering engine (Zig) — custom DOM, CSS, layout, GPU paint
+- **Bun** backend — hosts SolidJS on JavaScriptCore, manages daemon connection
+- No system webview — Photon replaces it entirely
 
 ## UI framework
 - **SolidJS**
@@ -56,10 +57,11 @@ Solid's signal-based reactivity fits this better than React's rerender-centered 
 - **hybrid DOM + canvas/WebGL** when performance requires it
 
 ## Browser panels
-- Tauri secondary webviews
+- Photon rendering (progressive: app-level now, full web as Phase 3 matures)
+- External browser fallback always available
 
 ## Terminal panels
-- native panel managed by backend via libghostty
+- libghostty composited directly by Photon (Zig-native, no FFI)
 
 ## 3. Core Frontend Principles
 
@@ -240,44 +242,36 @@ interface GraphStore {
 
 ## 8. Rendering Strategy
 
-## 8.1 MVP rendering
+## 8.1 Photon rendering
 
-Start with DOM-based rendering for cards and overlays.
+Photon provides the DOM, CSS layout, and GPU paint pipeline. SolidJS manipulates Photon's DOM via standard APIs (`createElement`, `appendChild`, `setAttribute`). Photon renders the DOM directly to the GPU — there is no system webview, no browser engine, and no "graduation from DOM to canvas/WebGL" step.
 
-Use CSS transforms for:
-- pan
-- zoom
-- selection framing
-- transitions
+The canvas uses:
+- Photon's flexbox/grid layout for card positioning
+- CSS transforms for pan and zoom
+- Photon's damage tracker to repaint only changed regions
+- Photon's display list for batched GPU rendering of card backgrounds, borders, and text
 
-### Why start simple
-- easier to implement
-- easier to debug
-- easier for agents to modify
-- likely enough for small and medium graphs
+### Why Photon works well for this
+- GPU-accelerated rendering from day one — no performance ceiling from a system webview
+- Damage tracking means a hovered card doesn't repaint the entire graph
+- Display list batching handles hundreds of card outlines efficiently
+- We own the renderer — canvas-specific optimizations are possible (skip layout for off-screen zoom levels, batch card rendering)
 
-## 8.2 Graduation path
+## 8.2 WASM DOM optimization path
 
-Move to hybrid rendering when metrics say it is time.
+If SolidJS-driven DOM manipulation becomes a bottleneck at scale (hundreds of nodes, rapid graph updates), the graph hot path can be moved to Rust → WASM → Photon DOM. This bypasses JavaScript entirely for the performance-critical canvas layer while keeping SolidJS for UI chrome.
 
-Use canvas/WebGL for:
-- edge rendering
-- large node fields
-- animated overview layers
+Evaluate after MVP 1 — likely not needed initially.
 
-Keep DOM/HTML for:
-- card content
-- inspector
-- command palette
-- editor panes
-- panel chrome
+## 8.3 Rendering targets
 
-## 8.3 Trigger to upgrade
-
-Graduate from DOM-first when one or more becomes true:
-- frame rate drops below target on medium-sized graphs
-- node count makes DOM interactions sluggish
-- animated transitions become visibly inconsistent
+Wizard's rendering needs are simpler than Photon's VS Code benchmark:
+- Flexbox cards with text, status badges, and colored borders
+- CSS transforms for semantic zoom
+- Scroll containers for inspector and list views
+- Mouse/keyboard events for selection and navigation
+- CodeMirror 6 for editor panes (depends on Photon's editor-grade input handling)
 
 ## 9. Editor Architecture
 
@@ -400,7 +394,7 @@ Mitigation:
 
 ## 14. Near-Term Build Order
 
-1. App shell in Tauri + SolidJS
+1. App shell in Photon + SolidJS (Bun backend, daemon socket connection)
 2. Connection to backend snapshots/events
 3. Read-only graph canvas
 4. Inspector and command palette
@@ -415,11 +409,12 @@ Mitigation:
 
 | Area | Decision |
 |---|---|
-| Shell | Tauri 2 |
-| UI framework | SolidJS |
-| Default editor | CodeMirror 6 |
-| Terminal | libghostty via native panel |
-| Browser | Tauri secondary webviews |
-| Graph rendering | DOM-first, hybrid later |
+| Shell | Photon (Zig) + Bun backend |
+| UI framework | SolidJS (on JSC via Bun) |
+| Default editor | CodeMirror 6 (on Photon) |
+| Terminal | libghostty (Zig-native compositing) |
+| Browser | Photon rendering (progressive capability) |
+| Graph rendering | Photon DOM + GPU paint (no graduation step) |
 | State model | normalized graph store + explicit projections |
 | Panel model | docked/floating, scope-aware, room-restorable |
+| Daemon IPC | WebSocket or Unix socket via wizard-proto |

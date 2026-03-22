@@ -12,7 +12,7 @@ The backend is responsible for:
 - orchestrating work and supervising agents
 - reading and projecting `.mana/` state
 - exposing commands and event streams to the desktop client
-- managing native integrations like libghostty and browser panel lifecycle
+- managing native integrations (terminal lifecycle coordination with the Photon desktop shell)
 - persisting local Wizard state where appropriate
 
 The backend is split into **daemon responsibilities** and **desktop-local native responsibilities**. They should be separate even when they run in the same process during early development.
@@ -23,7 +23,7 @@ The backend is split into **daemon responsibilities** and **desktop-local native
 2. **Daemon first.** Orchestration must survive the UI closing.
 3. **Typed protocols.** UI/backend communication uses typed commands and events, not stringly JSON blobs.
 4. **Agent-agnostic orchestration.** Wizard supervises workers through `.mana/`, process contracts, and runtime events. It should not assume one specific internal imp implementation.
-5. **Native integrations behind wrappers.** PTY, libghostty, sockets, and OS-specific behaviors live behind focused crates/modules.
+5. **Native integrations behind clean interfaces.** PTY, sockets, and OS-specific behaviors live behind focused crates/modules. libghostty and browser panels are now managed by the Photon desktop shell (Zig-native), not the Rust backend.
 6. **Config-centric policy.** Shared runtime policy comes from explicit config, not from `.wizard/` local state or scattered constants.
 
 ## 3. Proposed Crates
@@ -34,9 +34,9 @@ wizard/
     wizard-orch/        # daemon, orchestration, watchers, projections, IPC server
     wizard-proto/       # shared commands, events, snapshot types
     wizard-store/       # local state persistence and cache
-    wizard-terminal/    # libghostty bindings + PTY/session management
-    wizard-browser/     # browser panel lifecycle and URL/session registry
 ```
+
+**Note:** `wizard-terminal` and `wizard-browser` are no longer needed as separate Rust crates. Terminal panels (libghostty) are composited Zig-natively by the Photon desktop shell. Browser panels are rendered by Photon directly. The Rust daemon focuses on orchestration, projection, and the wizard-proto IPC server.
 
 ## 4. Crate Responsibilities
 
@@ -77,27 +77,26 @@ Responsibilities:
 - cache last-known projections for faster startup
 - version local state schemas
 
-## 4.4 `wizard-terminal`
-Native terminal integration.
+## 4.4 Terminal integration (Photon-side)
 
-Responsibilities:
-- wrap libghostty bindings
-- manage PTYs
-- create terminal sessions
-- attach sessions to agents, rooms, and verify runs
-- handle resize, scrollback, and lifecycle
-- expose transcript capture hooks
+Terminal panels are managed by the Photon desktop shell, not the Rust daemon.
 
-Do not put this directly inside the Tauri app glue. Keep it isolated.
+libghostty and Photon are both Zig — terminal panels are composited directly by Photon's window manager with zero FFI overhead. The Rust daemon's role is limited to:
+- emitting agent spawn/exit events (so the desktop shell knows when to create/destroy agent terminal panels)
+- providing structured transcript capture for persistence and artifact creation
+- exposing terminal session metadata through wizard-proto
 
-## 4.5 `wizard-browser`
-Browser-panel lifecycle and session tracking.
+The Photon desktop shell owns PTY lifecycle, resize, scrollback, and native compositing.
 
-Responsibilities:
-- create/destroy secondary webviews
-- remember URL associations by panel scope
-- manage toolbar commands (back, forward, reload, external open)
-- persist lightweight URL/session metadata
+## 4.5 Browser panel integration (Photon-side)
+
+Browser panels are rendered by Photon directly, not by a separate Rust-managed webview.
+
+The Rust daemon's role is limited to:
+- persisting URL/panel associations by scope (room, unit, fact) via wizard-store
+- exposing panel metadata through wizard-proto
+
+The Photon desktop shell owns panel creation, navigation, rendering, and toolbar actions.
 
 ## 5. Process Model
 
@@ -211,13 +210,11 @@ Important property:
 
 ## 7.3 Transport
 
-Long-term:
-- local socket transport for desktop and CLI clients
+The Photon desktop shell connects to the wizard-orch daemon over a **WebSocket or Unix socket** using wizard-proto. This is the same protocol the `wiz` CLI uses — one transport, multiple clients.
 
-Early stage:
-- Tauri IPC for desktop + in-process event bus
+The Bun backend in the Photon process acts as the bridge: it connects to the daemon socket, serializes/deserializes wizard-proto messages, and forwards them between SolidJS and the daemon.
 
-The transport can evolve. `wizard-proto` shapes should not.
+The transport is socket-based from day one. No framework-specific IPC (Tauri invoke/listen) to abstract away later.
 
 ## 8. Terminal Backend Design
 
@@ -398,8 +395,8 @@ wizard-orch/
 | Local state | `.wizard/` |
 | IPC | typed commands/events via `wizard-proto` |
 | Daemon | `wizard-orch` |
-| Terminal bindings | `wizard-terminal` wrapper crate |
-| Browser lifecycle | `wizard-browser` wrapper crate |
+| Terminal integration | Photon-side (Zig-native libghostty compositing) |
+| Browser panels | Photon-side (Photon rendering, progressive capability) |
 | Editor backend | file/diff operations, editor-agnostic |
 | Live terminal output | real PTY passthrough |
 | Persisted terminal output | structured capture |

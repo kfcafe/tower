@@ -1,6 +1,6 @@
 # Wizard — Canvas-Native Interface for Mana
 
-Status: Draft 0.2  
+Status: Draft 0.3  
 Owner: Wizard project (new workspace)  
 Temporary placement: `wizard/` lives inside the current mana repo for now. See `UMBRELLA.md` for the plan to move all four projects (`mana/`, `imp/`, `wizard/`, `familiar/`) under a shared `tower/` monorepo root.  
 Relationship to existing vision: replaces TUI-first `wizard` with a canvas-first desktop client while preserving `wiz` CLI and headless orchestration.
@@ -433,7 +433,7 @@ wizard/
     wizard-proto/     # commands, events, snapshot types
     wizard-store/     # local view state and cache
   app/
-    desktop/          # Tauri shell + canvas client
+    desktop/          # Photon shell + canvas client (TypeScript + Zig)
   docs/
 ```
 
@@ -467,74 +467,96 @@ Stores:
 ### 13.4 `desktop`
 
 Desktop app responsibilities:
-- render infinite canvas
+- render infinite canvas via Photon
 - show inspector and command palette
-- subscribe to runtime events
+- subscribe to runtime events from `wizard-orch` daemon via socket
 - issue commands through `wizard-proto`
 - integrate built-in editor, terminal, and browser panels
+- manage Photon window lifecycle, native panel compositing
+
+The desktop shell is a Photon app — a Zig binary with Bun backend, using Photon's custom rendering engine instead of a system webview. SolidJS runs on JavaScriptCore (via Bun) against Photon's DOM. The backend daemon (`wizard-orch`) remains a separate Rust process; the desktop shell connects to it over a socket using `wizard-proto`.
 
 ## 13.5 Rendering Architecture
 
-The desktop app composites three rendering layers inside a single Tauri 2 window.
+The desktop app runs on **Photon** — a custom rendering engine written in Zig, developed as part of the bun-shell project (`~/projects/bun-shell`). Photon replaces the system webview with a purpose-built renderer: custom DOM, CSS parser, layout engine, and GPU paint pipeline. JavaScript execution is provided by JavaScriptCore through Bun.
+
+Wizard is Photon's flagship application — a real, complex, demanding desktop tool that proves the engine works.
 
 ```text
-┌─ Wizard Desktop (Tauri 2 shell) ─────────────────────────────────┐
-│                                                                   │
-│  ┌─ Layer 1: Canvas + UI + Editor ────────────────────────────┐  │
-│  │  System webview (WebKit on macOS / WebView2 on Windows)    │  │
-│  │  SolidJS shell + canvas renderer + CodeMirror 6 editor     │  │
-│  │  All typed cards, edges, semantic zoom, inspector,         │  │
-│  │  command palette, status bar, editor panes                 │  │
-│  └────────────────────────────────────────────────────────────┘  │
-│                                                                   │
-│  ┌─ Layer 2: Terminal panels ─────────────────────────────────┐  │
-│  │  libghostty (native, composited via Tauri native views)    │  │
-│  │  Real PTY, GPU-accelerated, per-room persistent sessions   │  │
-│  └────────────────────────────────────────────────────────────┘  │
-│                                                                   │
-│  ┌─ Layer 3: Browser panels ─────────────────────────────────┐  │
-│  │  Tauri secondary webviews (same system engine, no Gecko)   │  │
-│  │  PR preview, dev server, docs, GitHub                      │  │
-│  └────────────────────────────────────────────────────────────┘  │
-│                                                                   │
-│  ┌─ Native backend ──────────────────────────────────────────┐  │
-│  │  Rust: wizard-orch client, .mana/ watcher, wizard-proto    │  │
-│  │  commands, libghostty PTY management, local state          │  │
-│  └────────────────────────────────────────────────────────────┘  │
-│                                                                   │
-└───────────────────────────────────────────────────────────────────┘
+┌─ Wizard Desktop (Photon) ─────────────────────────────────────────┐
+│                                                                    │
+│  ┌─ Layer 1: Canvas + UI + Editor (Photon renderer) ──────────┐   │
+│  │  Photon: custom DOM + CSS + layout + GPU paint (Zig)        │   │
+│  │  JavaScript: JavaScriptCore via Bun                         │   │
+│  │  SolidJS shell + canvas renderer + CodeMirror 6 editor      │   │
+│  │  All typed cards, edges, semantic zoom, inspector,          │   │
+│  │  command palette, status bar, editor panes                  │   │
+│  └─────────────────────────────────────────────────────────────┘   │
+│                                                                    │
+│  ┌─ Layer 2: Terminal panels (libghostty) ─────────────────────┐   │
+│  │  Zig-native integration — no FFI boundary                   │   │
+│  │  Real PTY, GPU-accelerated, per-room persistent sessions    │   │
+│  │  Composited directly by Photon's window manager             │   │
+│  └─────────────────────────────────────────────────────────────┘   │
+│                                                                    │
+│  ┌─ Layer 3: Browser panels (Photon rendering) ────────────────┐   │
+│  │  Same engine renders inline URL content                     │   │
+│  │  Progressive: app-level HTML/CSS now, full web later        │   │
+│  │  Fallback: open in external browser always available         │   │
+│  └─────────────────────────────────────────────────────────────┘   │
+│                                                                    │
+│  ┌─ Daemon connection ─────────────────────────────────────────┐   │
+│  │  WebSocket or Unix socket to wizard-orch (Rust daemon)      │   │
+│  │  wizard-proto: commands, events, snapshots                  │   │
+│  │  Same protocol used by `wiz` CLI                            │   │
+│  └─────────────────────────────────────────────────────────────┘   │
+│                                                                    │
+└────────────────────────────────────────────────────────────────────┘
 ```
 
-### Layer 1 — Canvas UI + Editor (system webview)
+### Why Photon instead of Tauri + system webview
 
-The primary surface. Renders the entire canvas, all typed cards, edges, inspector, command palette, status bar, and the built-in editor panes. This is a web app running in Tauri's system webview.
+1. **We own the renderer.** Wizard's canvas needs (semantic zoom, hundreds of cards, animated transitions, dense graph layout) push any system webview toward its limits. On Photon, we can add canvas-specific fast paths — batch-render card outlines, skip layout for off-screen nodes, damage-track only the visible zoom level. On a system webview, we hope Apple or Microsoft optimize for our use case.
 
-**Framework decision:** use **SolidJS** for the shell and UI bindings. Wizard is a long-lived, fine-grained desktop tool, not a page-oriented web app. Solid's signal-based reactivity is a better fit than React's rerender and hook model for panel management, graph updates, selection state, and live agent presence.
+2. **Terminal integration is Zig-native.** libghostty is Zig. Photon is Zig. No FFI boundary, no Tauri native view compositing dance, no `wizard-terminal` wrapper crate translating between Rust and Zig. Terminal panels are first-class native views composited directly by the same process.
 
-**Built-in editor decision:** use **CodeMirror 6** inside the same webview layer. It is the default integrated editor for focused code work, patching, diff review, and agent-guided edits. Keep a path for an optional Neovim-backed power-user mode later, but do not make Neovim, Helix, or Zed the required editor substrate for v1.
+3. **Browser panels converge naturally.** Photon's roadmap (bun-shell Phase 3) grows into a browser engine. Wizard's browser panels — PR preview, docs, dev server — evolve from limited app-level rendering to full web rendering as Photon matures. No separate engine bolted on.
 
-The canvas renderer must support:
-- GPU-accelerated 2D rendering for smooth zoom and pan at scale (hundreds of nodes)
-- Virtualized rendering — only draw visible cards at the current zoom level
-- Animated transitions for zoom level changes, status updates, and agent presence
+4. **Dogfooding drives quality.** Wizard is a complex, long-lived, performance-sensitive desktop application. Building it on Photon means every Wizard need becomes a Photon priority. Real usage surfaces real bugs faster than synthetic benchmarks.
 
-Candidate rendering approaches:
-- HTML/CSS with transform-based zoom (simplest, works for MVP)
-- Canvas 2D or WebGL for the graph layer, HTML overlays for card content (scales better)
-- PixiJS or similar 2D WebGL library for the graph, DOM for inspectors
+5. **Full stack ownership.** The entire tower ecosystem — mana, imp, wizard, and now the rendering substrate — is code we control. No external framework gates our progress.
 
-The choice depends on how many nodes need to render simultaneously. Start with DOM-based rendering. Move to a hybrid canvas+DOM approach when performance requires it.
+### Layer 1 — Canvas UI + Editor (Photon renderer)
+
+The primary surface. Renders the entire canvas, all typed cards, edges, inspector, command palette, status bar, and the built-in editor panes. Photon provides the DOM, CSS resolution, layout, and GPU paint pipeline. JavaScript runs on JavaScriptCore through Bun.
+
+**Framework decision:** use **SolidJS** for the shell and UI bindings. Solid compiles to direct DOM API calls (`createElement`, `appendChild`, `setAttribute`) — no virtual DOM, no abstraction layer. These standard DOM APIs are exactly what Photon implements via its JS DOM bindings. Solid's signal-based reactivity is a natural fit for Wizard's fine-grained state: selection, zoom, card expansion, agent presence, runtime updates.
+
+**Built-in editor decision:** use **CodeMirror 6** inside the same rendering layer. CodeMirror is DOM-native and needs precise text measurement, fast DOM mutation, and editor-grade input handling (IME, clipboard, selection). Photon's Phase 2 roadmap targets exactly these capabilities for the VS Code benchmark. Keep a path for an optional Neovim-backed power-user mode later.
+
+The canvas renderer benefits from Photon's architecture:
+- **GPU-accelerated rendering** via Metal (macOS), Vulkan (Linux), DirectX (Windows) — smooth zoom and pan at scale
+- **Damage tracking** — only repaint regions that changed (a hovered card doesn't repaint the entire graph)
+- **Display list pipeline** — Photon's paint system can batch hundreds of card backgrounds, borders, and text runs efficiently
+- **Virtualized rendering** — semantic zoom naturally maps to Photon's layout: different zoom levels render different DOM subtrees
+
+Unlike a system webview where DOM-first rendering is a starting point that may need to graduate to canvas/WebGL, Photon IS the GPU renderer. The DOM is rendered directly to the GPU paint pipeline. There is no graduation step.
+
+**Future option — WASM DOM for the graph hot path:**
+
+Photon's WASM DOM bindings allow any language compiled to WASM to manipulate the DOM directly, without JavaScript. This opens an architecturally unique option: the performance-critical canvas layer (graph layout, edge drawing, semantic zoom transitions) could be written in Rust, compiled to WASM, and drive Photon's DOM directly. SolidJS handles the UI chrome (inspector, command palette, panels); Rust WASM handles the rendering hot path.
+
+This is an optimization path, not a requirement. SolidJS-only on Photon works for MVP.
 
 ### Layer 2 — Terminal panels (libghostty)
 
 libghostty is the terminal library extracted from Ghostty. It provides a real, PTY-backed, GPU-accelerated terminal emulator designed for embedding.
 
-**Why libghostty, not xterm.js:**
+**Why libghostty:**
 - Real PTY — not a web simulation of a terminal
 - GPU-rendered text — matches or exceeds standalone terminal performance
 - Proper Unicode, ligatures, true color, sixel — developers expect these
-- Native compositing via Tauri — the terminal panel is a native view, not a DOM element
-- Zig with C ABI — Rust links via FFI through Tauri's native layer
+- **Zig-native compositing** — Photon and libghostty are both Zig. The terminal panel is composited directly by Photon's window manager with zero FFI overhead. No wrapper crate, no C ABI translation layer.
 
 **Terminal panel types:**
 
@@ -557,14 +579,15 @@ libghostty is the terminal library extracted from Ghostty. It provides a real, P
 - Selecting a running agent card and pressing a terminal shortcut attaches to that agent's output stream
 - Verify terminal results are capturable as verify cards on the canvas
 
-### Layer 3 — Browser panels (Tauri secondary webviews)
+### Layer 3 — Browser panels (Photon rendering)
 
-For viewing URLs inline without leaving the app. Uses Tauri 2's multi-webview support — no additional browser engine.
+For viewing URLs inline without leaving the app. Unlike the previous Tauri architecture that bolted on secondary system webviews, Wizard uses Photon itself to render URL content.
 
-**Why not Gecko or Chromium:**
-- Tauri already embeds a system webview. A second engine adds 50-80MB binary size and massive complexity.
-- We don't need an independent browser. We need to render URLs in panels.
-- System webview is maintained by the OS vendor — free security updates, no maintenance burden.
+**Progressive capability:**
+
+- **Now (Photon Phase 2):** Photon renders modern HTML/CSS — sufficient for localhost dev servers, simple docs pages, and structured content. Complex sites fall back to external browser.
+- **Later (Photon Phase 3):** Photon becomes a browser engine with full networking, expanded CSS, and JavaScript Web APIs. Browser panels render GitHub PRs, library docs, and most modern websites natively.
+- **Always available:** "Open in external browser" is one click away for anything Photon cannot yet render.
 
 **Browser panel types:**
 
@@ -576,25 +599,50 @@ For viewing URLs inline without leaving the app. Uses Tauri 2's multi-webview su
 | URL preview | Show any URL referenced in a unit or fact | Link click in inspector |
 
 **Behavior:**
-- Browser panels are secondary webviews, not tabs in a browser chrome
+- Browser panels render inline, not in a separate browser chrome
 - No address bar, no bookmarks, no navigation UI by default — just the rendered page
 - A minimal toolbar appears on hover: back, forward, reload, open in external browser, close
 - Browser panels can be docked or floating, same as terminal panels
 - URLs opened from unit cards or fact cards remember their association — reopening the card reopens the URL
 
-**What this is not:**
-- Not a full browser. No extension support, no multi-tab browsing, no developer tools.
-- If someone needs full browser capabilities, "open in external browser" is one click away.
-
 ### Layer coordination
 
-All three layers share the same Tauri window. The native backend in Rust manages:
+All layers run in the same Photon process. The Zig binary manages:
+- Window lifecycle and native platform integration
+- Photon renderer: DOM, layout, paint, GPU compositing
+- libghostty PTY lifecycle: spawn, resize, destroy, compose into window
 - Panel layout and docking state (stored in `.wizard/`)
-- libghostty PTY lifecycle (spawn, resize, destroy)
-- Secondary webview lifecycle (create, navigate, destroy)
-- Communication between layers (canvas UI sends commands to Rust backend, backend manages native views)
+- Bun runtime: hosts SolidJS app code, provides JSC for DOM scripting
 
-Tauri 2's IPC handles canvas-to-backend communication. The canvas UI never talks directly to libghostty or secondary webviews — it sends commands through the Rust backend, which manages native view placement and lifecycle.
+The UI communicates with the `wizard-orch` daemon over a socket using `wizard-proto`. This is the same protocol the `wiz` CLI uses — the desktop app is just another client of the daemon. The daemon manages orchestration, graph projection, and imp supervision; the desktop app manages rendering, input, and local view state.
+
+### IPC architecture
+
+```text
+┌─ Photon Desktop ─────────────────────────────┐
+│  SolidJS (JSC) ←→ Bun backend (TypeScript)   │
+│                    │                          │
+│                    │ WebSocket / Unix socket   │
+│                    ▼                          │
+│              wizard-proto client              │
+└───────────────┬───────────────────────────────┘
+                │
+                ▼
+┌─ wizard-orch daemon (Rust) ───────────────────┐
+│  .mana/ watcher                               │
+│  graph projection                             │
+│  imp dispatch + supervision                   │
+│  snapshot + event publishing                  │
+│  wizard-proto server                          │
+└───────────────────────────────────────────────┘
+```
+
+The Bun backend in the Photon process acts as the bridge: it receives user intent from SolidJS via Photon's internal bridge, translates it into `wizard-proto` commands, and forwards them to the daemon. Incoming events and snapshots from the daemon flow back through Bun into the SolidJS reactive state.
+
+This separation means:
+- The daemon survives UI closure (headless orchestration continues)
+- Multiple clients can connect (`wiz` CLI, desktop app, future web client)
+- The desktop shell is a replaceable client, not the whole system
 
 ## 14. Runtime Model
 
@@ -725,7 +773,7 @@ Required external-editor actions:
 Future path:
 - optional Neovim-backed power mode for users who want a real editor core with modal editing and existing config
 
-### Terminal integration (libghostty)
+### Terminal integration (libghostty — Zig-native)
 
 The canvas includes real terminal panels for workflows that need a shell:
 - run verify commands manually and see live output
@@ -733,9 +781,9 @@ The canvas includes real terminal panels for workflows that need a shell:
 - quick shell access without leaving the app
 - persistent per-room terminals that remember state
 
-See §13.5 Layer 2 for full terminal architecture.
+Because Photon and libghostty are both Zig, terminal panels are composited directly by the same process with no FFI boundary. See §13.5 Layer 2 for full terminal architecture.
 
-### Browser integration (Tauri secondary webviews)
+### Browser integration (Photon rendering)
 
 The canvas includes inline URL panels for context that lives on the web:
 - PR previews from completed units
@@ -743,7 +791,7 @@ The canvas includes inline URL panels for context that lives on the web:
 - library docs linked from facts
 - GitHub views for repos and issues
 
-See §13.5 Layer 3 for full browser architecture.
+Browser panels are rendered by Photon itself. Initially limited to modern HTML/CSS (sufficient for localhost and structured docs). As Photon matures toward Phase 3 (browser engine), these panels gain full web rendering. External browser fallback is always available. See §13.5 Layer 3 for full browser architecture.
 
 ### What wizard explicitly does not do
 
@@ -806,21 +854,24 @@ Motion should communicate:
 
 ## 20. MVP Scope
 
-### MVP 1 — Read-only graph client
-- Tauri shell with system webview canvas
-- render mana graph on canvas (DOM-based rendering)
+### MVP 1 — Read-only graph client on Photon
+- Photon renders Wizard's canvas UI (SolidJS on JSC)
+- socket connection to `wizard-orch` daemon for graph snapshots
+- render mana graph on canvas (Photon DOM + GPU paint)
 - semantic zoom (4 levels)
 - filters and inspector panel
 - saved local views in `.wizard/`
 - keyboard navigation and command palette
 
+This is a simpler rendering target than Photon's VS Code benchmark — mostly flexbox cards with text, status badges, and CSS transforms for zoom. Validates the Photon + SolidJS + daemon architecture end-to-end.
+
 ### MVP 2 — Operational controls + terminal + editor
 - run / retry / stop / verify from canvas
 - live runtime bar with agent status
 - active agent cards
-- libghostty integration: verify terminal and quick terminal
+- libghostty integration: Zig-native terminal compositing, verify terminal and quick terminal
 - agent output streaming to terminal panel
-- built-in CodeMirror 6 editor: open, edit, save, jump-to-line
+- built-in CodeMirror 6 editor: open, edit, save, jump-to-line (depends on Photon editor-grade input handling)
 - editor panes attached to focus rooms and file cards
 
 ### MVP 3 — Review and evidence
@@ -828,7 +879,7 @@ Motion should communicate:
 - verify cards with captured output
 - diff preview in inspector and editor
 - file pinning and query pinning
-- browser panels for PR preview (Tauri secondary webview)
+- browser panels for localhost dev servers and structured docs (Photon rendering)
 
 ### MVP 4 — Focus rooms + room terminals
 - portal into parent unit or cluster
@@ -837,11 +888,12 @@ Motion should communicate:
 - per-room browser panels (dev server, docs)
 - fast navigation between project home and focus rooms
 
-### MVP 5 — Richer agent artifacts + polish
+### MVP 5 — Richer agent artifacts + full browser panels
 - pin from tool events
 - better clustering of evidence around units
 - agent terminal review (scroll back through completed agent sessions)
-- hybrid canvas+DOM rendering if DOM-only hits performance limits
+- browser panels gain full web rendering as Photon Phase 3 matures (PR preview, GitHub, library docs)
+- WASM DOM optimization for canvas hot path if needed
 
 ## 21. Success Criteria
 
@@ -879,25 +931,37 @@ Mitigation:
 - aggressive summarization
 - promote only high-value artifacts to persistent state
 
+### Photon coupling
+Wizard depends on Photon for rendering. If Photon hits a hard wall on a feature Wizard needs, both projects stall.
+Mitigation:
+- we own both projects — Wizard's needs become Photon's priorities
+- Wizard's initial rendering needs (flexbox cards, text, transforms, scroll, events) are simpler than Photon's VS Code benchmark target
+- the two projects co-evolve: Wizard surfaces gaps, Photon fills them
+- daemon architecture means the backend is independent of the rendering layer — if Photon is ever abandoned, the desktop shell can be rebuilt on another substrate without touching wizard-orch, wizard-proto, or mana
+
 ## 23. Decisions and Remaining Open Questions
 
 ### Resolved decisions
 
 1. ~~Should shared views eventually live in `.mana/views/` or a dedicated export format?~~ **Decision: personal views live in `.wizard/views/`; explicitly shared views export into `.mana/views/`.**
-2. ~~Do we want the desktop canvas implemented with Tauri + web canvas immediately, or stage with a lighter Rust-native prototype?~~ **Decision: Tauri 2 + system webview for canvas, libghostty for terminals, Tauri secondary webviews for browser panels. No Gecko, no Chromium, no xterm.js.**
+2. ~~Do we want the desktop canvas implemented with Tauri + web canvas immediately, or stage with a lighter Rust-native prototype?~~ **Decision (revised): Photon rendering engine + libghostty for terminals + Photon browser panels. No Tauri, no system webview, no Gecko, no Chromium, no xterm.js. Wizard is Photon's flagship application.**
 3. ~~How much low-level tool activity should be exposed by default vs on demand?~~ **Decision: three levels — default summarized runtime, expandable per-agent detail, and raw debug/event stream on demand.**
 4. ~~Should facts be visually separate from work, or embedded directly into work clusters?~~ **Decision: hybrid — separate knowledge map at overview level, embedded facts inside focus rooms.**
 5. ~~Should `wiz` launch the desktop app by default, or remain CLI-first with `wiz open` for GUI?~~ **Decision: open or attach to the desktop app on local GUI sessions; fall back to CLI behavior in headless, SSH, or no-GUI environments.**
-6. ~~Which web framework for the canvas UI layer? React (ecosystem), Solid (performance), Svelte (simplicity), or Leptos (Rust-native via WASM)?~~ **Decision: SolidJS for the shell and UI bindings.**
-7. ~~libghostty's Zig→C ABI→Rust FFI path — do we need a `wizard-terminal` wrapper crate, or inline the bindings in the Tauri backend?~~ **Decision: create a dedicated `wizard-terminal` wrapper crate. Do not inline libghostty bindings into the Tauri backend.**
+6. ~~Which web framework for the canvas UI layer? React (ecosystem), Solid (performance), Svelte (simplicity), or Leptos (Rust-native via WASM)?~~ **Decision: SolidJS for the shell and UI bindings. Solid compiles to direct DOM API calls, which map cleanly onto Photon's JS DOM bindings.**
+7. ~~libghostty integration path — wrapper crate, Tauri native views, or direct Zig integration?~~ **Decision (revised): Zig-native integration. Photon and libghostty are both Zig — terminal panels are composited directly by Photon's window manager with zero FFI overhead. No wrapper crate needed.**
 8. ~~Should agent terminal output be a real PTY passthrough from the imp process, or a reconstructed stream from structured events?~~ **Decision: both — live PTY passthrough for rich runtime viewing, plus structured capture for persistence, search, and artifact creation.**
 9. ~~Where should shared Wizard project config live without polluting `.wizard/` local state?~~ **Decision: shared project config lives in `<project>/.wizard.toml`; `.wizard/` stays local-only and user defaults live in `~/.config/wizard/config.toml`.**
+10. ~~How does the desktop shell communicate with the wizard-orch daemon?~~ **Decision: WebSocket or Unix socket using wizard-proto. Same protocol the `wiz` CLI uses. The Bun backend in the Photon process acts as the bridge between SolidJS and the Rust daemon.**
+11. ~~Should browser panels use a separate rendering engine (system webview, Gecko, Chromium)?~~ **Decision: No. Browser panels use Photon itself. Progressive capability — app-level HTML/CSS now, full web rendering as Photon Phase 3 matures. External browser fallback always available.**
 
 ### Remaining open questions
 
 1. Should the optional power-user editor mode be Neovim-backed, or is CodeMirror 6 plus strong keyboard workflows enough for v1 and v2?
-2. When should the canvas renderer graduate from DOM-first to a hybrid canvas/WebGL approach — based on node count, frame timing, or both?
-3. Should docked panels (editor, terminal, browser, inspector) share one unified layout manager, or should the canvas own its own layout and treat panels as secondary surfaces?
+2. Should docked panels (editor, terminal, browser, inspector) share one unified layout manager, or should the canvas own its own layout and treat panels as secondary surfaces?
+3. Should the canvas graph hot path use Rust → WASM → Photon DOM for performance, or is SolidJS-only sufficient? Evaluate after MVP 1.
+4. What is the minimum Photon feature set needed for Wizard MVP 1? (Flexbox, text, transforms, scroll, mouse/keyboard events — likely already covered by current Photon Phase 2 progress.)
+5. Should the Bun↔daemon socket use WebSocket (simpler, HTTP-compatible) or Unix domain socket (faster, local-only)?
 
 ## 24. Initial Mana Breakdown
 
