@@ -1,0 +1,1237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1440, height=900">
+<title>Wizard — Canvas-Native Interface for Mana</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg-base: #0e1117;
+    --bg-surface: #161b22;
+    --bg-elevated: #1c2129;
+    --bg-hover: #22272e;
+    --border: #30363d;
+    --border-subtle: #21262d;
+    --text-primary: #e6edf3;
+    --text-secondary: #8b949e;
+    --text-tertiary: #6e7681;
+    --text-muted: #484f58;
+
+    --status-ready: #58a6ff;
+    --status-running: #d29922;
+    --status-blocked: #6e7681;
+    --status-failed: #f85149;
+    --status-passed: #3fb950;
+    --status-stale: #bc8cff;
+
+    --accent: #58a6ff;
+    --accent-dim: #1f3a5f;
+
+    --edge-color: #30363d;
+    --edge-active: #58a6ff;
+
+    --font-mono: 'SF Mono', 'Fira Code', 'JetBrains Mono', monospace;
+    --font-sans: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 8px;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background: var(--bg-base);
+    color: var(--text-primary);
+    width: 1440px;
+    height: 900px;
+    overflow: hidden;
+    font-size: 13px;
+    line-height: 1.4;
+  }
+
+  /* === TOP BAR === */
+  .topbar {
+    height: 40px;
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 16px;
+    -webkit-app-region: drag;
+  }
+
+  .topbar-logo {
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--text-primary);
+    letter-spacing: -0.3px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .topbar-logo .icon {
+    width: 16px; height: 16px;
+    background: var(--accent);
+    border-radius: 3px;
+    opacity: 0.9;
+  }
+
+  .topbar-sep {
+    width: 1px;
+    height: 16px;
+    background: var(--border);
+  }
+
+  .topbar-project {
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+  }
+
+  .topbar-spacer { flex: 1; }
+
+  .command-palette-trigger {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 4px 12px 4px 8px;
+    color: var(--text-tertiary);
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    min-width: 220px;
+  }
+
+  .command-palette-trigger .search-icon { opacity: 0.5; }
+  .command-palette-trigger .hint {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    background: var(--bg-hover);
+    padding: 1px 5px;
+    border-radius: 3px;
+    border: 1px solid var(--border-subtle);
+  }
+
+  .runtime-strip {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+
+  .runtime-badge {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+  }
+
+  .runtime-badge.running {
+    background: rgba(210, 153, 34, 0.15);
+    color: var(--status-running);
+  }
+
+  .runtime-badge.cost {
+    color: var(--text-tertiary);
+  }
+
+  .pulse-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--status-running);
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* === MAIN LAYOUT === */
+  .main {
+    display: flex;
+    height: calc(900px - 40px);
+  }
+
+  /* === SIDEBAR === */
+  .sidebar {
+    width: 180px;
+    background: var(--bg-surface);
+    border-right: 1px solid var(--border);
+    padding: 8px 0;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sidebar-section {
+    padding: 8px 12px 4px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+  }
+
+  .sidebar-item {
+    padding: 5px 12px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .sidebar-item:hover { background: var(--bg-hover); }
+
+  .sidebar-item.active {
+    background: var(--accent-dim);
+    color: var(--text-primary);
+  }
+
+  .sidebar-item .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .sidebar-item .count {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-muted);
+  }
+
+  .sidebar-spacer { flex: 1; }
+
+  .sidebar-footer {
+    padding: 8px 12px;
+    border-top: 1px solid var(--border-subtle);
+    font-size: 11px;
+    color: var(--text-muted);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  /* === CANVAS === */
+  .canvas-area {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 1px 1px, var(--border-subtle) 0.5px, transparent 0.5px);
+    background-size: 24px 24px;
+  }
+
+  .canvas-content {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* SVG edges */
+  .edges-layer {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  /* === UNIT CARDS === */
+  .unit-card {
+    position: absolute;
+    width: 200px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 10px 12px;
+    cursor: pointer;
+    z-index: 2;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+
+  .unit-card:hover {
+    border-color: var(--text-muted);
+  }
+
+  .unit-card.selected {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent);
+  }
+
+  .unit-card-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+  }
+
+  .unit-id {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-muted);
+  }
+
+  .unit-status-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .unit-title {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-primary);
+    line-height: 1.3;
+    margin-bottom: 6px;
+  }
+
+  .unit-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 10px;
+    color: var(--text-tertiary);
+    font-family: var(--font-mono);
+  }
+
+  .unit-meta .verify-badge {
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  .verify-badge.pass { background: rgba(63, 185, 80, 0.15); color: var(--status-passed); }
+  .verify-badge.fail { background: rgba(248, 81, 73, 0.15); color: var(--status-failed); }
+  .verify-badge.running { background: rgba(210, 153, 34, 0.15); color: var(--status-running); }
+
+  .agent-badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    background: var(--status-running);
+    color: var(--bg-base);
+    font-size: 9px;
+    font-weight: 700;
+    padding: 2px 5px;
+    border-radius: 8px;
+    font-family: var(--font-mono);
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    z-index: 3;
+  }
+
+  .agent-badge .pulse-sm {
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: var(--bg-base);
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  .attempt-indicator {
+    font-size: 9px;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+
+  /* === FEATURE CARD (parent) === */
+  .feature-card {
+    position: absolute;
+    background: transparent;
+    border: 1.5px dashed var(--border);
+    border-radius: 12px;
+    padding: 8px 12px;
+    z-index: 0;
+  }
+
+  .feature-label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+  }
+
+  .feature-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+  }
+
+  .feature-progress {
+    margin-top: 4px;
+    height: 2px;
+    background: var(--border-subtle);
+    border-radius: 1px;
+    overflow: hidden;
+  }
+
+  .feature-progress-fill {
+    height: 100%;
+    border-radius: 1px;
+    transition: width 0.3s;
+  }
+
+  /* === INSPECTOR === */
+  .inspector {
+    width: 300px;
+    background: var(--bg-surface);
+    border-left: 1px solid var(--border);
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  .inspector-header {
+    padding: 12px 14px 10px;
+    border-bottom: 1px solid var(--border-subtle);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .inspector-header .unit-id-large {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .inspector-header .status-label {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 4px;
+    margin-left: auto;
+  }
+
+  .status-label.running {
+    background: rgba(210, 153, 34, 0.15);
+    color: var(--status-running);
+  }
+
+  .inspector-title {
+    padding: 10px 14px;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.3;
+  }
+
+  .inspector-section {
+    padding: 8px 14px;
+    border-top: 1px solid var(--border-subtle);
+  }
+
+  .inspector-section-title {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+  }
+
+  .inspector-field {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 3px 0;
+    font-size: 12px;
+  }
+
+  .inspector-field .label { color: var(--text-tertiary); }
+  .inspector-field .value { color: var(--text-primary); font-family: var(--font-mono); font-size: 11px; }
+
+  .inspector-verify {
+    background: var(--bg-elevated);
+    border-radius: var(--radius-md);
+    padding: 8px 10px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 4px;
+  }
+
+  .inspector-note {
+    background: var(--bg-elevated);
+    border-radius: var(--radius-md);
+    padding: 8px 10px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 4px;
+    line-height: 1.4;
+    border-left: 2px solid var(--status-running);
+  }
+
+  .inspector-actions {
+    padding: 10px 14px;
+    display: flex;
+    gap: 6px;
+    border-top: 1px solid var(--border-subtle);
+  }
+
+  .action-btn {
+    padding: 5px 10px;
+    border-radius: var(--radius-md);
+    font-size: 11px;
+    font-weight: 500;
+    border: 1px solid var(--border);
+    background: var(--bg-elevated);
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .action-btn.primary {
+    background: var(--accent-dim);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .action-btn.danger {
+    border-color: var(--status-failed);
+    color: var(--status-failed);
+  }
+
+  /* === AGENT ACTIVITY === */
+  .agent-activity {
+    padding: 10px 14px;
+    border-top: 1px solid var(--border-subtle);
+  }
+
+  .agent-activity-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+
+  .agent-activity-header .agent-name {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--status-running);
+  }
+
+  .agent-activity-header .phase {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-left: auto;
+    padding: 1px 6px;
+    background: rgba(210, 153, 34, 0.1);
+    border-radius: 3px;
+  }
+
+  .tool-call {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-tertiary);
+    padding: 3px 0;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .tool-call .tool-name { color: var(--text-secondary); }
+  .tool-call .timestamp { margin-left: auto; color: var(--text-muted); }
+
+  /* === BOTTOM PANEL (TERMINAL) === */
+  .bottom-panel {
+    height: 160px;
+    background: var(--bg-base);
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+  }
+
+  .panel-tabs {
+    display: flex;
+    align-items: center;
+    height: 28px;
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border-subtle);
+    padding: 0 8px;
+    gap: 2px;
+  }
+
+  .panel-tab {
+    padding: 3px 10px;
+    font-size: 11px;
+    color: var(--text-tertiary);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .panel-tab.active {
+    color: var(--text-primary);
+    background: var(--bg-hover);
+  }
+
+  .panel-tab .tab-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+  }
+
+  .terminal-content {
+    flex: 1;
+    padding: 8px 12px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+    overflow: hidden;
+  }
+
+  .terminal-content .prompt {
+    color: var(--status-passed);
+  }
+
+  .terminal-content .cmd {
+    color: var(--text-primary);
+  }
+
+  .terminal-content .output {
+    color: var(--text-tertiary);
+  }
+
+  .terminal-content .pass {
+    color: var(--status-passed);
+  }
+
+  .terminal-content .fail {
+    color: var(--status-failed);
+  }
+
+  .terminal-content .warn {
+    color: var(--status-running);
+  }
+
+  /* === ZOOM INDICATOR === */
+  .zoom-indicator {
+    position: absolute;
+    bottom: 12px;
+    left: 12px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-muted);
+    background: var(--bg-elevated);
+    padding: 3px 8px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-subtle);
+    z-index: 10;
+  }
+
+  /* === CHAT PANEL === */
+  .chat-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid var(--border);
+    min-height: 0;
+  }
+
+  .chat-header {
+    padding: 8px 14px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border-bottom: 1px solid var(--border-subtle);
+    flex-shrink: 0;
+  }
+
+  .chat-header .chat-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+
+  .chat-header .chat-model {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-left: auto;
+    padding: 1px 6px;
+    background: var(--bg-elevated);
+    border-radius: 3px;
+    border: 1px solid var(--border-subtle);
+  }
+
+  .chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .chat-msg {
+    font-size: 12px;
+    line-height: 1.45;
+    max-width: 95%;
+  }
+
+  .chat-msg.user {
+    align-self: flex-end;
+    background: var(--accent-dim);
+    border: 1px solid rgba(88, 166, 255, 0.2);
+    border-radius: 8px 8px 2px 8px;
+    padding: 6px 10px;
+    color: var(--text-primary);
+  }
+
+  .chat-msg.wizard {
+    align-self: flex-start;
+    color: var(--text-secondary);
+    padding: 2px 0;
+  }
+
+  .chat-msg.wizard .msg-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--accent);
+    margin-bottom: 3px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .chat-msg .unit-ref {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--accent);
+    background: var(--accent-dim);
+    padding: 0px 4px;
+    border-radius: 3px;
+    cursor: pointer;
+  }
+
+  .chat-msg .unit-ref:hover {
+    text-decoration: underline;
+  }
+
+  .chat-msg code {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    background: var(--bg-elevated);
+    padding: 1px 4px;
+    border-radius: 3px;
+  }
+
+  .chat-input-row {
+    padding: 8px 12px;
+    border-top: 1px solid var(--border-subtle);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .chat-input {
+    flex: 1;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 6px 10px;
+    font-size: 12px;
+    font-family: var(--font-sans);
+    color: var(--text-primary);
+    outline: none;
+  }
+
+  .chat-input::placeholder { color: var(--text-muted); }
+
+  .chat-input:focus {
+    border-color: var(--accent);
+  }
+
+  .chat-send {
+    background: var(--accent-dim);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    border-radius: var(--radius-md);
+    padding: 5px 10px;
+    font-size: 11px;
+    cursor: pointer;
+    font-weight: 500;
+  }
+
+  /* === KEYBOARD HINTS === */
+  .keyboard-hints {
+    position: absolute;
+    bottom: 12px;
+    right: 12px;
+    display: flex;
+    gap: 8px;
+    z-index: 10;
+  }
+
+  .key-hint {
+    font-size: 10px;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 3px;
+  }
+
+  .key-hint kbd {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle);
+    padding: 1px 4px;
+    border-radius: 3px;
+  }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="topbar-logo">
+    <div class="icon"></div>
+    Wizard
+  </div>
+  <div class="topbar-sep"></div>
+  <div class="topbar-project">tower/mana</div>
+  <div class="topbar-spacer"></div>
+  <div class="command-palette-trigger">
+    <span class="search-icon">⌕</span>
+    Search commands...
+    <span class="hint">Space</span>
+  </div>
+  <div class="topbar-spacer"></div>
+  <div class="runtime-strip">
+    <div class="runtime-badge running">
+      <div class="pulse-dot"></div>
+      2 agents
+    </div>
+    <div class="runtime-badge cost">$0.47 · 34k tokens</div>
+  </div>
+</div>
+
+<div style="display: flex; flex-direction: column; height: calc(900px - 40px);">
+
+<div class="main" style="flex:1; min-height:0;">
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="sidebar-section">Project</div>
+  <div class="sidebar-item active">
+    <div class="dot" style="background: var(--accent)"></div>
+    Home
+  </div>
+
+  <div class="sidebar-section" style="margin-top: 8px;">Rooms</div>
+  <div class="sidebar-item">
+    <div class="dot" style="background: var(--status-running)"></div>
+    Auth system
+    <span class="count">3/5</span>
+  </div>
+  <div class="sidebar-item">
+    <div class="dot" style="background: var(--status-passed)"></div>
+    CLI refactor
+    <span class="count">4/4</span>
+  </div>
+  <div class="sidebar-item">
+    <div class="dot" style="background: var(--status-ready)"></div>
+    API layer
+    <span class="count">0/6</span>
+  </div>
+  <div class="sidebar-item">
+    <div class="dot" style="background: var(--status-blocked)"></div>
+    Database
+    <span class="count">1/3</span>
+  </div>
+
+  <div class="sidebar-section" style="margin-top: 8px;">Knowledge</div>
+  <div class="sidebar-item">
+    <div class="dot" style="background: var(--status-stale)"></div>
+    Facts
+    <span class="count">12</span>
+  </div>
+
+  <div class="sidebar-spacer"></div>
+  <div class="sidebar-footer">
+    <span>Ready: 4 · Blocked: 2</span>
+    <span>Last sync: 3s ago</span>
+  </div>
+</div>
+
+<!-- CANVAS -->
+<div class="canvas-area">
+  <div class="canvas-content">
+
+    <!-- SVG EDGES -->
+    <svg class="edges-layer" xmlns="http://www.w3.org/2000/svg">
+      <!-- 1.1 → 1.3 -->
+      <path d="M 288 112 C 340 112, 360 100, 410 100"
+            fill="none" stroke="var(--status-passed)" stroke-width="1.5" stroke-dasharray="none" opacity="0.4"/>
+      <!-- 1.2 → 1.3 -->
+      <path d="M 288 222 C 340 222, 360 170, 410 150"
+            fill="none" stroke="var(--status-passed)" stroke-width="1.5" opacity="0.4"/>
+      <!-- 1.3 → 1.4 -->
+      <path d="M 610 130 C 660 130, 670 195, 690 195"
+            fill="none" stroke="var(--edge-active)" stroke-width="1.5" opacity="0.6"/>
+      <!-- 1.3 → 1.5 -->
+      <path d="M 610 130 C 660 130, 670 310, 690 310"
+            fill="none" stroke="var(--edge-color)" stroke-width="1" stroke-dasharray="4 3" opacity="0.4"/>
+      <!-- 1.4 → 1.6 -->
+      <path d="M 890 210 C 940 210, 950 200, 970 200"
+            fill="none" stroke="var(--edge-color)" stroke-width="1" stroke-dasharray="4 3" opacity="0.3"/>
+      <!-- 1.5 → 1.6 -->
+      <path d="M 890 325 C 940 325, 950 230, 970 230"
+            fill="none" stroke="var(--edge-color)" stroke-width="1" stroke-dasharray="4 3" opacity="0.3"/>
+
+      <!-- Arrowheads -->
+      <defs>
+        <marker id="arrow" viewBox="0 0 6 6" refX="6" refY="3"
+                markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 0 L 6 3 L 0 6 z" fill="var(--edge-color)" opacity="0.5"/>
+        </marker>
+      </defs>
+    </svg>
+
+    <!-- FEATURE GROUP -->
+    <div class="feature-card" style="left: 50px; top: 40px; width: 500px; height: 230px;">
+      <div class="feature-label">Feature 1</div>
+      <div class="feature-title">Auth system implementation</div>
+      <div class="feature-progress">
+        <div class="feature-progress-fill" style="width: 60%; background: var(--status-passed);"></div>
+      </div>
+    </div>
+
+    <!-- UNIT CARDS -->
+
+    <!-- 1.1 — Closed/Passed -->
+    <div class="unit-card" style="left: 88px; top: 82px;">
+      <div class="unit-card-header">
+        <div class="unit-status-dot" style="background: var(--status-passed)"></div>
+        <span class="unit-id">1.1</span>
+        <div class="unit-meta" style="margin-left: auto; margin-bottom: 0;">
+          <span class="verify-badge pass">pass</span>
+        </div>
+      </div>
+      <div class="unit-title">Define auth types and traits</div>
+      <div class="unit-meta">
+        <span>Attempt 1 · 42s</span>
+      </div>
+    </div>
+
+    <!-- 1.2 — Closed/Passed -->
+    <div class="unit-card" style="left: 88px; top: 192px;">
+      <div class="unit-card-header">
+        <div class="unit-status-dot" style="background: var(--status-passed)"></div>
+        <span class="unit-id">1.2</span>
+        <div class="unit-meta" style="margin-left: auto; margin-bottom: 0;">
+          <span class="verify-badge pass">pass</span>
+        </div>
+      </div>
+      <div class="unit-title">JWT token generation</div>
+      <div class="unit-meta">
+        <span>Attempt 2 · 1m18s</span>
+      </div>
+    </div>
+
+    <!-- 1.3 — Running with agent -->
+    <div class="unit-card selected" style="left: 410px; top: 82px;">
+      <div class="agent-badge">
+        <div class="pulse-sm"></div>
+        imp-a7f
+      </div>
+      <div class="unit-card-header">
+        <div class="unit-status-dot" style="background: var(--status-running)"></div>
+        <span class="unit-id">1.3</span>
+        <div class="unit-meta" style="margin-left: auto; margin-bottom: 0;">
+          <span class="verify-badge running">verifying</span>
+        </div>
+      </div>
+      <div class="unit-title">Auth middleware implementation</div>
+      <div class="unit-meta">
+        <span>Attempt 3 · 2m04s</span>
+        <span class="attempt-indicator">⟳ 2 prior</span>
+      </div>
+    </div>
+
+    <!-- 1.4 — Ready -->
+    <div class="unit-card" style="left: 690px; top: 160px;">
+      <div class="unit-card-header">
+        <div class="unit-status-dot" style="background: var(--status-ready)"></div>
+        <span class="unit-id">1.4</span>
+      </div>
+      <div class="unit-title">Route protection + session handling</div>
+      <div class="unit-meta">
+        <span>Ready · deps met</span>
+      </div>
+    </div>
+
+    <!-- 1.5 — Blocked -->
+    <div class="unit-card" style="left: 690px; top: 278px;">
+      <div class="unit-card-header">
+        <div class="unit-status-dot" style="background: var(--status-blocked)"></div>
+        <span class="unit-id">1.5</span>
+      </div>
+      <div class="unit-title">Auth integration tests</div>
+      <div class="unit-meta">
+        <span style="color: var(--status-blocked)">Blocked on 1.3</span>
+      </div>
+    </div>
+
+    <!-- 1.6 — Blocked -->
+    <div class="unit-card" style="left: 970px; top: 170px; opacity: 0.5;">
+      <div class="unit-card-header">
+        <div class="unit-status-dot" style="background: var(--status-blocked)"></div>
+        <span class="unit-id">1.6</span>
+      </div>
+      <div class="unit-title">Auth review + polish</div>
+      <div class="unit-meta">
+        <span style="color: var(--status-blocked)">Blocked on 1.4, 1.5</span>
+      </div>
+    </div>
+
+    <!-- Separate cluster: unit with failed verify -->
+    <div class="unit-card" style="left: 410px; top: 340px;">
+      <div class="unit-card-header">
+        <div class="unit-status-dot" style="background: var(--status-failed)"></div>
+        <span class="unit-id">2.1</span>
+        <div class="unit-meta" style="margin-left: auto; margin-bottom: 0;">
+          <span class="verify-badge fail">fail</span>
+        </div>
+      </div>
+      <div class="unit-title">Database connection pool</div>
+      <div class="unit-meta">
+        <span>Attempt 3 · Failed</span>
+        <span class="attempt-indicator" style="color: var(--status-failed)">✕ 3</span>
+      </div>
+    </div>
+
+    <!-- Another running unit in different area -->
+    <div class="unit-card" style="left: 690px; top: 400px;">
+      <div class="agent-badge">
+        <div class="pulse-sm"></div>
+        imp-c92
+      </div>
+      <div class="unit-card-header">
+        <div class="unit-status-dot" style="background: var(--status-running)"></div>
+        <span class="unit-id">3.1</span>
+        <div class="unit-meta" style="margin-left: auto; margin-bottom: 0;">
+          <span class="verify-badge running">editing</span>
+        </div>
+      </div>
+      <div class="unit-title">REST API endpoint scaffolding</div>
+      <div class="unit-meta">
+        <span>Attempt 1 · 45s</span>
+      </div>
+    </div>
+
+    <!-- Fact card -->
+    <div class="unit-card" style="left: 110px; top: 370px; width: 180px; border-color: var(--status-stale); border-style: dashed;">
+      <div class="unit-card-header">
+        <span style="font-size: 10px; color: var(--status-stale); font-weight: 600;">FACT</span>
+      </div>
+      <div class="unit-title" style="font-size: 11px; color: var(--text-secondary);">JWT secret must be 256-bit. Stored in env var AUTH_SECRET.</div>
+    </div>
+
+    <!-- Zoom indicator -->
+    <div class="zoom-indicator">Zoom: Tactical · 100%</div>
+
+    <!-- Keyboard hints -->
+    <div class="keyboard-hints">
+      <div class="key-hint"><kbd>R</kbd> Run</div>
+      <div class="key-hint"><kbd>F</kbd> Focus</div>
+      <div class="key-hint"><kbd>V</kbd> Verify</div>
+      <div class="key-hint"><kbd>/</kbd> Search</div>
+    </div>
+  </div>
+</div>
+
+<!-- INSPECTOR -->
+<div class="inspector">
+  <div class="inspector-header">
+    <span class="unit-id-large">1.3</span>
+    <span class="status-label running">Running</span>
+  </div>
+  <div class="inspector-title">Auth middleware implementation</div>
+
+  <div class="inspector-section">
+    <div class="inspector-section-title">Details</div>
+    <div class="inspector-field">
+      <span class="label">Priority</span>
+      <span class="value">P1</span>
+    </div>
+    <div class="inspector-field">
+      <span class="label">Parent</span>
+      <span class="value">1 · Auth system</span>
+    </div>
+    <div class="inspector-field">
+      <span class="label">Attempt</span>
+      <span class="value">3 of 5</span>
+    </div>
+    <div class="inspector-field">
+      <span class="label">Duration</span>
+      <span class="value" style="color: var(--status-running);">2m 04s</span>
+    </div>
+    <div class="inspector-field">
+      <span class="label">Cost</span>
+      <span class="value">$0.12 · 8.2k tok</span>
+    </div>
+  </div>
+
+  <div class="inspector-section">
+    <div class="inspector-section-title">Verify</div>
+    <div class="inspector-verify">
+      cargo test --lib auth::middleware
+    </div>
+  </div>
+
+  <div class="inspector-section">
+    <div class="inspector-section-title">Last Note</div>
+    <div class="inspector-note">
+      Attempt 2 failed: middleware compiles but auth_required() doesn't check token expiry. Added expiry validation, retrying.
+    </div>
+  </div>
+
+  <div class="agent-activity">
+    <div class="agent-activity-header">
+      <div class="pulse-dot" style="width: 5px; height: 5px;"></div>
+      <span class="agent-name">imp-a7f</span>
+      <span class="phase">verifying</span>
+    </div>
+    <div class="tool-call">
+      <span class="tool-name">edit</span> src/auth/middleware.rs
+      <span class="timestamp">4s ago</span>
+    </div>
+    <div class="tool-call">
+      <span class="tool-name">read</span> src/auth/token.rs
+      <span class="timestamp">12s ago</span>
+    </div>
+    <div class="tool-call">
+      <span class="tool-name">bash</span> cargo test auth::middleware
+      <span class="timestamp">now</span>
+    </div>
+  </div>
+
+  <div class="inspector-section">
+    <div class="inspector-section-title">Dependencies</div>
+    <div class="inspector-field">
+      <span class="label">Requires</span>
+      <span class="value" style="color: var(--status-passed);">1.1 ✓  1.2 ✓</span>
+    </div>
+    <div class="inspector-field">
+      <span class="label">Blocks</span>
+      <span class="value">1.4  1.5</span>
+    </div>
+  </div>
+
+  <div class="inspector-actions">
+    <button class="action-btn danger">◼ Stop</button>
+    <button class="action-btn">⟳ Retry</button>
+    <button class="action-btn">◇ Decompose</button>
+    <button class="action-btn primary">▸ Focus</button>
+  </div>
+
+  <!-- CHAT PANEL -->
+  <div class="chat-panel">
+    <div class="chat-header">
+      <span style="font-size: 12px;">&#x2728;</span>
+      <span class="chat-title">Orchestrator</span>
+      <span class="chat-model">sonnet-4</span>
+    </div>
+    <div class="chat-messages">
+      <div class="chat-msg user">
+        why does 1.3 keep failing?
+      </div>
+      <div class="chat-msg wizard">
+        <div class="msg-label">Wizard</div>
+        <span class="unit-ref">1.3</span> has failed twice. Both attempts missed token expiry validation in <code>auth_required()</code>. The current agent noted this and added the check — verify is running now.
+      </div>
+      <div class="chat-msg user">
+        if it fails again, decompose it
+      </div>
+      <div class="chat-msg wizard">
+        <div class="msg-label">Wizard</div>
+        Got it. If <span class="unit-ref">1.3</span> fails attempt 3, I’ll split it into children — likely separating the expiry logic from the middleware wiring. I’ll wait for verify to finish before acting.
+      </div>
+      <div class="chat-msg user">
+        what about 2.1? 3 failures is a lot
+      </div>
+      <div class="chat-msg wizard">
+        <div class="msg-label">Wizard</div>
+        <span class="unit-ref">2.1</span> is stuck on a connection pool sizing issue — each attempt configures <code>max_connections</code> differently but the test expects exactly 10. I’d suggest adding a fact to lock the pool size, then retrying. Want me to create the fact and retry?
+      </div>
+    </div>
+    <div class="chat-input-row">
+      <input class="chat-input" placeholder="Ask the orchestrator..." value="">
+      <button class="chat-send">↑ Send</button>
+    </div>
+  </div>
+</div>
+
+</div><!-- /main -->
+
+<!-- BOTTOM TERMINAL PANEL -->
+<div class="bottom-panel">
+  <div class="panel-tabs">
+    <div class="panel-tab active">
+      <div class="tab-dot" style="background: var(--status-running)"></div>
+      Agent: imp-a7f
+    </div>
+    <div class="panel-tab">
+      <div class="tab-dot" style="background: var(--status-running)"></div>
+      Agent: imp-c92
+    </div>
+    <div class="panel-tab">
+      <div class="tab-dot" style="background: var(--text-muted)"></div>
+      Terminal
+    </div>
+    <div class="panel-tab">
+      <div class="tab-dot" style="background: var(--text-muted)"></div>
+      Editor: middleware.rs
+    </div>
+  </div>
+  <div class="terminal-content">
+    <div><span class="prompt">$</span> <span class="cmd">cargo test --lib auth::middleware</span></div>
+    <div class="output">   Compiling tower-auth v0.1.0 (/Users/asher/tower/auth)</div>
+    <div class="output">    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.14s</div>
+    <div class="output">     Running unittests src/lib.rs (target/debug/deps/tower_auth-a8f2c1d3)</div>
+    <div class="output"></div>
+    <div class="output">running 4 tests</div>
+    <div class="pass">test auth::middleware::test_valid_token ... ok</div>
+    <div class="pass">test auth::middleware::test_expired_token ... ok</div>
+    <div class="pass">test auth::middleware::test_missing_header ... ok</div>
+    <div class="warn">test auth::middleware::test_refresh_flow ... running</div>
+  </div>
+</div>
+
+</div>
+
+</body>
+</html>

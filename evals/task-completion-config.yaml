@@ -1,0 +1,28 @@
+# Task completion eval suite
+#
+# Run:  npx promptfoo eval -c evals/task-completion-config.yaml
+# View: npx promptfoo view
+#
+# Tests whether agents complete units correctly given
+# descriptions, facts, prior attempts, and dependencies.
+
+prompts:
+  - id: file://prompts/task-work-v1.txt
+    label: "task-work-v1"
+
+providers:
+  - id: anthropic:messages:claude-sonnet-4-20250514
+    label: sonnet
+    config:
+      max_tokens: 2048
+      temperature: 0
+
+defaultTest:
+  assert:
+    - type: llm-rubric
+      value: >
+        The response contains a specific implementation plan or code,
+        not just a description of what should be done.
+      weight: 0.5
+
+tests: file://tests/task-completion.yaml

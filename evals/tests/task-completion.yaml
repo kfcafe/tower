@@ -1,0 +1,99 @@
+# Task completion eval: does the agent build what the unit describes?
+#
+# Tests that agents produce plans/code aligned with the unit description,
+# use facts when provided, and learn from prior attempts.
+  # --- Basic task completion ---
+  - description: "Agent plans to implement what the unit describes"
+    vars:
+      title: "Implement rate limiter middleware"
+      description: "Add a rate limiter to the API that limits requests to 100/minute per IP. Use a sliding window algorithm. Store counters in Redis."
+      verify: "cargo test --lib middleware::rate_limit"
+      facts: []
+      attempts: []
+      dependencies: []
+    assert:
+      - type: llm-rubric
+        value: >
+          The response must plan to:
+          1. Implement rate limiting (not just describe it)
+          2. Use a sliding window algorithm (not fixed window or token bucket)
+          3. Use Redis for counter storage (not in-memory)
+          4. Set the limit to 100 requests per minute per IP
+          5. Implement this as middleware
+
+  # --- Facts influence the implementation ---
+  - description: "Agent uses project facts to inform implementation"
+    vars:
+      title: "Add database connection pooling"
+      description: "Set up a connection pool for the PostgreSQL database"
+      verify: "cargo test --lib db::pool"
+      facts:
+        - text: "Max database connections must not exceed 10 in development"
+          verified_ago: "1h ago"
+        - text: "Project uses sqlx, not diesel"
+          verified_ago: "2d ago"
+      attempts: []
+      dependencies: []
+    assert:
+      - type: llm-rubric
+        value: >
+          The response must:
+          1. Use sqlx (not diesel) — this is stated in the project facts
+          2. Set max connections to 10 or fewer — this is stated in the facts
+          If the agent ignores either fact, the test fails.
+      - type: javascript
+        value: |
+          const lower = output.toLowerCase();
+          const usesSqlx = lower.includes('sqlx') && !lower.includes('diesel');
+          const respectsLimit = lower.includes('10') || lower.includes('max_connections');
+          return {
+            pass: usesSqlx && respectsLimit,
+            reason: `Uses sqlx: ${usesSqlx}, Respects limit: ${respectsLimit}`
+          };
+
+  # --- Learns from failed attempts ---
+  - description: "Agent avoids repeating prior failures"
+    vars:
+      title: "Fix authentication token refresh"
+      description: "The token refresh endpoint returns 500 when the refresh token is expired"
+      verify: "cargo test auth::refresh"
+      facts: []
+      attempts:
+        - number: 1
+          outcome: "failed"
+          summary: "Tried to check refresh token expiry in the handler, but the token is validated in middleware before it reaches the handler. Verify failed: middleware returns 401 before handler runs."
+        - number: 2
+          outcome: "failed"
+          summary: "Moved expiry check to middleware but used the wrong field — checked access_token.exp instead of refresh_token.exp. Verify failed: expired refresh tokens still get 500."
+      dependencies: []
+    assert:
+      - type: llm-rubric
+        value: >
+          The agent must show awareness of both prior failures:
+          1. NOT plan to check refresh token expiry in the handler (attempt 1 showed this doesn't work)
+          2. Plan to check refresh_token.exp specifically (not access_token.exp — attempt 2's mistake)
+          3. Plan to do the check in middleware (attempt 1 established this is where validation happens)
+          An agent that repeats either mistake fails this test.
+
+  # --- Dependencies provide context ---
+  - description: "Agent references completed dependencies"
+    vars:
+      title: "Implement user registration endpoint"
+      description: "POST /api/users with name, email, password. Hash password, store in DB, return user without password."
+      verify: "cargo test api::users::register"
+      facts: []
+      attempts: []
+      dependencies:
+        - name: "User schema types"
+          status: "completed"
+          detail: "Defined User and CreateUserRequest in src/types/user.rs"
+        - name: "Password hashing utility"
+          status: "completed"
+          detail: "hash_password() and verify_password() in src/auth/password.rs"
+    assert:
+      - type: llm-rubric
+        value: >
+          The response must reference the completed dependencies:
+          1. Use the existing User and CreateUserRequest types from src/types/user.rs
+          2. Use the existing hash_password() from src/auth/password.rs
+          The agent should NOT define new types or write its own password hashing.

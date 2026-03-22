@@ -1,0 +1,39 @@
+# Tower prompt evaluation suite
+#
+# Run:  npx promptfoo eval
+# View: npx promptfoo view
+#
+# Tests how effectively agents respond to:
+# - Review feedback (retry after human review)
+# - Task descriptions (first attempt at a unit)
+# - Prior attempt context (learning from failures)
+# - Project facts (using verified knowledge)
+
+# --- Review retry prompts ---
+# Compare two formatting strategies for review feedback
+prompts:
+  - id: file://prompts/review-retry-v1.txt
+    label: "review-retry-v1 (minimal)"
+  - id: file://prompts/review-retry-v2.txt
+    label: "review-retry-v2 (structured)"
+
+providers:
+  - id: anthropic:messages:claude-sonnet-4-20250514
+    label: sonnet
+    config:
+      max_tokens: 2048
+      temperature: 0
+
+defaultTest:
+  assert:
+    # Every response should produce a concrete plan, not vague promises
+    - type: llm-rubric
+      value: >
+        The response contains a specific, actionable plan with concrete code changes,
+        not just vague statements like "I'll fix the issues" or "I'll make improvements."
+      weight: 0.5
+
+tests: file://tests/review-retry.yaml
+
+# To also run task completion evals, use:
+#   npx promptfoo eval -c evals/task-completion-config.yaml

@@ -1,0 +1,165 @@
+# Review retry eval: does the agent address review feedback?
+#
+# These tests verify that when an agent receives human review feedback,
+# its response plan addresses each comment specifically.
+  # --- Basic: single review comment ---
+  - description: "Addresses single review comment about using existing code"
+    vars:
+      title: "Auth middleware implementation"
+      description: "Implement auth_required() middleware that validates JWT tokens"
+      verify: "cargo test --lib auth::middleware"
+      attempts:
+        - number: 1
+          outcome: "failed"
+          summary: "Missing token validation"
+        - number: 2
+          outcome: "failed"
+          summary: "No expiry check"
+        - number: 3
+          outcome: "review-rejected"
+          summary: "Verify passed but reviewer requested changes"
+      review_annotations:
+        - file: "src/auth/middleware.rs"
+          lines: "42-58"
+          comment: "Don't create a new connection pool here. Use the existing pool from db.rs: `pub fn get_pool() -> &'static Pool`"
+          suggestion: "Call db::get_pool() instead of Pool::new()"
+      review_summary: ""
+    assert:
+      - type: llm-rubric
+        value: >
+          The response must:
+          1. Acknowledge the review comment about the connection pool
+          2. Plan to use get_pool() from db.rs instead of creating a new pool
+          3. NOT plan to rewrite token validation (which was working)
+          4. Plan to run the verify command after changes
+      - type: javascript
+        value: |
+          const lower = output.toLowerCase();
+          const mentionsPool = lower.includes('get_pool') || lower.includes('existing pool') || lower.includes('db.rs');
+          const noRewrite = !lower.includes('rewrite from scratch') && !lower.includes('start over');
+          return {
+            pass: mentionsPool && noRewrite,
+            reason: `Pool reference: ${mentionsPool}, No rewrite: ${noRewrite}`
+          };
+
+  # --- Multiple review comments ---
+  - description: "Addresses all comments when multiple are given"
+    vars:
+      title: "REST API endpoint scaffolding"
+      description: "Create CRUD endpoints for the User resource with proper error handling"
+      verify: "cargo test --lib api::users"
+      attempts:
+        - number: 1
+          outcome: "review-rejected"
+          summary: "Verify passed but reviewer found issues"
+      review_annotations:
+        - file: "src/api/users.rs"
+          lines: "15-20"
+          comment: "Error responses should use the project's ApiError type, not raw strings"
+          suggestion: "Use ApiError::NotFound instead of returning a 404 string"
+        - file: "src/api/users.rs"
+          lines: "45-52"
+          comment: "Missing input validation on the create endpoint. Name and email should be validated."
+        - file: "src/api/mod.rs"
+          lines: "8"
+          comment: "Don't use unwrap() here. Propagate the error."
+      review_summary: "Good structure overall, but error handling needs to follow project conventions."
+    assert:
+      - type: llm-rubric
+        value: >
+          The response must address ALL THREE review comments:
+          1. Plan to use ApiError type instead of raw strings
+          2. Plan to add input validation for name and email
+          3. Plan to replace unwrap() with error propagation
+          Each comment must be specifically acknowledged — generic statements don't count.
+      - type: javascript
+        value: |
+          const lower = output.toLowerCase();
+          const hasApiError = lower.includes('apierror') || lower.includes('api_error');
+          const hasValidation = lower.includes('validation') || lower.includes('validate');
+          const hasUnwrap = lower.includes('unwrap') || lower.includes('propagat');
+          const allAddressed = hasApiError && hasValidation && hasUnwrap;
+          return {
+            pass: allAddressed,
+            reason: `ApiError: ${hasApiError}, Validation: ${hasValidation}, Unwrap: ${hasUnwrap}`
+          };
+
+  # --- Don't regress: preserve prior fixes ---
+  - description: "Preserves working code from prior attempts"
+    vars:
+      title: "JWT token validation"
+      description: "Validate JWT tokens including expiry, signature, and issuer claims"
+      verify: "cargo test --lib auth::jwt"
+      attempts:
+        - number: 1
+          outcome: "failed"
+          summary: "Missing signature verification — added HMAC-SHA256 check"
+        - number: 2
+          outcome: "failed"
+          summary: "No expiry check — added exp claim validation"
+        - number: 3
+          outcome: "review-rejected"
+          summary: "Verify passed but reviewer wants issuer check to use config, not hardcoded string"
+      review_annotations:
+        - file: "src/auth/jwt.rs"
+          lines: "30-32"
+          comment: "The issuer string is hardcoded as 'my-app'. Read it from config::get_issuer() instead."
+      review_summary: ""
+    assert:
+      - type: llm-rubric
+        value: >
+          The response must:
+          1. Plan to change the issuer to use config::get_issuer()
+          2. NOT plan to change signature verification (HMAC-SHA256 — this was fixed in attempt 1)
+          3. NOT plan to change expiry validation (this was fixed in attempt 2)
+          4. Show awareness that prior fixes should be preserved
+
+  # --- Vague review comment: agent should ask or interpret reasonably ---
+  - description: "Handles vague review feedback constructively"
+    vars:
+      title: "Database migration script"
+      description: "Create migration to add users table with id, name, email, created_at"
+      verify: "cargo test --lib db::migrations"
+      attempts:
+        - number: 1
+          outcome: "review-rejected"
+          summary: "Verify passed but reviewer had concerns"
+      review_annotations:
+        - file: "src/db/migrations/001_users.sql"
+          lines: ""
+          comment: "This doesn't feel right. The schema should be more robust."
+      review_summary: ""
+    assert:
+      - type: llm-rubric
+        value: >
+          The review comment is vague ("doesn't feel right", "more robust").
+          The agent should either:
+          a) Interpret reasonably and propose concrete improvements (indexes, constraints, NOT NULL, etc.)
+          b) Acknowledge the vagueness and state what specific improvements it will make
+          It should NOT just say "I'll make it more robust" without specifics.
+
+  # --- Scope discipline: don't over-correct ---
+  - description: "Doesn't make unrequested changes"
+    vars:
+      title: "Add logging to payment flow"
+      description: "Add structured logging to the payment processing pipeline"
+      verify: "cargo test --lib payments"
+      attempts:
+        - number: 1
+          outcome: "review-rejected"
+          summary: "Verify passed, minor review feedback"
+      review_annotations:
+        - file: "src/payments/process.rs"
+          lines: "88"
+          comment: "Log level should be info, not debug, for successful payments"
+      review_summary: ""
+    assert:
+      - type: llm-rubric
+        value: >
+          The review comment is small and specific (change debug to info on one line).
+          The agent should:
+          1. Plan a minimal, targeted fix (change log level on that line)
+          2. NOT plan to refactor the entire logging system
+          3. NOT plan to add logging to other files
+          4. NOT plan to change the payment flow itself
+          The response should be proportional to the feedback.

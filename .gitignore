@@ -3,3 +3,5 @@ target/
 wizard/.wizard/
 familiar/_build/
 familiar/deps/
+evals/.env
+node_modules/

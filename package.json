@@ -1,0 +1,6 @@
+{
+  "dependencies": {},
+  "devDependencies": {
+    "promptfoo": "^0.121.2"
+  }
+}
