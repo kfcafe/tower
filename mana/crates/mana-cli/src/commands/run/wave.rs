@@ -11,20 +11,20 @@ use crate::stream::{self, StreamEvent};
 use crate::unit::Status;
 use crate::util::natural_cmp;
 
-use super::plan::SizedBean;
+use super::plan::SizedUnit;
 use super::ready_queue::run_single_direct;
-use super::{AgentResult, BeanAction, SpawnMode};
+use super::{AgentResult, SpawnMode, UnitAction};
 
 /// A wave of units that can be dispatched in parallel.
 pub struct Wave {
-    pub units: Vec<SizedBean>,
+    pub units: Vec<SizedUnit>,
 }
 
 /// Compute waves of units grouped by dependency order.
 /// Wave 0: no deps. Wave 1: deps all in wave 0. Etc.
-pub(super) fn compute_waves(units: &[SizedBean], index: &Index) -> Vec<Wave> {
+pub(super) fn compute_waves(units: &[SizedUnit], index: &Index) -> Vec<Wave> {
     let mut waves = Vec::new();
-    let bean_ids: HashSet<String> = units.iter().map(|b| b.id.clone()).collect();
+    let unit_ids: HashSet<String> = units.iter().map(|b| b.id.clone()).collect();
 
     // Already-closed units count as completed
     let mut completed: HashSet<String> = index
@@ -34,16 +34,16 @@ pub(super) fn compute_waves(units: &[SizedBean], index: &Index) -> Vec<Wave> {
         .map(|e| e.id.clone())
         .collect();
 
-    let mut remaining: Vec<SizedBean> = units.to_vec();
+    let mut remaining: Vec<SizedUnit> = units.to_vec();
 
     while !remaining.is_empty() {
-        let (ready, blocked): (Vec<SizedBean>, Vec<SizedBean>) =
+        let (ready, blocked): (Vec<SizedUnit>, Vec<SizedUnit>) =
             remaining.into_iter().partition(|b| {
                 // All explicit deps must be completed or not in our dispatch set
                 let explicit_ok = b
                     .dependencies
                     .iter()
-                    .all(|d| completed.contains(d) || !bean_ids.contains(d));
+                    .all(|d| completed.contains(d) || !unit_ids.contains(d));
 
                 // All requires must be satisfied (producer completed or not in set)
                 let requires_ok = b.requires.iter().all(|req| {
@@ -83,7 +83,7 @@ pub(super) fn compute_waves(units: &[SizedBean], index: &Index) -> Vec<Wave> {
     let weights = compute_downstream_weights(units);
 
     // Sort units within each wave: priority first, then downstream weight
-    // (descending — beans that block the most work get scheduled first),
+    // (descending — units that block the most work get scheduled first),
     // then ID for stability.
     for wave in &mut waves {
         wave.units.sort_by(|a, b| {
@@ -101,21 +101,21 @@ pub(super) fn compute_waves(units: &[SizedBean], index: &Index) -> Vec<Wave> {
     waves
 }
 
-/// Compute downstream weight for each bean.
-/// Weight = 1 + count of all transitively dependent beans.
-/// Beans on the critical path will have the highest weights.
-pub(super) fn compute_downstream_weights(beans: &[SizedBean]) -> HashMap<String, u32> {
-    let bean_ids: HashSet<String> = beans.iter().map(|b| b.id.clone()).collect();
+/// Compute downstream weight for each unit.
+/// Weight = 1 + count of all transitively dependent units.
+/// Units on the critical path will have the highest weights.
+pub(super) fn compute_downstream_weights(units: &[SizedUnit]) -> HashMap<String, u32> {
+    let unit_ids: HashSet<String> = units.iter().map(|b| b.id.clone()).collect();
 
-    // Build reverse dependency graph: for each bean, which beans directly depend on it.
+    // Build reverse dependency graph: for each unit, which units directly depend on it.
     let mut reverse_deps: HashMap<String, Vec<String>> = HashMap::new();
 
-    for b in beans {
+    for b in units {
         reverse_deps.entry(b.id.clone()).or_default();
 
         // Explicit dependencies: b depends on dep → dep's reverse_deps includes b
         for dep in &b.dependencies {
-            if bean_ids.contains(dep) {
+            if unit_ids.contains(dep) {
                 reverse_deps
                     .entry(dep.clone())
                     .or_default()
@@ -126,10 +126,10 @@ pub(super) fn compute_downstream_weights(beans: &[SizedBean]) -> HashMap<String,
         // Requires/produces: if b requires artifact X and producer makes X
         // (same parent), then b depends on producer.
         for req in &b.requires {
-            if let Some(producer) = beans.iter().find(|other| {
+            if let Some(producer) = units.iter().find(|other| {
                 other.id != b.id && other.parent == b.parent && other.produces.contains(req)
             }) {
-                if bean_ids.contains(&producer.id) {
+                if unit_ids.contains(&producer.id) {
                     reverse_deps
                         .entry(producer.id.clone())
                         .or_default()
@@ -139,10 +139,10 @@ pub(super) fn compute_downstream_weights(beans: &[SizedBean]) -> HashMap<String,
         }
     }
 
-    // For each bean, count all transitively reachable descendants via BFS.
+    // For each unit, count all transitively reachable descendants via BFS.
     let mut weights: HashMap<String, u32> = HashMap::new();
 
-    for b in beans {
+    for b in units {
         let mut visited: HashSet<String> = HashSet::new();
         let mut queue: Vec<String> = Vec::new();
 
@@ -168,19 +168,19 @@ pub(super) fn compute_downstream_weights(beans: &[SizedBean]) -> HashMap<String,
     weights
 }
 
-/// Compute file conflict groups: files touched by more than one bean.
-/// Returns pairs of (file_path, vec_of_bean_ids).
-pub(super) fn compute_file_conflicts(beans: &[SizedBean]) -> Vec<(String, Vec<String>)> {
-    let mut file_to_beans: HashMap<String, Vec<String>> = HashMap::new();
-    for b in beans {
+/// Compute file conflict groups: files touched by more than one unit.
+/// Returns pairs of (file_path, vec_of_unit_ids).
+pub(super) fn compute_file_conflicts(units: &[SizedUnit]) -> Vec<(String, Vec<String>)> {
+    let mut file_to_units: HashMap<String, Vec<String>> = HashMap::new();
+    for b in units {
         for p in &b.paths {
-            file_to_beans
+            file_to_units
                 .entry(p.clone())
                 .or_default()
                 .push(b.id.clone());
         }
     }
-    let mut conflicts: Vec<(String, Vec<String>)> = file_to_beans
+    let mut conflicts: Vec<(String, Vec<String>)> = file_to_units
         .into_iter()
         .filter(|(_, ids)| ids.len() > 1)
         .collect();
@@ -188,15 +188,15 @@ pub(super) fn compute_file_conflicts(beans: &[SizedBean]) -> Vec<(String, Vec<St
     conflicts
 }
 
-/// Compute effective parallelism: max beans that can run simultaneously
+/// Compute effective parallelism: max units that can run simultaneously
 /// without file path conflicts. Uses greedy selection.
-pub(super) fn compute_effective_parallelism(beans: &[SizedBean]) -> usize {
-    if beans.is_empty() {
+pub(super) fn compute_effective_parallelism(units: &[SizedUnit]) -> usize {
+    if units.is_empty() {
         return 0;
     }
     let mut occupied: HashSet<String> = HashSet::new();
     let mut count = 0;
-    for b in beans {
+    for b in units {
         if b.paths.is_empty() || !b.paths.iter().any(|p| occupied.contains(p)) {
             for p in &b.paths {
                 occupied.insert(p.clone());
@@ -208,20 +208,20 @@ pub(super) fn compute_effective_parallelism(beans: &[SizedBean]) -> usize {
 }
 
 /// Find the critical path through the dependency graph.
-/// Returns the longest chain of bean IDs from root to leaf.
-pub(super) fn compute_critical_path(beans: &[SizedBean]) -> Vec<String> {
-    if beans.is_empty() {
+/// Returns the longest chain of unit IDs from root to leaf.
+pub(super) fn compute_critical_path(units: &[SizedUnit]) -> Vec<String> {
+    if units.is_empty() {
         return vec![];
     }
 
-    let weights = compute_downstream_weights(beans);
-    let bean_ids: HashSet<String> = beans.iter().map(|b| b.id.clone()).collect();
+    let weights = compute_downstream_weights(units);
+    let unit_ids: HashSet<String> = units.iter().map(|b| b.id.clone()).collect();
 
-    // Build forward dependency map: bean_id → beans that depend on it
+    // Build forward dependency map: unit_id → units that depend on it
     let mut dependents: HashMap<String, Vec<String>> = HashMap::new();
-    for b in beans {
+    for b in units {
         for dep in &b.dependencies {
-            if bean_ids.contains(dep) {
+            if unit_ids.contains(dep) {
                 dependents
                     .entry(dep.clone())
                     .or_default()
@@ -229,10 +229,10 @@ pub(super) fn compute_critical_path(beans: &[SizedBean]) -> Vec<String> {
             }
         }
         for req in &b.requires {
-            if let Some(producer) = beans.iter().find(|other| {
+            if let Some(producer) = units.iter().find(|other| {
                 other.id != b.id && other.parent == b.parent && other.produces.contains(req)
             }) {
-                if bean_ids.contains(&producer.id) {
+                if unit_ids.contains(&producer.id) {
                     dependents
                         .entry(producer.id.clone())
                         .or_default()
@@ -242,8 +242,8 @@ pub(super) fn compute_critical_path(beans: &[SizedBean]) -> Vec<String> {
         }
     }
 
-    // Start from bean with highest weight
-    let start = beans
+    // Start from unit with highest weight
+    let start = units
         .iter()
         .max_by(|a, b| {
             let wa = weights.get(&a.id).copied().unwrap_or(0);
@@ -285,7 +285,7 @@ pub(super) fn compute_critical_path(beans: &[SizedBean]) -> Vec<String> {
 /// Spawn agents for a wave of units, respecting max parallelism.
 pub(super) fn run_wave(
     mana_dir: &Path,
-    units: &[SizedBean],
+    units: &[SizedUnit],
     spawn_mode: &SpawnMode,
     cfg: &super::RunConfig,
     wave_number: usize,
@@ -319,7 +319,7 @@ pub(super) fn run_wave(
 
 /// Template mode: spawn agents via `sh -c <template>` (backward compat).
 fn run_wave_template(
-    units: &[SizedBean],
+    units: &[SizedUnit],
     run_template: &str,
     _plan_template: Option<&str>,
     max_jobs: usize,
@@ -333,10 +333,10 @@ fn run_wave_template(
     // (via timeout::monitor_process). Template mode enforces total timeout only.
 
     let mut results = Vec::new();
-    // Track: bean, child process, start time, last stdout activity time
-    let mut children: Vec<(SizedBean, std::process::Child, Instant, Instant)> = Vec::new();
+    // Track: unit, child process, start time, last stdout activity time
+    let mut children: Vec<(SizedUnit, std::process::Child, Instant, Instant)> = Vec::new();
 
-    let mut pending: Vec<&SizedBean> = units.iter().collect();
+    let mut pending: Vec<&SizedUnit> = units.iter().collect();
 
     while !pending.is_empty() || !children.is_empty() {
         // Check for shutdown signal
@@ -365,10 +365,10 @@ fn run_wave_template(
         while children.len() < max_jobs && !pending.is_empty() {
             let sb = pending.remove(0);
             let template = match sb.action {
-                BeanAction::Implement => run_template,
+                UnitAction::Implement => run_template,
             };
 
-            // Model precedence: bean-level override > config-level > no substitution
+            // Model precedence: unit-level override > config-level > no substitution
             let effective_model = sb.model.as_deref().or(config_run_model);
             let cmd =
                 crate::spawner::substitute_template_with_model(template, &sb.id, effective_model);
@@ -484,7 +484,7 @@ fn run_wave_template(
 #[allow(clippy::too_many_arguments)]
 fn run_wave_direct(
     mana_dir: &Path,
-    units: &[SizedBean],
+    units: &[SizedUnit],
     max_jobs: usize,
     timeout_minutes: u32,
     idle_timeout_minutes: u32,
@@ -494,7 +494,7 @@ fn run_wave_direct(
     file_locking: bool,
 ) -> Result<Vec<AgentResult>> {
     let results = Arc::new(Mutex::new(Vec::new()));
-    let mut pending: Vec<SizedBean> = units.to_vec();
+    let mut pending: Vec<SizedUnit> = units.to_vec();
     let mut handles: Vec<std::thread::JoinHandle<()>> = Vec::new();
 
     while !pending.is_empty() || !handles.is_empty() {
@@ -518,7 +518,7 @@ fn run_wave_direct(
             let config_run_model = config_run_model.map(str::to_string);
 
             if json_stream {
-                stream::emit(&StreamEvent::BeanStart {
+                stream::emit(&StreamEvent::UnitStart {
                     id: sb.id.clone(),
                     title: sb.title.clone(),
                     round: wave_number,
@@ -574,17 +574,17 @@ fn run_wave_direct(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::commands::run::BeanAction;
+    use crate::commands::run::UnitAction;
     use crate::index::Index;
 
     #[test]
     fn compute_waves_no_deps() {
         let index = Index { units: vec![] };
         let units = vec![
-            SizedBean {
+            SizedUnit {
                 id: "1".to_string(),
                 title: "A".to_string(),
-                action: BeanAction::Implement,
+                action: UnitAction::Implement,
                 priority: 2,
                 dependencies: vec![],
                 parent: None,
@@ -593,10 +593,10 @@ mod tests {
                 paths: vec![],
                 model: None,
             },
-            SizedBean {
+            SizedUnit {
                 id: "2".to_string(),
                 title: "B".to_string(),
-                action: BeanAction::Implement,
+                action: UnitAction::Implement,
                 priority: 2,
                 dependencies: vec![],
                 parent: None,
@@ -615,10 +615,10 @@ mod tests {
     fn compute_waves_linear_chain() {
         let index = Index { units: vec![] };
         let units = vec![
-            SizedBean {
+            SizedUnit {
                 id: "1".to_string(),
                 title: "A".to_string(),
-                action: BeanAction::Implement,
+                action: UnitAction::Implement,
                 priority: 2,
                 dependencies: vec![],
                 parent: None,
@@ -627,10 +627,10 @@ mod tests {
                 paths: vec![],
                 model: None,
             },
-            SizedBean {
+            SizedUnit {
                 id: "2".to_string(),
                 title: "B".to_string(),
-                action: BeanAction::Implement,
+                action: UnitAction::Implement,
                 priority: 2,
                 dependencies: vec!["1".to_string()],
                 parent: None,
@@ -639,10 +639,10 @@ mod tests {
                 paths: vec![],
                 model: None,
             },
-            SizedBean {
+            SizedUnit {
                 id: "3".to_string(),
                 title: "C".to_string(),
-                action: BeanAction::Implement,
+                action: UnitAction::Implement,
                 priority: 2,
                 dependencies: vec!["2".to_string()],
                 parent: None,
@@ -664,10 +664,10 @@ mod tests {
         let index = Index { units: vec![] };
         // 1 → (2, 3) → 4
         let units = vec![
-            SizedBean {
+            SizedUnit {
                 id: "1".to_string(),
                 title: "Root".to_string(),
-                action: BeanAction::Implement,
+                action: UnitAction::Implement,
                 priority: 2,
                 dependencies: vec![],
                 parent: None,
@@ -676,10 +676,10 @@ mod tests {
                 paths: vec![],
                 model: None,
             },
-            SizedBean {
+            SizedUnit {
                 id: "2".to_string(),
                 title: "Left".to_string(),
-                action: BeanAction::Implement,
+                action: UnitAction::Implement,
                 priority: 2,
                 dependencies: vec!["1".to_string()],
                 parent: None,
@@ -688,10 +688,10 @@ mod tests {
                 paths: vec![],
                 model: None,
             },
-            SizedBean {
+            SizedUnit {
                 id: "3".to_string(),
                 title: "Right".to_string(),
-                action: BeanAction::Implement,
+                action: UnitAction::Implement,
                 priority: 2,
                 dependencies: vec!["1".to_string()],
                 parent: None,
@@ -700,10 +700,10 @@ mod tests {
                 paths: vec![],
                 model: None,
             },
-            SizedBean {
+            SizedUnit {
                 id: "4".to_string(),
                 title: "Join".to_string(),
-                action: BeanAction::Implement,
+                action: UnitAction::Implement,
                 priority: 2,
                 dependencies: vec!["2".to_string(), "3".to_string()],
                 parent: None,
@@ -722,10 +722,10 @@ mod tests {
 
     #[test]
     fn template_wave_execution_with_echo() {
-        let units = vec![SizedBean {
+        let units = vec![SizedUnit {
             id: "1".to_string(),
             title: "Test".to_string(),
-            action: BeanAction::Implement,
+            action: UnitAction::Implement,
             priority: 2,
             dependencies: vec![],
             parent: None,
@@ -743,10 +743,10 @@ mod tests {
 
     #[test]
     fn template_wave_runs_implement_action() {
-        let units = vec![SizedBean {
+        let units = vec![SizedUnit {
             id: "1".to_string(),
             title: "Test".to_string(),
-            action: BeanAction::Implement,
+            action: UnitAction::Implement,
             priority: 2,
             dependencies: vec![],
             parent: None,
@@ -764,10 +764,10 @@ mod tests {
 
     #[test]
     fn template_wave_failed_command() {
-        let units = vec![SizedBean {
+        let units = vec![SizedUnit {
             id: "1".to_string(),
             title: "Fail".to_string(),
-            action: BeanAction::Implement,
+            action: UnitAction::Implement,
             priority: 2,
             dependencies: vec![],
             parent: None,
@@ -785,11 +785,11 @@ mod tests {
 
     // -- downstream weight tests --
 
-    fn make_bean(id: &str, deps: Vec<&str>, produces: Vec<&str>, requires: Vec<&str>) -> SizedBean {
-        SizedBean {
+    fn make_unit(id: &str, deps: Vec<&str>, produces: Vec<&str>, requires: Vec<&str>) -> SizedUnit {
+        SizedUnit {
             id: id.to_string(),
-            title: format!("Bean {}", id),
-            action: BeanAction::Implement,
+            title: format!("Unit {}", id),
+            action: UnitAction::Implement,
             priority: 2,
             dependencies: deps.into_iter().map(|s| s.to_string()).collect(),
             parent: Some("p".to_string()),
@@ -801,21 +801,21 @@ mod tests {
     }
 
     #[test]
-    fn downstream_weights_single_bean() {
-        let beans = vec![make_bean("A", vec![], vec![], vec![])];
-        let weights = compute_downstream_weights(&beans);
+    fn downstream_weights_single_unit() {
+        let units = vec![make_unit("A", vec![], vec![], vec![])];
+        let weights = compute_downstream_weights(&units);
         assert_eq!(weights.get("A").copied(), Some(1));
     }
 
     #[test]
     fn downstream_weights_linear_chain() {
         // A → B → C (B depends on A, C depends on B)
-        let beans = vec![
-            make_bean("A", vec![], vec![], vec![]),
-            make_bean("B", vec!["A"], vec![], vec![]),
-            make_bean("C", vec!["B"], vec![], vec![]),
+        let units = vec![
+            make_unit("A", vec![], vec![], vec![]),
+            make_unit("B", vec!["A"], vec![], vec![]),
+            make_unit("C", vec!["B"], vec![], vec![]),
         ];
-        let weights = compute_downstream_weights(&beans);
+        let weights = compute_downstream_weights(&units);
         assert_eq!(weights.get("A").copied(), Some(3)); // blocks B and C
         assert_eq!(weights.get("B").copied(), Some(2)); // blocks C
         assert_eq!(weights.get("C").copied(), Some(1)); // leaf
@@ -824,13 +824,13 @@ mod tests {
     #[test]
     fn downstream_weights_diamond() {
         // A → (B, C) → D
-        let beans = vec![
-            make_bean("A", vec![], vec![], vec![]),
-            make_bean("B", vec!["A"], vec![], vec![]),
-            make_bean("C", vec!["A"], vec![], vec![]),
-            make_bean("D", vec!["B", "C"], vec![], vec![]),
+        let units = vec![
+            make_unit("A", vec![], vec![], vec![]),
+            make_unit("B", vec!["A"], vec![], vec![]),
+            make_unit("C", vec!["A"], vec![], vec![]),
+            make_unit("D", vec!["B", "C"], vec![], vec![]),
         ];
-        let weights = compute_downstream_weights(&beans);
+        let weights = compute_downstream_weights(&units);
         assert_eq!(weights.get("D").copied(), Some(1)); // leaf
         assert_eq!(weights.get("B").copied(), Some(2)); // blocks D
         assert_eq!(weights.get("C").copied(), Some(2)); // blocks D
@@ -839,11 +839,11 @@ mod tests {
 
     #[test]
     fn downstream_weights_independent() {
-        let beans = vec![
-            make_bean("A", vec![], vec![], vec![]),
-            make_bean("B", vec![], vec![], vec![]),
+        let units = vec![
+            make_unit("A", vec![], vec![], vec![]),
+            make_unit("B", vec![], vec![], vec![]),
         ];
-        let weights = compute_downstream_weights(&beans);
+        let weights = compute_downstream_weights(&units);
         assert_eq!(weights.get("A").copied(), Some(1));
         assert_eq!(weights.get("B").copied(), Some(1));
     }
@@ -851,13 +851,13 @@ mod tests {
     #[test]
     fn downstream_weights_wide_fan() {
         // A → (B, C, D)
-        let beans = vec![
-            make_bean("A", vec![], vec![], vec![]),
-            make_bean("B", vec!["A"], vec![], vec![]),
-            make_bean("C", vec!["A"], vec![], vec![]),
-            make_bean("D", vec!["A"], vec![], vec![]),
+        let units = vec![
+            make_unit("A", vec![], vec![], vec![]),
+            make_unit("B", vec!["A"], vec![], vec![]),
+            make_unit("C", vec!["A"], vec![], vec![]),
+            make_unit("D", vec!["A"], vec![], vec![]),
         ];
-        let weights = compute_downstream_weights(&beans);
+        let weights = compute_downstream_weights(&units);
         assert_eq!(weights.get("A").copied(), Some(4)); // 1 + 1 + 1 + 1
         assert_eq!(weights.get("B").copied(), Some(1));
         assert_eq!(weights.get("C").copied(), Some(1));
@@ -874,12 +874,12 @@ mod tests {
         // E and F depend on B → B has weight 3
         // C is leaf → weight 1
         let units = vec![
-            make_bean("A", vec![], vec![], vec![]),
-            make_bean("B", vec![], vec![], vec![]),
-            make_bean("C", vec![], vec![], vec![]),
-            make_bean("D", vec!["A"], vec![], vec![]),
-            make_bean("E", vec!["B"], vec![], vec![]),
-            make_bean("F", vec!["B"], vec![], vec![]),
+            make_unit("A", vec![], vec![], vec![]),
+            make_unit("B", vec![], vec![], vec![]),
+            make_unit("C", vec![], vec![], vec![]),
+            make_unit("D", vec!["A"], vec![], vec![]),
+            make_unit("E", vec!["B"], vec![], vec![]),
+            make_unit("F", vec!["B"], vec![], vec![]),
         ];
         let waves = compute_waves(&units, &index);
         assert_eq!(waves.len(), 2);
@@ -893,12 +893,12 @@ mod tests {
     fn compute_waves_weight_sorting_preserves_priority() {
         let index = Index { units: vec![] };
         // A has priority 1, B has priority 2 — A first despite lower weight
-        let mut a = make_bean("A", vec![], vec![], vec![]);
+        let mut a = make_unit("A", vec![], vec![], vec![]);
         a.priority = 1;
-        let mut b = make_bean("B", vec![], vec![], vec![]);
+        let mut b = make_unit("B", vec![], vec![], vec![]);
         b.priority = 2;
         // C depends on B → B has weight 2, A has weight 1
-        let c = make_bean("C", vec!["B"], vec![], vec![]);
+        let c = make_unit("C", vec!["B"], vec![], vec![]);
         let units = vec![a, b, c];
         let waves = compute_waves(&units, &index);
         // Wave 1: A (pri 1) before B (pri 2), despite B having higher weight
@@ -908,11 +908,11 @@ mod tests {
 
     // -- file conflict tests --
 
-    fn make_bean_with_paths(id: &str, deps: Vec<&str>, paths: Vec<&str>) -> SizedBean {
-        SizedBean {
+    fn make_unit_with_paths(id: &str, deps: Vec<&str>, paths: Vec<&str>) -> SizedUnit {
+        SizedUnit {
             id: id.to_string(),
-            title: format!("Bean {}", id),
-            action: BeanAction::Implement,
+            title: format!("Unit {}", id),
+            action: UnitAction::Implement,
             priority: 2,
             dependencies: deps.into_iter().map(|s| s.to_string()).collect(),
             parent: Some("p".to_string()),
@@ -925,12 +925,12 @@ mod tests {
 
     #[test]
     fn file_conflicts_detected() {
-        let beans = vec![
-            make_bean_with_paths("A", vec![], vec!["src/lib.rs", "src/a.rs"]),
-            make_bean_with_paths("B", vec![], vec!["src/lib.rs", "src/b.rs"]),
-            make_bean_with_paths("C", vec![], vec!["src/c.rs"]),
+        let units = vec![
+            make_unit_with_paths("A", vec![], vec!["src/lib.rs", "src/a.rs"]),
+            make_unit_with_paths("B", vec![], vec!["src/lib.rs", "src/b.rs"]),
+            make_unit_with_paths("C", vec![], vec!["src/c.rs"]),
         ];
-        let conflicts = compute_file_conflicts(&beans);
+        let conflicts = compute_file_conflicts(&units);
         assert_eq!(conflicts.len(), 1);
         assert_eq!(conflicts[0].0, "src/lib.rs");
         assert!(conflicts[0].1.contains(&"A".to_string()));
@@ -939,22 +939,22 @@ mod tests {
 
     #[test]
     fn file_conflicts_empty_when_no_overlap() {
-        let beans = vec![
-            make_bean_with_paths("A", vec![], vec!["src/a.rs"]),
-            make_bean_with_paths("B", vec![], vec!["src/b.rs"]),
+        let units = vec![
+            make_unit_with_paths("A", vec![], vec!["src/a.rs"]),
+            make_unit_with_paths("B", vec![], vec!["src/b.rs"]),
         ];
-        let conflicts = compute_file_conflicts(&beans);
+        let conflicts = compute_file_conflicts(&units);
         assert!(conflicts.is_empty());
     }
 
     #[test]
     fn file_conflicts_multiple_files() {
-        let beans = vec![
-            make_bean_with_paths("A", vec![], vec!["src/lib.rs", "src/mod.rs"]),
-            make_bean_with_paths("B", vec![], vec!["src/lib.rs"]),
-            make_bean_with_paths("C", vec![], vec!["src/mod.rs"]),
+        let units = vec![
+            make_unit_with_paths("A", vec![], vec!["src/lib.rs", "src/mod.rs"]),
+            make_unit_with_paths("B", vec![], vec!["src/lib.rs"]),
+            make_unit_with_paths("C", vec![], vec!["src/mod.rs"]),
         ];
-        let conflicts = compute_file_conflicts(&beans);
+        let conflicts = compute_file_conflicts(&units);
         assert_eq!(conflicts.len(), 2);
         // Sorted by file path
         assert_eq!(conflicts[0].0, "src/lib.rs");
@@ -965,45 +965,45 @@ mod tests {
 
     #[test]
     fn effective_parallelism_no_conflicts() {
-        let beans = vec![
-            make_bean_with_paths("A", vec![], vec!["src/a.rs"]),
-            make_bean_with_paths("B", vec![], vec!["src/b.rs"]),
-            make_bean_with_paths("C", vec![], vec!["src/c.rs"]),
+        let units = vec![
+            make_unit_with_paths("A", vec![], vec!["src/a.rs"]),
+            make_unit_with_paths("B", vec![], vec!["src/b.rs"]),
+            make_unit_with_paths("C", vec![], vec!["src/c.rs"]),
         ];
-        assert_eq!(compute_effective_parallelism(&beans), 3);
+        assert_eq!(compute_effective_parallelism(&units), 3);
     }
 
     #[test]
     fn effective_parallelism_with_conflict() {
-        let beans = vec![
-            make_bean_with_paths("A", vec![], vec!["src/lib.rs"]),
-            make_bean_with_paths("B", vec![], vec!["src/lib.rs"]),
-            make_bean_with_paths("C", vec![], vec!["src/c.rs"]),
+        let units = vec![
+            make_unit_with_paths("A", vec![], vec!["src/lib.rs"]),
+            make_unit_with_paths("B", vec![], vec!["src/lib.rs"]),
+            make_unit_with_paths("C", vec![], vec!["src/c.rs"]),
         ];
         // A takes src/lib.rs, B is blocked, C can run → 2
-        assert_eq!(compute_effective_parallelism(&beans), 2);
+        assert_eq!(compute_effective_parallelism(&units), 2);
     }
 
     #[test]
     fn effective_parallelism_all_conflict() {
-        let beans = vec![
-            make_bean_with_paths("A", vec![], vec!["src/shared.rs"]),
-            make_bean_with_paths("B", vec![], vec!["src/shared.rs"]),
-            make_bean_with_paths("C", vec![], vec!["src/shared.rs"]),
+        let units = vec![
+            make_unit_with_paths("A", vec![], vec!["src/shared.rs"]),
+            make_unit_with_paths("B", vec![], vec!["src/shared.rs"]),
+            make_unit_with_paths("C", vec![], vec!["src/shared.rs"]),
         ];
         // Only one can run at a time
-        assert_eq!(compute_effective_parallelism(&beans), 1);
+        assert_eq!(compute_effective_parallelism(&units), 1);
     }
 
     #[test]
     fn effective_parallelism_empty_paths_no_conflict() {
-        let beans = vec![
-            make_bean_with_paths("A", vec![], vec![]),
-            make_bean_with_paths("B", vec![], vec![]),
-            make_bean_with_paths("C", vec![], vec!["src/c.rs"]),
+        let units = vec![
+            make_unit_with_paths("A", vec![], vec![]),
+            make_unit_with_paths("B", vec![], vec![]),
+            make_unit_with_paths("C", vec![], vec!["src/c.rs"]),
         ];
         // Empty paths never conflict
-        assert_eq!(compute_effective_parallelism(&beans), 3);
+        assert_eq!(compute_effective_parallelism(&units), 3);
     }
 
     #[test]
@@ -1014,33 +1014,33 @@ mod tests {
     // -- critical path tests --
 
     #[test]
-    fn critical_path_single_bean() {
-        let beans = vec![make_bean("A", vec![], vec![], vec![])];
-        let path = compute_critical_path(&beans);
+    fn critical_path_single_unit() {
+        let units = vec![make_unit("A", vec![], vec![], vec![])];
+        let path = compute_critical_path(&units);
         assert_eq!(path, vec!["A"]);
     }
 
     #[test]
     fn critical_path_linear_chain() {
-        let beans = vec![
-            make_bean("A", vec![], vec![], vec![]),
-            make_bean("B", vec!["A"], vec![], vec![]),
-            make_bean("C", vec!["B"], vec![], vec![]),
+        let units = vec![
+            make_unit("A", vec![], vec![], vec![]),
+            make_unit("B", vec!["A"], vec![], vec![]),
+            make_unit("C", vec!["B"], vec![], vec![]),
         ];
-        let path = compute_critical_path(&beans);
+        let path = compute_critical_path(&units);
         assert_eq!(path, vec!["A", "B", "C"]);
     }
 
     #[test]
     fn critical_path_diamond() {
         // A → (B, C) → D
-        let beans = vec![
-            make_bean("A", vec![], vec![], vec![]),
-            make_bean("B", vec!["A"], vec![], vec![]),
-            make_bean("C", vec!["A"], vec![], vec![]),
-            make_bean("D", vec!["B", "C"], vec![], vec![]),
+        let units = vec![
+            make_unit("A", vec![], vec![], vec![]),
+            make_unit("B", vec!["A"], vec![], vec![]),
+            make_unit("C", vec!["A"], vec![], vec![]),
+            make_unit("D", vec!["B", "C"], vec![], vec![]),
         ];
-        let path = compute_critical_path(&beans);
+        let path = compute_critical_path(&units);
         assert_eq!(path.len(), 3);
         assert_eq!(path[0], "A");
         // B and C have equal weight; tie broken by natural ID order → B
@@ -1053,24 +1053,24 @@ mod tests {
         // A → B → C (long branch)
         // A → D (short branch)
         // Critical path should be A → B → C
-        let beans = vec![
-            make_bean("A", vec![], vec![], vec![]),
-            make_bean("B", vec!["A"], vec![], vec![]),
-            make_bean("C", vec!["B"], vec![], vec![]),
-            make_bean("D", vec!["A"], vec![], vec![]),
+        let units = vec![
+            make_unit("A", vec![], vec![], vec![]),
+            make_unit("B", vec!["A"], vec![], vec![]),
+            make_unit("C", vec!["B"], vec![], vec![]),
+            make_unit("D", vec!["A"], vec![], vec![]),
         ];
-        let path = compute_critical_path(&beans);
+        let path = compute_critical_path(&units);
         assert_eq!(path, vec!["A", "B", "C"]);
     }
 
     #[test]
-    fn critical_path_independent_beans() {
+    fn critical_path_independent_units() {
         // No deps — all have weight 1. Path is just the first one (by ID).
-        let beans = vec![
-            make_bean("A", vec![], vec![], vec![]),
-            make_bean("B", vec![], vec![], vec![]),
+        let units = vec![
+            make_unit("A", vec![], vec![], vec![]),
+            make_unit("B", vec![], vec![], vec![]),
         ];
-        let path = compute_critical_path(&beans);
+        let path = compute_critical_path(&units);
         assert_eq!(path.len(), 1);
     }
 }

@@ -51,14 +51,14 @@ pub struct PromptOptions {
     pub mana_dir: PathBuf,
     /// Optional instructions to prepend to the user message.
     pub instructions: Option<String>,
-    /// Beans running concurrently that share files with this unit.
+    /// Units running concurrently that share files with this unit.
     pub concurrent_overlaps: Option<Vec<FileOverlap>>,
 }
 
 /// Describes a concurrent unit that overlaps on files.
 pub struct FileOverlap {
     /// ID of the overlapping unit.
-    pub bean_id: String,
+    pub unit_id: String,
     /// Title of the overlapping unit.
     pub title: String,
     /// File paths shared between the two units.
@@ -237,7 +237,7 @@ fn collect_parent_context(unit: &Unit, mana_dir: &Path) -> Vec<String> {
             break;
         }
 
-        let parent = match load_bean(mana_dir, &id) {
+        let parent = match load_unit(mana_dir, &id) {
             Some(b) => b,
             None => break,
         };
@@ -296,12 +296,12 @@ fn collect_sibling_discoveries(unit: &Unit, mana_dir: &Path) -> Option<String> {
             break;
         }
 
-        let sibling_bean = match load_bean(mana_dir, &sibling.id) {
+        let sibling_unit = match load_unit(mana_dir, &sibling.id) {
             Some(b) => b,
             None => continue,
         };
 
-        let notes = match sibling_bean.notes {
+        let notes = match sibling_unit.notes {
             Some(ref n) if !n.trim().is_empty() => n.clone(),
             _ => continue,
         };
@@ -337,7 +337,7 @@ fn format_concurrent_warning(overlaps: &[FileOverlap]) -> String {
         let files = overlap.shared_files.join(", ");
         lines.push(format!(
             "- Unit {} ({}) may also be modifying: {}",
-            overlap.bean_id, overlap.title, files
+            overlap.unit_id, overlap.title, files
         ));
     }
 
@@ -462,7 +462,7 @@ fn format_previous_attempts(unit: &Unit) -> String {
 }
 
 /// Format the approach section with numbered workflow.
-fn format_approach(bean_id: &str) -> String {
+fn format_approach(unit_id: &str) -> String {
     format!(
         "# Approach\n\n\
          1. Read the unit description carefully — it IS your spec\n\
@@ -476,7 +476,7 @@ fn format_approach(bean_id: &str) -> String {
             or gotchas you found that might help sibling units>\"\n\
          8. If verify fails, fix and retry\n\
          9. If stuck after 3 attempts, run: mana update {id} --note \"Stuck: <explanation>\"",
-        id = bean_id
+        id = unit_id
     )
 }
 
@@ -517,7 +517,7 @@ fn format_verify_gate(unit: &Unit) -> String {
 }
 
 /// Format the constraints section.
-fn format_constraints(bean_id: &str) -> String {
+fn format_constraints(unit_id: &str) -> String {
     format!(
         "# Constraints\n\n\
          - Only modify files mentioned in the description unless clearly necessary\n\
@@ -525,7 +525,7 @@ fn format_constraints(bean_id: &str) -> String {
          - Preserve existing tests\n\
          - Run the project's test/build commands before closing\n\
          - When complete, run: mana close {}",
-        bean_id
+        unit_id
     )
 }
 
@@ -613,7 +613,7 @@ fn detect_language(path: &str) -> &'static str {
 }
 
 /// Load a unit by ID, returning None on any error.
-fn load_bean(mana_dir: &Path, id: &str) -> Option<Unit> {
+fn load_unit(mana_dir: &Path, id: &str) -> Option<Unit> {
     let path = find_unit_file(mana_dir, id).ok()?;
     Unit::from_file(&path).ok()
 }
@@ -643,7 +643,7 @@ mod tests {
     }
 
     /// Write a unit to the .mana/ directory with standard naming.
-    fn write_test_bean(mana_dir: &Path, unit: &Unit) {
+    fn write_test_unit(mana_dir: &Path, unit: &Unit) {
         let slug = crate::util::title_to_slug(&unit.title);
         let path = mana_dir.join(format!("{}-{}.md", unit.id, slug));
         unit.to_file(&path).unwrap();
@@ -773,12 +773,12 @@ mod tests {
         // Create parent unit
         let mut parent = Unit::new("1", "Parent Task");
         parent.description = Some("This is the parent goal.".to_string());
-        write_test_bean(&mana_dir, &parent);
+        write_test_unit(&mana_dir, &parent);
 
         // Create child referencing parent
         let mut child = Unit::new("1.1", "Child Task");
         child.parent = Some("1".to_string());
-        write_test_bean(&mana_dir, &child);
+        write_test_unit(&mana_dir, &child);
 
         let sections = collect_parent_context(&child, &mana_dir);
         assert_eq!(sections.len(), 1);
@@ -794,13 +794,13 @@ mod tests {
         // Grandparent
         let mut grandparent = Unit::new("1", "Grandparent");
         grandparent.description = Some("Grand context.".to_string());
-        write_test_bean(&mana_dir, &grandparent);
+        write_test_unit(&mana_dir, &grandparent);
 
         // Parent
         let mut parent = Unit::new("1.1", "Parent");
         parent.parent = Some("1".to_string());
         parent.description = Some("Parent context.".to_string());
-        write_test_bean(&mana_dir, &parent);
+        write_test_unit(&mana_dir, &parent);
 
         // Child
         let mut child = Unit::new("1.1.1", "Child");
@@ -820,7 +820,7 @@ mod tests {
         // Create a parent with a very long description
         let mut parent = Unit::new("1", "Verbose Parent");
         parent.description = Some("x".repeat(5000));
-        write_test_bean(&mana_dir, &parent);
+        write_test_unit(&mana_dir, &parent);
 
         let mut child = Unit::new("1.1", "Child");
         child.parent = Some("1".to_string());
@@ -852,19 +852,19 @@ mod tests {
 
         // Create parent
         let parent = Unit::new("1", "Parent");
-        write_test_bean(&mana_dir, &parent);
+        write_test_unit(&mana_dir, &parent);
 
         // Create closed sibling with discovery notes
         let mut sibling = Unit::new("1.1", "Sibling A");
         sibling.parent = Some("1".to_string());
         sibling.status = Status::Closed;
         sibling.notes = Some("Discoveries: the API uses snake_case".to_string());
-        write_test_bean(&mana_dir, &sibling);
+        write_test_unit(&mana_dir, &sibling);
 
         // The unit under test
         let mut unit = Unit::new("1.2", "Current Unit");
         unit.parent = Some("1".to_string());
-        write_test_bean(&mana_dir, &unit);
+        write_test_unit(&mana_dir, &unit);
 
         // Need to rebuild index
         let _ = Index::build(&mana_dir).unwrap().save(&mana_dir);
@@ -881,18 +881,18 @@ mod tests {
         let (_dir, mana_dir) = setup_test_env();
 
         let parent = Unit::new("1", "Parent");
-        write_test_bean(&mana_dir, &parent);
+        write_test_unit(&mana_dir, &parent);
 
         // Closed sibling without "discover" in notes
         let mut sibling = Unit::new("1.1", "Sibling");
         sibling.parent = Some("1".to_string());
         sibling.status = Status::Closed;
         sibling.notes = Some("Just regular notes about the task".to_string());
-        write_test_bean(&mana_dir, &sibling);
+        write_test_unit(&mana_dir, &sibling);
 
         let mut unit = Unit::new("1.2", "Current");
         unit.parent = Some("1".to_string());
-        write_test_bean(&mana_dir, &unit);
+        write_test_unit(&mana_dir, &unit);
 
         let _ = Index::build(&mana_dir).unwrap().save(&mana_dir);
 
@@ -905,18 +905,18 @@ mod tests {
         let (_dir, mana_dir) = setup_test_env();
 
         let parent = Unit::new("1", "Parent");
-        write_test_bean(&mana_dir, &parent);
+        write_test_unit(&mana_dir, &parent);
 
         // Open sibling with discovery notes — should be skipped
         let mut sibling = Unit::new("1.1", "Open Sibling");
         sibling.parent = Some("1".to_string());
         sibling.status = Status::Open;
         sibling.notes = Some("Discoveries: something useful".to_string());
-        write_test_bean(&mana_dir, &sibling);
+        write_test_unit(&mana_dir, &sibling);
 
         let mut unit = Unit::new("1.2", "Current");
         unit.parent = Some("1".to_string());
-        write_test_bean(&mana_dir, &unit);
+        write_test_unit(&mana_dir, &unit);
 
         let _ = Index::build(&mana_dir).unwrap().save(&mana_dir);
 
@@ -929,7 +929,7 @@ mod tests {
     #[test]
     fn concurrent_warning_single_overlap() {
         let overlaps = vec![FileOverlap {
-            bean_id: "5".to_string(),
+            unit_id: "5".to_string(),
             title: "Other Task".to_string(),
             shared_files: vec!["src/main.rs".to_string()],
         }];
@@ -943,12 +943,12 @@ mod tests {
     fn concurrent_warning_multiple_overlaps() {
         let overlaps = vec![
             FileOverlap {
-                bean_id: "5".to_string(),
+                unit_id: "5".to_string(),
                 title: "Task A".to_string(),
                 shared_files: vec!["src/a.rs".to_string(), "src/b.rs".to_string()],
             },
             FileOverlap {
-                bean_id: "6".to_string(),
+                unit_id: "6".to_string(),
                 title: "Task B".to_string(),
                 shared_files: vec!["src/c.rs".to_string()],
             },
@@ -1052,7 +1052,7 @@ mod tests {
     // -- format_approach --
 
     #[test]
-    fn approach_contains_bean_id() {
+    fn approach_contains_unit_id() {
         let result = format_approach("42");
         assert!(result.contains("mana close 42"));
         assert!(result.contains("mana update 42"));
@@ -1080,7 +1080,7 @@ mod tests {
     // -- format_constraints --
 
     #[test]
-    fn constraints_contains_bean_id() {
+    fn constraints_contains_unit_id() {
         let result = format_constraints("7");
         assert!(result.contains("mana close 7"));
         assert!(result.contains("Don't add dependencies"));
@@ -1100,13 +1100,13 @@ mod tests {
     // -- build_agent_prompt integration --
 
     #[test]
-    fn build_prompt_minimal_bean() {
+    fn build_prompt_minimal_unit() {
         let (_dir, mana_dir) = setup_test_env();
 
         let mut unit = Unit::new("1", "Simple Task");
         unit.description = Some("Just do the thing.".to_string());
         unit.verify = Some("cargo test".to_string());
-        write_test_bean(&mana_dir, &unit);
+        write_test_unit(&mana_dir, &unit);
 
         let options = PromptOptions {
             mana_dir: mana_dir.clone(),
@@ -1141,7 +1141,7 @@ mod tests {
         let (_dir, mana_dir) = setup_test_env();
 
         let unit = Unit::new("1", "Task");
-        write_test_bean(&mana_dir, &unit);
+        write_test_unit(&mana_dir, &unit);
 
         let options = PromptOptions {
             mana_dir: mana_dir.clone(),
@@ -1160,7 +1160,7 @@ mod tests {
         fs::write(mana_dir.join("RULES.md"), "# Style\nUse snake_case.\n").unwrap();
 
         let unit = Unit::new("1", "Task");
-        write_test_bean(&mana_dir, &unit);
+        write_test_unit(&mana_dir, &unit);
 
         let options = PromptOptions {
             mana_dir: mana_dir.clone(),
@@ -1179,7 +1179,7 @@ mod tests {
 
         let mut unit = Unit::new("1", "Task");
         unit.acceptance = Some("All tests pass\nNo warnings".to_string());
-        write_test_bean(&mana_dir, &unit);
+        write_test_unit(&mana_dir, &unit);
 
         let options = PromptOptions {
             mana_dir: mana_dir.clone(),
@@ -1198,13 +1198,13 @@ mod tests {
         let (_dir, mana_dir) = setup_test_env();
 
         let unit = Unit::new("1", "Task");
-        write_test_bean(&mana_dir, &unit);
+        write_test_unit(&mana_dir, &unit);
 
         let options = PromptOptions {
             mana_dir: mana_dir.clone(),
             instructions: None,
             concurrent_overlaps: Some(vec![FileOverlap {
-                bean_id: "2".to_string(),
+                unit_id: "2".to_string(),
                 title: "Other".to_string(),
                 shared_files: vec!["src/shared.rs".to_string()],
             }]),
@@ -1224,7 +1224,7 @@ mod tests {
         let mut unit = Unit::new("1", "Retry Task");
         unit.attempts = 2;
         unit.notes = Some("Tried X, failed due to Y.".to_string());
-        write_test_bean(&mana_dir, &unit);
+        write_test_unit(&mana_dir, &unit);
 
         let options = PromptOptions {
             mana_dir: mana_dir.clone(),
@@ -1243,7 +1243,7 @@ mod tests {
         let (_dir, mana_dir) = setup_test_env();
 
         let unit = Unit::new("1", "No Verify");
-        write_test_bean(&mana_dir, &unit);
+        write_test_unit(&mana_dir, &unit);
 
         let options = PromptOptions {
             mana_dir: mana_dir.clone(),
@@ -1272,7 +1272,7 @@ mod tests {
         let mut unit = Unit::new("1", "Task");
         unit.description =
             Some("Modify src/lib.rs to export new module\nRead src/utils.rs".to_string());
-        write_test_bean(&mana_dir, &unit);
+        write_test_unit(&mana_dir, &unit);
 
         let options = PromptOptions {
             mana_dir: mana_dir.clone(),
@@ -1297,7 +1297,7 @@ mod tests {
         // Create parent
         let mut parent = Unit::new("1", "Parent");
         parent.description = Some("Parent goal.".to_string());
-        write_test_bean(&mana_dir, &parent);
+        write_test_unit(&mana_dir, &parent);
 
         // Create source file
         let src = project_dir.join("src");
@@ -1312,7 +1312,7 @@ mod tests {
         unit.verify = Some("cargo test".to_string());
         unit.attempts = 1;
         unit.notes = Some("Tried something".to_string());
-        write_test_bean(&mana_dir, &unit);
+        write_test_unit(&mana_dir, &unit);
 
         let _ = Index::build(&mana_dir).unwrap().save(&mana_dir);
 

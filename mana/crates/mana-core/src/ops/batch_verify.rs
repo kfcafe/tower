@@ -80,12 +80,12 @@ pub fn batch_verify_ids(mana_dir: &Path, ids: &[String]) -> Result<BatchVerifyRe
     let mut groups: HashMap<String, Vec<Unit>> = HashMap::new();
 
     for id in ids {
-        let bean_path = match find_unit_file(mana_dir, id) {
+        let unit_path = match find_unit_file(mana_dir, id) {
             Ok(p) => p,
             Err(_) => continue, // Unit not found — skip
         };
         let unit =
-            Unit::from_file(&bean_path).with_context(|| format!("Failed to load unit: {}", id))?;
+            Unit::from_file(&unit_path).with_context(|| format!("Failed to load unit: {}", id))?;
 
         if unit.status != Status::AwaitingVerify {
             continue;
@@ -194,17 +194,17 @@ pub fn batch_verify_ids(mana_dir: &Path, ids: &[String]) -> Result<BatchVerifyRe
 ///
 /// Used when batch verify fails — returns the unit to the pool for re-dispatch.
 fn reopen_awaiting_unit(mana_dir: &Path, id: &str) -> Result<()> {
-    let bean_path =
+    let unit_path =
         find_unit_file(mana_dir, id).with_context(|| format!("Unit not found: {}", id))?;
     let mut unit =
-        Unit::from_file(&bean_path).with_context(|| format!("Failed to load unit: {}", id))?;
+        Unit::from_file(&unit_path).with_context(|| format!("Failed to load unit: {}", id))?;
 
     unit.status = Status::Open;
     unit.claimed_by = None;
     unit.claimed_at = None;
     unit.updated_at = Utc::now();
 
-    unit.to_file(&bean_path)
+    unit.to_file(&unit_path)
         .with_context(|| format!("Failed to save unit: {}", id))?;
 
     // Rebuild index to reflect the status change.
@@ -351,8 +351,8 @@ mod tests {
         assert_eq!(result.commands_run, 1);
 
         // Unit should be back to Open.
-        let bean_path = find_unit_file(&mana_dir, "1").unwrap();
-        let unit = Unit::from_file(bean_path).unwrap();
+        let unit_path = find_unit_file(&mana_dir, "1").unwrap();
+        let unit = Unit::from_file(unit_path).unwrap();
         assert_eq!(unit.status, Status::Open);
         assert!(unit.claimed_by.is_none());
     }

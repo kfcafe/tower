@@ -14,8 +14,8 @@ use crate::unit::{AttemptOutcome, Unit};
 /// Information about a sibling unit that produces an artifact this unit requires.
 pub struct DepProvider {
     pub artifact: String,
-    pub bean_id: String,
-    pub bean_title: String,
+    pub unit_id: String,
+    pub unit_title: String,
     pub status: String,
     pub description: Option<String>,
 }
@@ -45,12 +45,12 @@ pub struct AgentContext {
 /// explicit `unit.paths` and regex-extracted paths from the description,
 /// reads file contents, and extracts structural summaries.
 pub fn assemble_agent_context(mana_dir: &Path, id: &str) -> Result<AgentContext> {
-    let bean_path =
+    let unit_path =
         find_unit_file(mana_dir, id).context(format!("Could not find unit with ID: {}", id))?;
 
-    let unit = Unit::from_file(&bean_path).context(format!(
+    let unit = Unit::from_file(&unit_path).context(format!(
         "Failed to parse unit from: {}",
-        bean_path.display()
+        unit_path.display()
     ))?;
 
     let project_dir = mana_dir
@@ -214,8 +214,8 @@ pub fn resolve_dependency_context(mana_dir: &Path, unit: &Unit) -> Vec<DepProvid
 
             providers.push(DepProvider {
                 artifact: required.clone(),
-                bean_id: entry.id.clone(),
-                bean_title: entry.title.clone(),
+                unit_id: entry.id.clone(),
+                unit_title: entry.title.clone(),
                 status: format!("{}", entry.status),
                 description: desc,
             });
@@ -415,8 +415,8 @@ mod tests {
         let mut unit = Unit::new("1", "Test unit");
         unit.description = Some("A description with no file paths".to_string());
         let slug = crate::util::title_to_slug(&unit.title);
-        let bean_path = mana_dir.join(format!("1-{}.md", slug));
-        unit.to_file(&bean_path).unwrap();
+        let unit_path = mana_dir.join(format!("1-{}.md", slug));
+        unit.to_file(&unit_path).unwrap();
 
         let ctx = assemble_agent_context(&mana_dir, "1").unwrap();
         assert_eq!(ctx.unit.id, "1");
@@ -435,8 +435,8 @@ mod tests {
         let mut unit = Unit::new("1", "Test unit");
         unit.description = Some("Check src/foo.rs for implementation".to_string());
         let slug = crate::util::title_to_slug(&unit.title);
-        let bean_path = mana_dir.join(format!("1-{}.md", slug));
-        unit.to_file(&bean_path).unwrap();
+        let unit_path = mana_dir.join(format!("1-{}.md", slug));
+        unit.to_file(&unit_path).unwrap();
 
         let ctx = assemble_agent_context(&mana_dir, "1").unwrap();
         assert_eq!(ctx.files.len(), 1);
@@ -502,7 +502,7 @@ mod tests {
     }
 
     #[test]
-    fn format_attempt_notes_with_bean_notes() {
+    fn format_attempt_notes_with_unit_notes() {
         let mut unit = Unit::new("1", "Test unit");
         unit.notes = Some("Watch out for edge cases".to_string());
         let result = format_attempt_notes(&unit).unwrap();

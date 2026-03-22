@@ -12,19 +12,19 @@ use crate::unit::{RunResult, Status, Unit};
 pub struct CostStats {
     pub total_tokens: u64,
     pub total_cost: f64,
-    pub avg_tokens_per_bean: f64,
+    pub avg_tokens_per_unit: f64,
     /// Rate at which closed units passed on their first attempt (0.0–1.0).
     pub first_pass_rate: f64,
     /// Rate at which attempted units eventually closed (0.0–1.0).
     pub overall_pass_rate: f64,
-    pub most_expensive_bean: Option<BeanRef>,
-    pub most_retried_bean: Option<BeanRef>,
-    pub beans_with_history: usize,
+    pub most_expensive_unit: Option<UnitRef>,
+    pub most_retried_unit: Option<UnitRef>,
+    pub units_with_history: usize,
 }
 
 /// Lightweight unit reference for reporting.
 #[derive(Debug, Serialize)]
-pub struct BeanRef {
+pub struct UnitRef {
     pub id: String,
     pub title: String,
     pub value: u64,
@@ -44,7 +44,7 @@ pub struct StatsResult {
 }
 
 /// Load all units from disk (non-recursive, skips non-unit files).
-fn load_all_beans(mana_dir: &Path) -> Vec<Unit> {
+fn load_all_units(mana_dir: &Path) -> Vec<Unit> {
     let Ok(entries) = fs::read_dir(mana_dir) else {
         return vec![];
     };
@@ -69,7 +69,7 @@ fn load_all_beans(mana_dir: &Path) -> Vec<Unit> {
 pub fn aggregate_cost(units: &[Unit]) -> Option<CostStats> {
     let mut total_tokens: u64 = 0;
     let mut total_cost: f64 = 0.0;
-    let mut beans_with_history: usize = 0;
+    let mut units_with_history: usize = 0;
     let mut closed_with_history: usize = 0;
     let mut first_pass_count: usize = 0;
     let mut attempted: usize = 0;
@@ -82,18 +82,18 @@ pub fn aggregate_cost(units: &[Unit]) -> Option<CostStats> {
             continue;
         }
 
-        beans_with_history += 1;
+        units_with_history += 1;
         attempted += 1;
 
         if unit.status == Status::Closed {
             closed_count += 1;
         }
 
-        let bean_tokens: u64 = unit.history.iter().filter_map(|r| r.tokens).sum();
-        let bean_cost: f64 = unit.history.iter().filter_map(|r| r.cost).sum();
+        let unit_tokens: u64 = unit.history.iter().filter_map(|r| r.tokens).sum();
+        let unit_cost: f64 = unit.history.iter().filter_map(|r| r.cost).sum();
 
-        total_tokens += bean_tokens;
-        total_cost += bean_cost;
+        total_tokens += unit_tokens;
+        total_cost += unit_cost;
 
         if unit.status == Status::Closed {
             closed_with_history += 1;
@@ -107,8 +107,8 @@ pub fn aggregate_cost(units: &[Unit]) -> Option<CostStats> {
             }
         }
 
-        if bean_tokens > 0 && most_expensive.is_none_or(|(_, t)| bean_tokens > t) {
-            most_expensive = Some((unit, bean_tokens));
+        if unit_tokens > 0 && most_expensive.is_none_or(|(_, t)| unit_tokens > t) {
+            most_expensive = Some((unit, unit_tokens));
         }
 
         let attempt_count = unit.history.len();
@@ -117,12 +117,12 @@ pub fn aggregate_cost(units: &[Unit]) -> Option<CostStats> {
         }
     }
 
-    if beans_with_history == 0 {
+    if units_with_history == 0 {
         return None;
     }
 
-    let avg_tokens_per_bean = if beans_with_history > 0 {
-        total_tokens as f64 / beans_with_history as f64
+    let avg_tokens_per_unit = if units_with_history > 0 {
+        total_tokens as f64 / units_with_history as f64
     } else {
         0.0
     };
@@ -142,20 +142,20 @@ pub fn aggregate_cost(units: &[Unit]) -> Option<CostStats> {
     Some(CostStats {
         total_tokens,
         total_cost,
-        avg_tokens_per_bean,
+        avg_tokens_per_unit,
         first_pass_rate,
         overall_pass_rate,
-        most_expensive_bean: most_expensive.map(|(b, tokens)| BeanRef {
+        most_expensive_unit: most_expensive.map(|(b, tokens)| UnitRef {
             id: b.id.clone(),
             title: b.title.clone(),
             value: tokens,
         }),
-        most_retried_bean: most_retried.map(|(b, count)| BeanRef {
+        most_retried_unit: most_retried.map(|(b, count)| UnitRef {
             id: b.id.clone(),
             title: b.title.clone(),
             value: count as u64,
         }),
-        beans_with_history,
+        units_with_history,
     })
 }
 
@@ -213,8 +213,8 @@ pub fn stats(mana_dir: &Path) -> Result<StatsResult> {
         0.0
     };
 
-    let all_beans = load_all_beans(mana_dir);
-    let cost = aggregate_cost(&all_beans);
+    let all_units = load_all_units(mana_dir);
+    let cost = aggregate_cost(&all_units);
 
     Ok(StatsResult {
         total,
@@ -236,7 +236,7 @@ mod tests {
     use std::fs;
     use tempfile::TempDir;
 
-    fn setup_test_beans() -> (TempDir, std::path::PathBuf) {
+    fn setup_test_units() -> (TempDir, std::path::PathBuf) {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -259,7 +259,7 @@ mod tests {
 
     #[test]
     fn stats_computes_counts() {
-        let (_dir, mana_dir) = setup_test_beans();
+        let (_dir, mana_dir) = setup_test_units();
 
         let result = stats(&mana_dir).unwrap();
 

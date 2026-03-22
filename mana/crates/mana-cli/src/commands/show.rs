@@ -27,14 +27,14 @@ pub fn cmd_show(id: &str, json: bool, short: bool, history: bool, mana_dir: &Pat
         let json_str = serde_json::to_string_pretty(&unit)?;
         println!("{}", json_str);
     } else {
-        render_bean(&unit, history)?;
+        render_unit(&unit, history)?;
     }
 
     Ok(())
 }
 
 /// Render a unit beautifully with metadata header and formatted markdown body
-fn render_bean(unit: &Unit, show_all_history: bool) -> Result<()> {
+fn render_unit(unit: &Unit, show_all_history: bool) -> Result<()> {
     let skin = MadSkin::default();
 
     // Print metadata header
@@ -340,8 +340,8 @@ mod tests {
 
         let unit = Unit::new("1", "Test unit");
         let slug = title_to_slug(&unit.title);
-        let bean_path = mana_dir.join(format!("1-{}.md", slug));
-        unit.to_file(&bean_path).unwrap();
+        let unit_path = mana_dir.join(format!("1-{}.md", slug));
+        unit.to_file(&unit_path).unwrap();
 
         let result = cmd_show("1", false, false, false, &mana_dir);
         assert!(result.is_ok());
@@ -355,8 +355,8 @@ mod tests {
 
         let unit = Unit::new("1", "Test unit");
         let slug = title_to_slug(&unit.title);
-        let bean_path = mana_dir.join(format!("1-{}.md", slug));
-        unit.to_file(&bean_path).unwrap();
+        let unit_path = mana_dir.join(format!("1-{}.md", slug));
+        unit.to_file(&unit_path).unwrap();
 
         let result = cmd_show("1", true, false, false, &mana_dir);
         assert!(result.is_ok());
@@ -370,8 +370,8 @@ mod tests {
 
         let unit = Unit::new("1", "Test unit");
         let slug = title_to_slug(&unit.title);
-        let bean_path = mana_dir.join(format!("1-{}.md", slug));
-        unit.to_file(&bean_path).unwrap();
+        let unit_path = mana_dir.join(format!("1-{}.md", slug));
+        unit.to_file(&unit_path).unwrap();
 
         let result = cmd_show("1", false, true, false, &mana_dir);
         assert!(result.is_ok());
@@ -419,7 +419,7 @@ mod tests {
     }
 
     #[test]
-    fn render_bean_with_description() {
+    fn render_unit_with_description() {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         std::fs::create_dir(&mana_dir).unwrap();
@@ -427,8 +427,8 @@ mod tests {
         let mut unit = Unit::new("1", "Test unit");
         unit.description = Some("# Description\n\nThis is test markdown.".to_string());
         let slug = title_to_slug(&unit.title);
-        let bean_path = mana_dir.join(format!("1-{}.md", slug));
-        unit.to_file(&bean_path).unwrap();
+        let unit_path = mana_dir.join(format!("1-{}.md", slug));
+        unit.to_file(&unit_path).unwrap();
 
         let result = cmd_show("1", false, false, false, &mana_dir);
         assert!(result.is_ok());
@@ -442,8 +442,8 @@ mod tests {
 
         let unit = Unit::new("11.1", "Hierarchical unit");
         let slug = title_to_slug(&unit.title);
-        let bean_path = mana_dir.join(format!("11.1-{}.md", slug));
-        unit.to_file(&bean_path).unwrap();
+        let unit_path = mana_dir.join(format!("11.1-{}.md", slug));
+        unit.to_file(&unit_path).unwrap();
 
         let result = cmd_show("11.1", false, false, false, &mana_dir);
         assert!(result.is_ok());
@@ -697,8 +697,8 @@ mod tests {
             make_record(2, RunResult::Pass, 3.0, "pi-test", 0, 2000, 0.01),
         ];
         let slug = title_to_slug(&unit.title);
-        let bean_path = mana_dir.join(format!("1-{}.md", slug));
-        unit.to_file(&bean_path).unwrap();
+        let unit_path = mana_dir.join(format!("1-{}.md", slug));
+        unit.to_file(&unit_path).unwrap();
 
         // Without --history flag (still shows, just limited to 10)
         let result = cmd_show("1", false, false, false, &mana_dir);
@@ -716,8 +716,8 @@ mod tests {
     #[test]
     fn outputs_not_shown_when_none() {
         let unit = Unit::new("1", "No outputs");
-        // render_bean prints to stdout; just verify it doesn't panic
-        let result = render_bean(&unit, false);
+        // render_unit prints to stdout; just verify it doesn't panic
+        let result = render_unit(&unit, false);
         assert!(result.is_ok());
     }
 
@@ -733,8 +733,8 @@ mod tests {
             "files": ["a.rs", "b.rs"]
         }));
         let slug = title_to_slug(&unit.title);
-        let bean_path = mana_dir.join(format!("1-{}.md", slug));
-        unit.to_file(&bean_path).unwrap();
+        let unit_path = mana_dir.join(format!("1-{}.md", slug));
+        unit.to_file(&unit_path).unwrap();
 
         let result = cmd_show("1", false, false, false, &mana_dir);
         assert!(result.is_ok());
@@ -757,8 +757,8 @@ mod tests {
 
         let mut unit = Unit::new("1", "Big outputs");
         unit.outputs = Some(big_obj);
-        // Just verify render_bean doesn't panic and works
-        let result = render_bean(&unit, false);
+        // Just verify render_unit doesn't panic and works
+        let result = render_unit(&unit, false);
         assert!(result.is_ok());
     }
 }

@@ -3,7 +3,7 @@ use std::path::Path;
 use anyhow::{anyhow, Result};
 use mana_core::ops::fact;
 
-/// Create a verified fact (convenience wrapper around create with bean_type=fact).
+/// Create a verified fact (convenience wrapper around create with unit_type=fact).
 ///
 /// Facts require a verify command — that's the point. If you can't write a
 /// verify command, the knowledge belongs in agents.md, not in `mana fact`.
@@ -35,13 +35,13 @@ pub fn cmd_fact(
         },
     )?;
 
-    eprintln!("Created fact {}: {}", result.bean_id, result.unit.title);
-    Ok(result.bean_id)
+    eprintln!("Created fact {}: {}", result.unit_id, result.unit.title);
+    Ok(result.unit_id)
 }
 
 /// Verify all facts and report staleness.
 ///
-/// Re-runs verify commands for all units with bean_type=fact.
+/// Re-runs verify commands for all units with unit_type=fact.
 /// Reports which facts are stale (past their stale_after date)
 /// and which have failing verify commands.
 ///
@@ -104,7 +104,7 @@ mod tests {
     use crate::unit::Unit;
     use tempfile::TempDir;
 
-    fn setup_beans_dir_with_config() -> (TempDir, std::path::PathBuf) {
+    fn setup_mana_dir_with_config() -> (TempDir, std::path::PathBuf) {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -144,8 +144,8 @@ mod tests {
     }
 
     #[test]
-    fn create_fact_sets_bean_type() {
-        let (_dir, mana_dir) = setup_beans_dir_with_config();
+    fn create_fact_sets_unit_type() {
+        let (_dir, mana_dir) = setup_mana_dir_with_config();
 
         let id = cmd_fact(
             &mana_dir,
@@ -158,10 +158,10 @@ mod tests {
         )
         .unwrap();
 
-        let bean_path = find_unit_file(&mana_dir, &id).unwrap();
-        let unit = Unit::from_file(&bean_path).unwrap();
+        let unit_path = find_unit_file(&mana_dir, &id).unwrap();
+        let unit = Unit::from_file(&unit_path).unwrap();
 
-        assert_eq!(unit.bean_type, "fact");
+        assert_eq!(unit.unit_type, "fact");
         assert!(unit.labels.contains(&"fact".to_string()));
         assert!(unit.stale_after.is_some());
         assert!(unit.verify.is_some());
@@ -169,7 +169,7 @@ mod tests {
 
     #[test]
     fn create_fact_with_paths() {
-        let (_dir, mana_dir) = setup_beans_dir_with_config();
+        let (_dir, mana_dir) = setup_mana_dir_with_config();
 
         let id = cmd_fact(
             &mana_dir,
@@ -182,15 +182,15 @@ mod tests {
         )
         .unwrap();
 
-        let bean_path = find_unit_file(&mana_dir, &id).unwrap();
-        let unit = Unit::from_file(&bean_path).unwrap();
+        let unit_path = find_unit_file(&mana_dir, &id).unwrap();
+        let unit = Unit::from_file(&unit_path).unwrap();
 
         assert_eq!(unit.paths, vec!["src/config.rs", "src/main.rs"]);
     }
 
     #[test]
     fn create_fact_with_custom_ttl() {
-        let (_dir, mana_dir) = setup_beans_dir_with_config();
+        let (_dir, mana_dir) = setup_mana_dir_with_config();
 
         let id = cmd_fact(
             &mana_dir,
@@ -203,8 +203,8 @@ mod tests {
         )
         .unwrap();
 
-        let bean_path = find_unit_file(&mana_dir, &id).unwrap();
-        let unit = Unit::from_file(&bean_path).unwrap();
+        let unit_path = find_unit_file(&mana_dir, &id).unwrap();
+        let unit = Unit::from_file(&unit_path).unwrap();
 
         // stale_after should be ~7 days from now
         let stale = unit.stale_after.unwrap();
@@ -214,7 +214,7 @@ mod tests {
 
     #[test]
     fn create_fact_requires_verify() {
-        let (_dir, mana_dir) = setup_beans_dir_with_config();
+        let (_dir, mana_dir) = setup_mana_dir_with_config();
 
         let result = cmd_fact(
             &mana_dir,

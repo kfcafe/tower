@@ -56,14 +56,14 @@ mod tests {
     use std::fs;
     use tempfile::TempDir;
 
-    fn setup_test_beans_dir() -> (TempDir, std::path::PathBuf) {
+    fn setup_test_mana_dir() -> (TempDir, std::path::PathBuf) {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
         (dir, mana_dir)
     }
 
-    fn create_bean(mana_dir: &Path, unit: &Unit) {
+    fn create_unit(mana_dir: &Path, unit: &Unit) {
         let slug = title_to_slug(&unit.title);
         let filename = format!("{}-{}.md", unit.id, slug);
         unit.to_file(mana_dir.join(filename)).unwrap();
@@ -71,11 +71,11 @@ mod tests {
 
     #[test]
     fn test_dep_add_simple() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
-        let bean1 = Unit::new("1", "Task 1");
-        let bean2 = Unit::new("2", "Task 2");
-        create_bean(&mana_dir, &bean1);
-        create_bean(&mana_dir, &bean2);
+        let (_dir, mana_dir) = setup_test_mana_dir();
+        let unit1 = Unit::new("1", "Task 1");
+        let unit2 = Unit::new("2", "Task 2");
+        create_unit(&mana_dir, &unit1);
+        create_unit(&mana_dir, &unit2);
 
         cmd_dep_add(&mana_dir, "1", "2").unwrap();
 
@@ -85,9 +85,9 @@ mod tests {
 
     #[test]
     fn test_dep_add_self_dependency_rejected() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
-        let bean1 = Unit::new("1", "Task 1");
-        create_bean(&mana_dir, &bean1);
+        let (_dir, mana_dir) = setup_test_mana_dir();
+        let unit1 = Unit::new("1", "Task 1");
+        create_unit(&mana_dir, &unit1);
 
         let result = cmd_dep_add(&mana_dir, "1", "1");
         assert!(result.is_err());
@@ -95,10 +95,10 @@ mod tests {
     }
 
     #[test]
-    fn test_dep_add_nonexistent_bean() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
-        let bean1 = Unit::new("1", "Task 1");
-        create_bean(&mana_dir, &bean1);
+    fn test_dep_add_nonexistent_unit() {
+        let (_dir, mana_dir) = setup_test_mana_dir();
+        let unit1 = Unit::new("1", "Task 1");
+        create_unit(&mana_dir, &unit1);
 
         let result = cmd_dep_add(&mana_dir, "1", "999");
         assert!(result.is_err());
@@ -106,12 +106,12 @@ mod tests {
 
     #[test]
     fn test_dep_add_cycle_detection() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
-        let mut bean1 = Unit::new("1", "Task 1");
-        let bean2 = Unit::new("2", "Task 2");
-        bean1.dependencies = vec!["2".to_string()];
-        create_bean(&mana_dir, &bean1);
-        create_bean(&mana_dir, &bean2);
+        let (_dir, mana_dir) = setup_test_mana_dir();
+        let mut unit1 = Unit::new("1", "Task 1");
+        let unit2 = Unit::new("2", "Task 2");
+        unit1.dependencies = vec!["2".to_string()];
+        create_unit(&mana_dir, &unit1);
+        create_unit(&mana_dir, &unit2);
 
         Index::build(&mana_dir).unwrap().save(&mana_dir).unwrap();
 
@@ -122,12 +122,12 @@ mod tests {
 
     #[test]
     fn test_dep_remove() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
-        let mut bean1 = Unit::new("1", "Task 1");
-        let bean2 = Unit::new("2", "Task 2");
-        bean1.dependencies = vec!["2".to_string()];
-        create_bean(&mana_dir, &bean1);
-        create_bean(&mana_dir, &bean2);
+        let (_dir, mana_dir) = setup_test_mana_dir();
+        let mut unit1 = Unit::new("1", "Task 1");
+        let unit2 = Unit::new("2", "Task 2");
+        unit1.dependencies = vec!["2".to_string()];
+        create_unit(&mana_dir, &unit1);
+        create_unit(&mana_dir, &unit2);
 
         cmd_dep_remove(&mana_dir, "1", "2").unwrap();
 
@@ -137,9 +137,9 @@ mod tests {
 
     #[test]
     fn test_dep_remove_not_found() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
-        let bean1 = Unit::new("1", "Task 1");
-        create_bean(&mana_dir, &bean1);
+        let (_dir, mana_dir) = setup_test_mana_dir();
+        let unit1 = Unit::new("1", "Task 1");
+        create_unit(&mana_dir, &unit1);
 
         let result = cmd_dep_remove(&mana_dir, "1", "2");
         assert!(result.is_err());
@@ -147,15 +147,15 @@ mod tests {
 
     #[test]
     fn test_dep_list_with_dependencies() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
-        let mut bean1 = Unit::new("1", "Task 1");
-        let bean2 = Unit::new("2", "Task 2");
-        let mut bean3 = Unit::new("3", "Task 3");
-        bean1.dependencies = vec!["2".to_string()];
-        bean3.dependencies = vec!["1".to_string()];
-        create_bean(&mana_dir, &bean1);
-        create_bean(&mana_dir, &bean2);
-        create_bean(&mana_dir, &bean3);
+        let (_dir, mana_dir) = setup_test_mana_dir();
+        let mut unit1 = Unit::new("1", "Task 1");
+        let unit2 = Unit::new("2", "Task 2");
+        let mut unit3 = Unit::new("3", "Task 3");
+        unit1.dependencies = vec!["2".to_string()];
+        unit3.dependencies = vec!["1".to_string()];
+        create_unit(&mana_dir, &unit1);
+        create_unit(&mana_dir, &unit2);
+        create_unit(&mana_dir, &unit3);
 
         let result = cmd_dep_list(&mana_dir, "1");
         assert!(result.is_ok());
@@ -163,12 +163,12 @@ mod tests {
 
     #[test]
     fn test_dep_add_duplicate_rejected() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
-        let mut bean1 = Unit::new("1", "Task 1");
-        let bean2 = Unit::new("2", "Task 2");
-        bean1.dependencies = vec!["2".to_string()];
-        create_bean(&mana_dir, &bean1);
-        create_bean(&mana_dir, &bean2);
+        let (_dir, mana_dir) = setup_test_mana_dir();
+        let mut unit1 = Unit::new("1", "Task 1");
+        let unit2 = Unit::new("2", "Task 2");
+        unit1.dependencies = vec!["2".to_string()];
+        create_unit(&mana_dir, &unit1);
+        create_unit(&mana_dir, &unit2);
 
         let result = cmd_dep_add(&mana_dir, "1", "2");
         assert!(result.is_err());

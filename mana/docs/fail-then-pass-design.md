@@ -44,7 +44,7 @@ pass_ok: bool,
 
 if !args.pass_ok {
     if let Some(verify_cmd) = args.verify.as_ref() {
-        let project_root = beans_dir.parent()
+        let project_root = mana_dir.parent()
             .ok_or_else(|| anyhow!("Cannot determine project root"))?;
         
         println!("Running verify (must fail): {}", verify_cmd);

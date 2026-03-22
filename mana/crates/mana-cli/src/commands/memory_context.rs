@@ -42,12 +42,12 @@ pub fn cmd_memory_context(mana_dir: &Path, json: bool) -> Result<()> {
             continue;
         }
 
-        let bean_path = match find_unit_file(mana_dir, &entry.id) {
+        let unit_path = match find_unit_file(mana_dir, &entry.id) {
             Ok(p) => p,
             Err(_) => continue,
         };
 
-        let unit = match Unit::from_file(&bean_path) {
+        let unit = match Unit::from_file(&unit_path) {
             Ok(b) => b,
             Err(_) => continue,
         };
@@ -93,19 +93,19 @@ pub fn cmd_memory_context(mana_dir: &Path, json: bool) -> Result<()> {
 
     // Check all facts for staleness
     for entry in index.units.iter().chain(archived.iter()) {
-        let bean_path = match find_unit_file(mana_dir, &entry.id)
+        let unit_path = match find_unit_file(mana_dir, &entry.id)
             .or_else(|_| find_archived_unit(mana_dir, &entry.id))
         {
             Ok(p) => p,
             Err(_) => continue,
         };
 
-        let unit = match Unit::from_file(&bean_path) {
+        let unit = match Unit::from_file(&unit_path) {
             Ok(b) => b,
             Err(_) => continue,
         };
 
-        if unit.bean_type != "fact" {
+        if unit.unit_type != "fact" {
             continue;
         }
 
@@ -127,19 +127,19 @@ pub fn cmd_memory_context(mana_dir: &Path, json: bool) -> Result<()> {
     let mut relevant_facts: Vec<(Unit, u32)> = Vec::new();
 
     for entry in index.units.iter().chain(archived.iter()) {
-        let bean_path = match find_unit_file(mana_dir, &entry.id)
+        let unit_path = match find_unit_file(mana_dir, &entry.id)
             .or_else(|_| find_archived_unit(mana_dir, &entry.id))
         {
             Ok(p) => p,
             Err(_) => continue,
         };
 
-        let unit = match Unit::from_file(&bean_path) {
+        let unit = match Unit::from_file(&unit_path) {
             Ok(b) => b,
             Err(_) => continue,
         };
 
-        if unit.bean_type != "fact" {
+        if unit.unit_type != "fact" {
             continue;
         }
 
@@ -162,17 +162,17 @@ pub fn cmd_memory_context(mana_dir: &Path, json: bool) -> Result<()> {
             continue;
         }
 
-        let bean_path = match find_archived_unit(mana_dir, &entry.id) {
+        let unit_path = match find_archived_unit(mana_dir, &entry.id) {
             Ok(p) => p,
             Err(_) => continue,
         };
 
-        let unit = match Unit::from_file(&bean_path) {
+        let unit = match Unit::from_file(&unit_path) {
             Ok(b) => b,
             Err(_) => continue,
         };
 
-        if unit.bean_type == "fact" {
+        if unit.unit_type == "fact" {
             continue; // facts shown separately
         }
 
@@ -232,7 +232,7 @@ pub fn cmd_memory_context(mana_dir: &Path, json: bool) -> Result<()> {
     #[allow(unused_assignments)]
     let mut chars_used = 0;
 
-    output.push_str("═══ BEANS CONTEXT ═══════════════════════════════════════════\n\n");
+    output.push_str("═══ UNITS CONTEXT ═══════════════════════════════════════════\n\n");
 
     // Warnings (never truncated)
     if !warnings.is_empty() {
@@ -329,7 +329,7 @@ mod tests {
     use std::fs;
     use tempfile::TempDir;
 
-    fn setup_beans_dir_with_config() -> (TempDir, std::path::PathBuf) {
+    fn setup_mana_dir_with_config() -> (TempDir, std::path::PathBuf) {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -370,7 +370,7 @@ mod tests {
 
     #[test]
     fn memory_context_empty() {
-        let (_dir, mana_dir) = setup_beans_dir_with_config();
+        let (_dir, mana_dir) = setup_mana_dir_with_config();
 
         // Should not error with no units
         let result = cmd_memory_context(&mana_dir, false);
@@ -378,8 +378,8 @@ mod tests {
     }
 
     #[test]
-    fn memory_context_shows_claimed_beans() {
-        let (_dir, mana_dir) = setup_beans_dir_with_config();
+    fn memory_context_shows_claimed_units() {
+        let (_dir, mana_dir) = setup_mana_dir_with_config();
 
         // Create a claimed unit
         let mut unit = Unit::new("1", "Working on auth");
@@ -396,11 +396,11 @@ mod tests {
 
     #[test]
     fn memory_context_shows_stale_facts() {
-        let (_dir, mana_dir) = setup_beans_dir_with_config();
+        let (_dir, mana_dir) = setup_mana_dir_with_config();
 
         // Create a stale fact
         let mut unit = Unit::new("1", "Auth uses RS256");
-        unit.bean_type = "fact".to_string();
+        unit.unit_type = "fact".to_string();
         unit.stale_after = Some(Utc::now() - Duration::days(5)); // 5 days past stale
         unit.verify = Some("true".to_string());
         let slug = crate::util::title_to_slug(&unit.title);
@@ -413,7 +413,7 @@ mod tests {
 
     #[test]
     fn memory_context_json_output() {
-        let (_dir, mana_dir) = setup_beans_dir_with_config();
+        let (_dir, mana_dir) = setup_mana_dir_with_config();
 
         let result = cmd_memory_context(&mana_dir, true);
         assert!(result.is_ok());

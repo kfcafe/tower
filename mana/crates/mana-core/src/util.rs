@@ -17,7 +17,7 @@ use std::str::FromStr;
 /// - "task_v1.0" ✓ (valid)
 /// - "../etc/passwd" ✗ (invalid)
 /// - "task/../escape" ✗ (invalid)
-pub fn validate_bean_id(id: &str) -> Result<()> {
+pub fn validate_unit_id(id: &str) -> Result<()> {
     if id.is_empty() {
         return Err(anyhow::anyhow!("Unit ID cannot be empty"));
     }
@@ -603,99 +603,99 @@ mod tests {
         assert!("".parse::<Status>().is_err());
     }
 
-    // ---------- validate_bean_id tests ----------
+    // ---------- validate_unit_id tests ----------
 
     #[test]
-    fn validate_bean_id_simple_numeric() {
-        assert!(validate_bean_id("1").is_ok());
-        assert!(validate_bean_id("42").is_ok());
-        assert!(validate_bean_id("999").is_ok());
+    fn validate_unit_id_simple_numeric() {
+        assert!(validate_unit_id("1").is_ok());
+        assert!(validate_unit_id("42").is_ok());
+        assert!(validate_unit_id("999").is_ok());
     }
 
     #[test]
-    fn validate_bean_id_dotted() {
-        assert!(validate_bean_id("3.1").is_ok());
-        assert!(validate_bean_id("3.2.1").is_ok());
-        assert!(validate_bean_id("1.2.3.4.5").is_ok());
+    fn validate_unit_id_dotted() {
+        assert!(validate_unit_id("3.1").is_ok());
+        assert!(validate_unit_id("3.2.1").is_ok());
+        assert!(validate_unit_id("1.2.3.4.5").is_ok());
     }
 
     #[test]
-    fn validate_bean_id_with_underscores() {
-        assert!(validate_bean_id("task_1").is_ok());
-        assert!(validate_bean_id("my_task_v1").is_ok());
+    fn validate_unit_id_with_underscores() {
+        assert!(validate_unit_id("task_1").is_ok());
+        assert!(validate_unit_id("my_task_v1").is_ok());
     }
 
     #[test]
-    fn validate_bean_id_with_hyphens() {
-        assert!(validate_bean_id("my-task").is_ok());
-        assert!(validate_bean_id("task-v1-0").is_ok());
+    fn validate_unit_id_with_hyphens() {
+        assert!(validate_unit_id("my-task").is_ok());
+        assert!(validate_unit_id("task-v1-0").is_ok());
     }
 
     #[test]
-    fn validate_bean_id_alphanumeric() {
-        assert!(validate_bean_id("abc123def").is_ok());
-        assert!(validate_bean_id("Task1").is_ok());
+    fn validate_unit_id_alphanumeric() {
+        assert!(validate_unit_id("abc123def").is_ok());
+        assert!(validate_unit_id("Task1").is_ok());
     }
 
     #[test]
-    fn validate_bean_id_empty_fails() {
-        assert!(validate_bean_id("").is_err());
+    fn validate_unit_id_empty_fails() {
+        assert!(validate_unit_id("").is_err());
     }
 
     #[test]
-    fn validate_bean_id_path_traversal_fails() {
-        assert!(validate_bean_id("../etc/passwd").is_err());
-        assert!(validate_bean_id("..").is_err());
-        assert!(validate_bean_id("foo/../bar").is_err());
-        assert!(validate_bean_id("task..escape").is_err());
+    fn validate_unit_id_path_traversal_fails() {
+        assert!(validate_unit_id("../etc/passwd").is_err());
+        assert!(validate_unit_id("..").is_err());
+        assert!(validate_unit_id("foo/../bar").is_err());
+        assert!(validate_unit_id("task..escape").is_err());
     }
 
     #[test]
-    fn validate_bean_id_absolute_path_fails() {
-        assert!(validate_bean_id("/etc/passwd").is_err());
+    fn validate_unit_id_absolute_path_fails() {
+        assert!(validate_unit_id("/etc/passwd").is_err());
     }
 
     #[test]
-    fn validate_bean_id_spaces_fail() {
-        assert!(validate_bean_id("my task").is_err());
-        assert!(validate_bean_id(" 1").is_err());
-        assert!(validate_bean_id("1 ").is_err());
+    fn validate_unit_id_spaces_fail() {
+        assert!(validate_unit_id("my task").is_err());
+        assert!(validate_unit_id(" 1").is_err());
+        assert!(validate_unit_id("1 ").is_err());
     }
 
     #[test]
-    fn validate_bean_id_special_chars_fail() {
-        assert!(validate_bean_id("task@home").is_err());
-        assert!(validate_bean_id("task#1").is_err());
-        assert!(validate_bean_id("task$money").is_err());
-        assert!(validate_bean_id("task%complete").is_err());
-        assert!(validate_bean_id("task&friend").is_err());
-        assert!(validate_bean_id("task*star").is_err());
-        assert!(validate_bean_id("task(paren").is_err());
-        assert!(validate_bean_id("task)close").is_err());
-        assert!(validate_bean_id("task+plus").is_err());
-        assert!(validate_bean_id("task=equals").is_err());
-        assert!(validate_bean_id("task[bracket").is_err());
-        assert!(validate_bean_id("task]close").is_err());
-        assert!(validate_bean_id("task{brace").is_err());
-        assert!(validate_bean_id("task}close").is_err());
-        assert!(validate_bean_id("task|pipe").is_err());
-        assert!(validate_bean_id("task;semicolon").is_err());
-        assert!(validate_bean_id("task:colon").is_err());
-        assert!(validate_bean_id("task\"quote").is_err());
-        assert!(validate_bean_id("task'apostrophe").is_err());
-        assert!(validate_bean_id("task<less").is_err());
-        assert!(validate_bean_id("task>greater").is_err());
-        assert!(validate_bean_id("task,comma").is_err());
-        assert!(validate_bean_id("task?question").is_err());
+    fn validate_unit_id_special_chars_fail() {
+        assert!(validate_unit_id("task@home").is_err());
+        assert!(validate_unit_id("task#1").is_err());
+        assert!(validate_unit_id("task$money").is_err());
+        assert!(validate_unit_id("task%complete").is_err());
+        assert!(validate_unit_id("task&friend").is_err());
+        assert!(validate_unit_id("task*star").is_err());
+        assert!(validate_unit_id("task(paren").is_err());
+        assert!(validate_unit_id("task)close").is_err());
+        assert!(validate_unit_id("task+plus").is_err());
+        assert!(validate_unit_id("task=equals").is_err());
+        assert!(validate_unit_id("task[bracket").is_err());
+        assert!(validate_unit_id("task]close").is_err());
+        assert!(validate_unit_id("task{brace").is_err());
+        assert!(validate_unit_id("task}close").is_err());
+        assert!(validate_unit_id("task|pipe").is_err());
+        assert!(validate_unit_id("task;semicolon").is_err());
+        assert!(validate_unit_id("task:colon").is_err());
+        assert!(validate_unit_id("task\"quote").is_err());
+        assert!(validate_unit_id("task'apostrophe").is_err());
+        assert!(validate_unit_id("task<less").is_err());
+        assert!(validate_unit_id("task>greater").is_err());
+        assert!(validate_unit_id("task,comma").is_err());
+        assert!(validate_unit_id("task?question").is_err());
     }
 
     #[test]
-    fn validate_bean_id_too_long() {
+    fn validate_unit_id_too_long() {
         let long_id = "a".repeat(256);
-        assert!(validate_bean_id(&long_id).is_err());
+        assert!(validate_unit_id(&long_id).is_err());
 
         let max_id = "a".repeat(255);
-        assert!(validate_bean_id(&max_id).is_ok());
+        assert!(validate_unit_id(&max_id).is_ok());
     }
 
     // ---------- atomic_write tests ----------

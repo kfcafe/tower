@@ -45,7 +45,7 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::util::{atomic_write, validate_bean_id};
+use crate::util::{atomic_write, validate_unit_id};
 
 pub mod types;
 pub use types::*;
@@ -185,10 +185,10 @@ pub struct Unit {
     // -- Memory system fields --
     /// Unit type: 'task' (default) or 'fact' (verified knowledge).
     #[serde(
-        default = "default_bean_type",
-        skip_serializing_if = "is_default_bean_type"
+        default = "default_unit_type",
+        skip_serializing_if = "is_default_unit_type"
     )]
-    pub bean_type: String,
+    pub unit_type: String,
 
     /// Unix timestamp of last successful verify (for staleness detection).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -246,11 +246,11 @@ fn is_false(v: &bool) -> bool {
     !*v
 }
 
-fn default_bean_type() -> String {
+fn default_unit_type() -> String {
     "task".to_string()
 }
 
-fn is_default_bean_type(v: &str) -> bool {
+fn is_default_unit_type(v: &str) -> bool {
     v == "task"
 }
 
@@ -259,7 +259,7 @@ impl Unit {
     /// Returns an error if the ID is invalid.
     pub fn try_new(id: impl Into<String>, title: impl Into<String>) -> Result<Self> {
         let id_str = id.into();
-        validate_bean_id(&id_str)?;
+        validate_unit_id(&id_str)?;
 
         let now = Utc::now();
         Ok(Self {
@@ -297,7 +297,7 @@ impl Unit {
             outputs: None,
             max_loops: None,
             verify_timeout: None,
-            bean_type: "task".to_string(),
+            unit_type: "task".to_string(),
             last_verified: None,
             stale_after: None,
             paths: Vec::new(),
@@ -431,9 +431,9 @@ impl Unit {
 
         if is_md {
             // Always write frontmatter format for .md files: ---\nYAML\n---\nbody
-            let mut frontmatter_bean = self.clone();
-            let description = frontmatter_bean.description.take(); // Remove from YAML
-            let yaml = serde_yml::to_string(&frontmatter_bean)?;
+            let mut frontmatter_unit = self.clone();
+            let description = frontmatter_unit.description.take(); // Remove from YAML
+            let yaml = serde_yml::to_string(&frontmatter_unit)?;
             let mut content = String::from("---\n");
             content.push_str(yaml.trim_start_matches("---\n").trim_end());
             content.push_str("\n---\n");
@@ -511,7 +511,7 @@ impl Unit {
             "on_fail" => self.on_fail = serde_json::from_str(json_value)?,
             "outputs" => self.outputs = serde_json::from_str(json_value)?,
             "max_loops" => self.max_loops = serde_json::from_str(json_value)?,
-            "bean_type" => self.bean_type = serde_json::from_str(json_value)?,
+            "unit_type" => self.unit_type = serde_json::from_str(json_value)?,
             "last_verified" => self.last_verified = serde_json::from_str(json_value)?,
             "stale_after" => self.stale_after = serde_json::from_str(json_value)?,
             "paths" => self.paths = serde_json::from_str(json_value)?,
@@ -534,7 +534,7 @@ mod tests {
     use tempfile::NamedTempFile;
 
     #[test]
-    fn round_trip_minimal_bean() {
+    fn round_trip_minimal_unit() {
         let unit = Unit::new("1", "My first unit");
 
         // Serialize
@@ -547,7 +547,7 @@ mod tests {
     }
 
     #[test]
-    fn round_trip_full_bean() {
+    fn round_trip_full_unit() {
         let now = Utc::now();
         let unit = Unit {
             id: "3.2.1".to_string(),
@@ -594,7 +594,7 @@ mod tests {
             history: Vec::new(),
             outputs: Some(serde_json::json!({"key": "value"})),
             max_loops: None,
-            bean_type: "task".to_string(),
+            unit_type: "task".to_string(),
             last_verified: None,
             stale_after: None,
             paths: Vec::new(),
@@ -933,10 +933,10 @@ This is a test of reading markdown from a file.
         );
 
         // Read back one more time to verify full round-trip
-        let bean2 = Unit::from_file(&path).unwrap();
-        assert_eq!(bean2.id, unit.id);
-        assert_eq!(bean2.title, unit.title);
-        assert_eq!(bean2.description, unit.description);
+        let unit2 = Unit::from_file(&path).unwrap();
+        assert_eq!(unit2.id, unit.id);
+        assert_eq!(unit2.title, unit.title);
+        assert_eq!(unit2.description, unit.description);
     }
 
     #[test]
@@ -1015,19 +1015,19 @@ This should not override.
 
     #[test]
     fn test_hash_consistency() {
-        let bean1 = Unit::new("1", "Test unit");
-        let bean2 = bean1.clone();
+        let unit1 = Unit::new("1", "Test unit");
+        let unit2 = unit1.clone();
         // Same content produces same hash
-        assert_eq!(bean1.hash(), bean2.hash());
+        assert_eq!(unit1.hash(), unit2.hash());
         // Hash is deterministic
-        assert_eq!(bean1.hash(), bean1.hash());
+        assert_eq!(unit1.hash(), unit1.hash());
     }
 
     #[test]
     fn test_hash_changes_with_content() {
-        let bean1 = Unit::new("1", "Test unit");
-        let bean2 = Unit::new("1", "Different title");
-        assert_ne!(bean1.hash(), bean2.hash());
+        let unit1 = Unit::new("1", "Test unit");
+        let unit2 = Unit::new("1", "Different title");
+        assert_ne!(unit1.hash(), unit2.hash());
     }
 
     #[test]
@@ -1457,7 +1457,7 @@ on_fail:
     }
 
     #[test]
-    fn max_loops_effective_returns_bean_value_when_set() {
+    fn max_loops_effective_returns_unit_value_when_set() {
         let mut unit = Unit::new("1", "Override");
         unit.max_loops = Some(20);
         assert_eq!(unit.effective_max_loops(10), 20);
@@ -1477,8 +1477,8 @@ on_fail:
         assert_eq!(unit.effective_max_loops(10), 0);
 
         // Config-level zero also works
-        let bean2 = Unit::new("2", "Config unlimited");
-        assert_eq!(bean2.effective_max_loops(0), 0);
+        let unit2 = Unit::new("2", "Config unlimited");
+        assert_eq!(unit2.effective_max_loops(0), 0);
     }
 
     #[test]

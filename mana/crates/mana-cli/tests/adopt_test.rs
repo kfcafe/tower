@@ -52,7 +52,7 @@ fn setup_test_env() -> (TempDir, std::path::PathBuf) {
 }
 
 /// Helper to create a unit with standard fields.
-fn create_bean(mana_dir: &std::path::Path, id: &str, title: &str, is_parent: bool) {
+fn create_unit(mana_dir: &std::path::Path, id: &str, title: &str, is_parent: bool) {
     let mut unit = Unit::new(id, title);
     let slug = title.to_lowercase().replace(' ', "-");
     unit.slug = Some(slug.clone());
@@ -72,8 +72,8 @@ fn test_adopt_basic_single() {
     let (_dir, mana_dir) = setup_test_env();
 
     // Create parent (100) and child to adopt (101)
-    create_bean(&mana_dir, "100", "Parent Task", true);
-    create_bean(&mana_dir, "101", "Child Task", false);
+    create_unit(&mana_dir, "100", "Parent Task", true);
+    create_unit(&mana_dir, "101", "Child Task", false);
 
     // Adopt: 101 should become 100.1
     let result = cmd_adopt(&mana_dir, "100", &["101".to_string()]).unwrap();
@@ -99,10 +99,10 @@ fn test_adopt_multiple_children() {
     let (_dir, mana_dir) = setup_test_env();
 
     // Create parent (100) and three children to adopt (101, 102, 103)
-    create_bean(&mana_dir, "100", "Parent", true);
-    create_bean(&mana_dir, "101", "First", false);
-    create_bean(&mana_dir, "102", "Second", false);
-    create_bean(&mana_dir, "103", "Third", false);
+    create_unit(&mana_dir, "100", "Parent", true);
+    create_unit(&mana_dir, "101", "First", false);
+    create_unit(&mana_dir, "102", "Second", false);
+    create_unit(&mana_dir, "103", "Third", false);
 
     // Adopt all three: they should become 100.1, 100.2, 100.3
     let result = cmd_adopt(
@@ -132,7 +132,7 @@ fn test_adopt_multiple_children() {
 fn test_adopt_files_renamed_correctly() {
     let (_dir, mana_dir) = setup_test_env();
 
-    create_bean(&mana_dir, "100", "Parent", true);
+    create_unit(&mana_dir, "100", "Parent", true);
 
     // Create a unit with a specific slug
     let mut unit = Unit::new("101", "My Complex Task Name");
@@ -157,10 +157,10 @@ fn test_adopt_updates_dependency_references() {
     let (_dir, mana_dir) = setup_test_env();
 
     // Create parent
-    create_bean(&mana_dir, "100", "Parent", true);
+    create_unit(&mana_dir, "100", "Parent", true);
 
     // Create unit to adopt (101)
-    create_bean(&mana_dir, "101", "Task A", false);
+    create_unit(&mana_dir, "101", "Task A", false);
 
     // Create unit that depends on 101
     let mut dependent = Unit::new("102", "Task B");
@@ -181,8 +181,8 @@ fn test_adopt_updates_dependency_references() {
 fn test_adopt_updates_index() {
     let (_dir, mana_dir) = setup_test_env();
 
-    create_bean(&mana_dir, "100", "Parent", true);
-    create_bean(&mana_dir, "101", "Child", false);
+    create_unit(&mana_dir, "100", "Parent", true);
+    create_unit(&mana_dir, "101", "Child", false);
 
     cmd_adopt(&mana_dir, "100", &["101".to_string()]).unwrap();
 
@@ -206,7 +206,7 @@ fn test_adopt_error_missing_parent() {
     let (_dir, mana_dir) = setup_test_env();
 
     // Only create the child, no parent
-    create_bean(&mana_dir, "101", "Orphan", false);
+    create_unit(&mana_dir, "101", "Orphan", false);
 
     // Try to adopt under non-existent parent
     let result = cmd_adopt(&mana_dir, "999", &["101".to_string()]);
@@ -225,7 +225,7 @@ fn test_adopt_error_missing_child() {
     let (_dir, mana_dir) = setup_test_env();
 
     // Only create the parent, no child
-    create_bean(&mana_dir, "100", "Parent", true);
+    create_unit(&mana_dir, "100", "Parent", true);
 
     // Try to adopt non-existent child
     let result = cmd_adopt(&mana_dir, "100", &["999".to_string()]);
@@ -244,7 +244,7 @@ fn test_adopt_continues_numbering_after_existing_children() {
     let (_dir, mana_dir) = setup_test_env();
 
     // Create parent with existing children
-    create_bean(&mana_dir, "100", "Parent", true);
+    create_unit(&mana_dir, "100", "Parent", true);
 
     let mut child1 = Unit::new("100.1", "Existing Child 1");
     child1.slug = Some("existing-child-1".to_string());
@@ -263,7 +263,7 @@ fn test_adopt_continues_numbering_after_existing_children() {
         .unwrap();
 
     // Create new unit to adopt
-    create_bean(&mana_dir, "103", "New Child", false);
+    create_unit(&mana_dir, "103", "New Child", false);
 
     // Adopt - should become 100.3, not 100.1
     let result = cmd_adopt(&mana_dir, "100", &["103".to_string()]).unwrap();
@@ -273,12 +273,12 @@ fn test_adopt_continues_numbering_after_existing_children() {
 }
 
 #[test]
-fn test_adopt_bean_already_has_parent() {
+fn test_adopt_unit_already_has_parent() {
     let (_dir, mana_dir) = setup_test_env();
 
     // Create two potential parent units
-    create_bean(&mana_dir, "100", "Parent A", true);
-    create_bean(&mana_dir, "200", "Parent B", true);
+    create_unit(&mana_dir, "100", "Parent A", true);
+    create_unit(&mana_dir, "200", "Parent B", true);
 
     // Create a child that already belongs to Parent A
     let mut child = Unit::new("100.1", "Existing Child");
@@ -305,10 +305,10 @@ fn test_adopt_bean_already_has_parent() {
 }
 
 #[test]
-fn test_adopt_preserves_bean_fields() {
+fn test_adopt_preserves_unit_fields() {
     let (_dir, mana_dir) = setup_test_env();
 
-    create_bean(&mana_dir, "100", "Parent", true);
+    create_unit(&mana_dir, "100", "Parent", true);
 
     // Create a unit with lots of fields
     let mut unit = Unit::new("101", "Complex Unit");

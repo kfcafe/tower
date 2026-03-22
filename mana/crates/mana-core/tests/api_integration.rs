@@ -643,7 +643,7 @@ fn fact_create_sets_correct_type_and_label() {
     )
     .unwrap();
 
-    assert_eq!(r.unit.bean_type, "fact");
+    assert_eq!(r.unit.unit_type, "fact");
     assert!(r.unit.labels.contains(&"fact".to_string()));
     assert!(r.unit.stale_after.is_some());
     assert!(r.unit.verify.is_some());

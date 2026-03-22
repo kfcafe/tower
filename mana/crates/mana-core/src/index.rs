@@ -76,7 +76,7 @@ pub struct IndexEntry {
     /// Whether this unit has a verify command (SPECs have verify, GOALs don't)
     #[serde(default)]
     pub has_verify: bool,
-    /// The actual verify command string (so agents don't need bn show per-bean)
+    /// The actual verify command string (so agents don't need bn show per-unit)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub verify: Option<String>,
     #[serde(default = "default_created_at")]
@@ -146,7 +146,7 @@ pub struct Index {
 const EXCLUDED_FILES: &[&str] = &["config.yaml", "index.yaml", "unit.yaml", "archive.yaml"];
 
 /// Check if a filename represents a unit file (not a config/index/template file).
-fn is_bean_filename(filename: &str) -> bool {
+fn is_unit_filename(filename: &str) -> bool {
     if EXCLUDED_FILES.contains(&filename) {
         return false;
     }
@@ -162,7 +162,7 @@ fn is_bean_filename(filename: &str) -> bool {
 
 /// Count unit files by format in the units directory.
 /// Returns (md_count, yaml_count) tuple.
-pub fn count_bean_formats(mana_dir: &Path) -> Result<(usize, usize)> {
+pub fn count_unit_formats(mana_dir: &Path) -> Result<(usize, usize)> {
     let mut md_count = 0;
     let mut yaml_count = 0;
 
@@ -178,7 +178,7 @@ pub fn count_bean_formats(mana_dir: &Path) -> Result<(usize, usize)> {
             .and_then(|n| n.to_str())
             .unwrap_or_default();
 
-        if !is_bean_filename(filename) {
+        if !is_unit_filename(filename) {
             continue;
         }
 
@@ -216,7 +216,7 @@ impl Index {
                 .and_then(|n| n.to_str())
                 .unwrap_or_default();
 
-            if !is_bean_filename(filename) {
+            if !is_unit_filename(filename) {
                 continue;
             }
 
@@ -279,7 +279,7 @@ impl Index {
                 .and_then(|n| n.to_str())
                 .unwrap_or_default();
 
-            if !is_bean_filename(filename) {
+            if !is_unit_filename(filename) {
                 continue;
             }
 
@@ -361,7 +361,7 @@ impl Index {
                 Self::walk_archive_dir(&path, entries)?;
             } else if path.is_file() {
                 if let Some(filename) = path.file_name().and_then(|n| n.to_str()) {
-                    if is_bean_filename(filename) {
+                    if is_unit_filename(filename) {
                         let path_clone = path.clone();
                         let result = std::panic::catch_unwind(|| Unit::from_file(&path_clone));
                         match result {
@@ -605,24 +605,24 @@ mod tests {
     use tempfile::TempDir;
 
     /// Helper: create a .mana directory with some unit YAML files.
-    fn setup_beans_dir() -> (TempDir, std::path::PathBuf) {
+    fn setup_mana_dir() -> (TempDir, std::path::PathBuf) {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
 
         // Create a few units
-        let bean1 = Unit::new("1", "First task");
-        let bean2 = Unit::new("2", "Second task");
-        let bean10 = Unit::new("10", "Tenth task");
-        let mut bean3_1 = Unit::new("3.1", "Subtask");
-        bean3_1.parent = Some("3".to_string());
-        bean3_1.labels = vec!["backend".to_string()];
-        bean3_1.dependencies = vec!["1".to_string()];
+        let unit1 = Unit::new("1", "First task");
+        let unit2 = Unit::new("2", "Second task");
+        let unit10 = Unit::new("10", "Tenth task");
+        let mut unit3_1 = Unit::new("3.1", "Subtask");
+        unit3_1.parent = Some("3".to_string());
+        unit3_1.labels = vec!["backend".to_string()];
+        unit3_1.dependencies = vec!["1".to_string()];
 
-        bean1.to_file(mana_dir.join("1.yaml")).unwrap();
-        bean2.to_file(mana_dir.join("2.yaml")).unwrap();
-        bean10.to_file(mana_dir.join("10.yaml")).unwrap();
-        bean3_1.to_file(mana_dir.join("3.1.yaml")).unwrap();
+        unit1.to_file(mana_dir.join("1.yaml")).unwrap();
+        unit2.to_file(mana_dir.join("2.yaml")).unwrap();
+        unit10.to_file(mana_dir.join("10.yaml")).unwrap();
+        unit3_1.to_file(mana_dir.join("3.1.yaml")).unwrap();
 
         // Create files that should be excluded
         fs::write(mana_dir.join("config.yaml"), "project: test\nnext_id: 11\n").unwrap();
@@ -663,8 +663,8 @@ mod tests {
     // -- build tests --
 
     #[test]
-    fn build_reads_all_beans_and_excludes_config() {
-        let (_dir, mana_dir) = setup_beans_dir();
+    fn build_reads_all_units_and_excludes_config() {
+        let (_dir, mana_dir) = setup_mana_dir();
         let index = Index::build(&mana_dir).unwrap();
 
         // Should have 4 units: 1, 2, 3.1, 10
@@ -677,7 +677,7 @@ mod tests {
 
     #[test]
     fn build_extracts_fields_correctly() {
-        let (_dir, mana_dir) = setup_beans_dir();
+        let (_dir, mana_dir) = setup_mana_dir();
         let index = Index::build(&mana_dir).unwrap();
 
         let entry = index.units.iter().find(|e| e.id == "3.1").unwrap();
@@ -690,8 +690,8 @@ mod tests {
     }
 
     #[test]
-    fn build_excludes_index_and_bean_yaml() {
-        let (_dir, mana_dir) = setup_beans_dir();
+    fn build_excludes_index_and_unit_yaml() {
+        let (_dir, mana_dir) = setup_mana_dir();
 
         // Create index.yaml and unit.yaml — these should be excluded
         fs::write(mana_dir.join("index.yaml"), "units: []\n").unwrap();
@@ -713,11 +713,11 @@ mod tests {
         fs::create_dir(&mana_dir).unwrap();
 
         // Create two units with the same ID in different files
-        let bean_a = Unit::new("99", "Unit A");
-        let bean_b = Unit::new("99", "Unit B");
+        let unit_a = Unit::new("99", "Unit A");
+        let unit_b = Unit::new("99", "Unit B");
 
-        bean_a.to_file(mana_dir.join("99-a.md")).unwrap();
-        bean_b.to_file(mana_dir.join("99-b.md")).unwrap();
+        unit_a.to_file(mana_dir.join("99-a.md")).unwrap();
+        unit_b.to_file(mana_dir.join("99-b.md")).unwrap();
 
         let result = Index::build(&mana_dir);
         assert!(result.is_err());
@@ -761,13 +761,13 @@ mod tests {
 
     #[test]
     fn is_stale_when_index_missing() {
-        let (_dir, mana_dir) = setup_beans_dir();
+        let (_dir, mana_dir) = setup_mana_dir();
         assert!(Index::is_stale(&mana_dir).unwrap());
     }
 
     #[test]
     fn is_stale_when_yaml_newer_than_index() {
-        let (_dir, mana_dir) = setup_beans_dir();
+        let (_dir, mana_dir) = setup_mana_dir();
 
         // Build and save the index first
         let index = Index::build(&mana_dir).unwrap();
@@ -785,7 +785,7 @@ mod tests {
 
     #[test]
     fn not_stale_when_index_is_fresh() {
-        let (_dir, mana_dir) = setup_beans_dir();
+        let (_dir, mana_dir) = setup_mana_dir();
 
         // Build and save
         let index = Index::build(&mana_dir).unwrap();
@@ -800,7 +800,7 @@ mod tests {
 
     #[test]
     fn load_or_rebuild_builds_when_no_index() {
-        let (_dir, mana_dir) = setup_beans_dir();
+        let (_dir, mana_dir) = setup_mana_dir();
 
         let index = Index::load_or_rebuild(&mana_dir).unwrap();
         assert_eq!(index.units.len(), 4);
@@ -811,7 +811,7 @@ mod tests {
 
     #[test]
     fn load_or_rebuild_loads_when_fresh() {
-        let (_dir, mana_dir) = setup_beans_dir();
+        let (_dir, mana_dir) = setup_mana_dir();
 
         // Build + save
         let original = Index::build(&mana_dir).unwrap();
@@ -826,7 +826,7 @@ mod tests {
 
     #[test]
     fn save_and_load_round_trip() {
-        let (_dir, mana_dir) = setup_beans_dir();
+        let (_dir, mana_dir) = setup_mana_dir();
 
         let index = Index::build(&mana_dir).unwrap();
         index.save(&mana_dir).unwrap();
@@ -851,7 +851,7 @@ mod tests {
 
     #[test]
     fn locked_index_acquire_and_save() {
-        let (_dir, mana_dir) = setup_beans_dir();
+        let (_dir, mana_dir) = setup_mana_dir();
 
         let mut locked = LockedIndex::acquire(&mana_dir).unwrap();
         assert_eq!(locked.index.units.len(), 4);
@@ -867,7 +867,7 @@ mod tests {
 
     #[test]
     fn locked_index_blocks_concurrent_access() {
-        let (_dir, mana_dir) = setup_beans_dir();
+        let (_dir, mana_dir) = setup_mana_dir();
 
         // First lock
         let _locked = LockedIndex::acquire(&mana_dir).unwrap();
@@ -885,7 +885,7 @@ mod tests {
 
     #[test]
     fn locked_index_released_on_drop() {
-        let (_dir, mana_dir) = setup_beans_dir();
+        let (_dir, mana_dir) = setup_mana_dir();
 
         {
             let _locked = LockedIndex::acquire(&mana_dir).unwrap();
@@ -899,7 +899,7 @@ mod tests {
 
     #[test]
     fn locked_index_creates_lock_file() {
-        let (_dir, mana_dir) = setup_beans_dir();
+        let (_dir, mana_dir) = setup_mana_dir();
 
         let _locked = LockedIndex::acquire(&mana_dir).unwrap();
         assert!(mana_dir.join("index.lock").exists());
@@ -909,7 +909,7 @@ mod tests {
 
     #[test]
     fn is_stale_ignores_non_yaml() {
-        let (_dir, mana_dir) = setup_beans_dir();
+        let (_dir, mana_dir) = setup_mana_dir();
 
         let index = Index::build(&mana_dir).unwrap();
         index.save(&mana_dir).unwrap();
@@ -929,7 +929,7 @@ mod archive_tests {
     use tempfile::TempDir;
 
     #[test]
-    fn collect_archived_finds_beans() {
+    fn collect_archived_finds_units() {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -967,60 +967,60 @@ mod format_count_tests {
     use tempfile::TempDir;
 
     #[test]
-    fn count_bean_formats_only_yaml() {
+    fn count_unit_formats_only_yaml() {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
 
         // Create only yaml files
-        let bean1 = crate::unit::Unit::new("1", "Task 1");
-        let bean2 = crate::unit::Unit::new("2", "Task 2");
-        bean1.to_file(mana_dir.join("1.yaml")).unwrap();
-        bean2.to_file(mana_dir.join("2.yaml")).unwrap();
+        let unit1 = crate::unit::Unit::new("1", "Task 1");
+        let unit2 = crate::unit::Unit::new("2", "Task 2");
+        unit1.to_file(mana_dir.join("1.yaml")).unwrap();
+        unit2.to_file(mana_dir.join("2.yaml")).unwrap();
 
-        let (md_count, yaml_count) = count_bean_formats(&mana_dir).unwrap();
+        let (md_count, yaml_count) = count_unit_formats(&mana_dir).unwrap();
         assert_eq!(md_count, 0);
         assert_eq!(yaml_count, 2);
     }
 
     #[test]
-    fn count_bean_formats_only_md() {
+    fn count_unit_formats_only_md() {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
 
         // Create only md files
-        let bean1 = crate::unit::Unit::new("1", "Task 1");
-        let bean2 = crate::unit::Unit::new("2", "Task 2");
-        bean1.to_file(mana_dir.join("1-task-1.md")).unwrap();
-        bean2.to_file(mana_dir.join("2-task-2.md")).unwrap();
+        let unit1 = crate::unit::Unit::new("1", "Task 1");
+        let unit2 = crate::unit::Unit::new("2", "Task 2");
+        unit1.to_file(mana_dir.join("1-task-1.md")).unwrap();
+        unit2.to_file(mana_dir.join("2-task-2.md")).unwrap();
 
-        let (md_count, yaml_count) = count_bean_formats(&mana_dir).unwrap();
+        let (md_count, yaml_count) = count_unit_formats(&mana_dir).unwrap();
         assert_eq!(md_count, 2);
         assert_eq!(yaml_count, 0);
     }
 
     #[test]
-    fn count_bean_formats_mixed() {
+    fn count_unit_formats_mixed() {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
 
         // Create mixed formats
-        let bean1 = crate::unit::Unit::new("1", "Task 1");
-        let bean2 = crate::unit::Unit::new("2", "Task 2");
-        let bean3 = crate::unit::Unit::new("3", "Task 3");
-        bean1.to_file(mana_dir.join("1.yaml")).unwrap();
-        bean2.to_file(mana_dir.join("2-task-2.md")).unwrap();
-        bean3.to_file(mana_dir.join("3-task-3.md")).unwrap();
+        let unit1 = crate::unit::Unit::new("1", "Task 1");
+        let unit2 = crate::unit::Unit::new("2", "Task 2");
+        let unit3 = crate::unit::Unit::new("3", "Task 3");
+        unit1.to_file(mana_dir.join("1.yaml")).unwrap();
+        unit2.to_file(mana_dir.join("2-task-2.md")).unwrap();
+        unit3.to_file(mana_dir.join("3-task-3.md")).unwrap();
 
-        let (md_count, yaml_count) = count_bean_formats(&mana_dir).unwrap();
+        let (md_count, yaml_count) = count_unit_formats(&mana_dir).unwrap();
         assert_eq!(md_count, 2);
         assert_eq!(yaml_count, 1);
     }
 
     #[test]
-    fn count_bean_formats_excludes_config_files() {
+    fn count_unit_formats_excludes_config_files() {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -1030,21 +1030,21 @@ mod format_count_tests {
         fs::write(mana_dir.join("index.yaml"), "units: []").unwrap();
 
         // Create one actual unit
-        let bean1 = crate::unit::Unit::new("1", "Task 1");
-        bean1.to_file(mana_dir.join("1-task-1.md")).unwrap();
+        let unit1 = crate::unit::Unit::new("1", "Task 1");
+        unit1.to_file(mana_dir.join("1-task-1.md")).unwrap();
 
-        let (md_count, yaml_count) = count_bean_formats(&mana_dir).unwrap();
+        let (md_count, yaml_count) = count_unit_formats(&mana_dir).unwrap();
         assert_eq!(md_count, 1);
         assert_eq!(yaml_count, 0); // config.yaml and index.yaml are excluded
     }
 
     #[test]
-    fn count_bean_formats_empty_dir() {
+    fn count_unit_formats_empty_dir() {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
 
-        let (md_count, yaml_count) = count_bean_formats(&mana_dir).unwrap();
+        let (md_count, yaml_count) = count_unit_formats(&mana_dir).unwrap();
         assert_eq!(md_count, 0);
         assert_eq!(yaml_count, 0);
     }
@@ -1055,7 +1055,7 @@ mod archive_index_tests {
     use super::*;
     use tempfile::TempDir;
 
-    fn setup_beans_dir_with_archive() -> (TempDir, std::path::PathBuf) {
+    fn setup_mana_dir_with_archive() -> (TempDir, std::path::PathBuf) {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -1063,17 +1063,17 @@ mod archive_index_tests {
         let archive_dir = mana_dir.join("archive").join("2026").join("03");
         fs::create_dir_all(&archive_dir).unwrap();
 
-        let mut bean1 = crate::unit::Unit::new("5", "Archived task five");
-        bean1.status = crate::unit::Status::Closed;
-        bean1.is_archived = true;
-        bean1
+        let mut unit1 = crate::unit::Unit::new("5", "Archived task five");
+        unit1.status = crate::unit::Status::Closed;
+        unit1.is_archived = true;
+        unit1
             .to_file(archive_dir.join("5-archived-task-five.md"))
             .unwrap();
 
-        let mut bean2 = crate::unit::Unit::new("3", "Archived task three");
-        bean2.status = crate::unit::Status::Closed;
-        bean2.is_archived = true;
-        bean2
+        let mut unit2 = crate::unit::Unit::new("3", "Archived task three");
+        unit2.status = crate::unit::Status::Closed;
+        unit2.is_archived = true;
+        unit2
             .to_file(archive_dir.join("3-archived-task-three.md"))
             .unwrap();
 
@@ -1082,7 +1082,7 @@ mod archive_index_tests {
 
     #[test]
     fn archive_index_build_from_archive_dir() {
-        let (_dir, mana_dir) = setup_beans_dir_with_archive();
+        let (_dir, mana_dir) = setup_mana_dir_with_archive();
         let archive = ArchiveIndex::build(&mana_dir).unwrap();
 
         assert_eq!(archive.units.len(), 2);
@@ -1105,7 +1105,7 @@ mod archive_index_tests {
 
     #[test]
     fn archive_index_save_load_roundtrip() {
-        let (_dir, mana_dir) = setup_beans_dir_with_archive();
+        let (_dir, mana_dir) = setup_mana_dir_with_archive();
         let original = ArchiveIndex::build(&mana_dir).unwrap();
         original.save(&mana_dir).unwrap();
 
@@ -1115,20 +1115,20 @@ mod archive_index_tests {
 
     #[test]
     fn archive_index_append_deduplicates() {
-        let (_dir, mana_dir) = setup_beans_dir_with_archive();
+        let (_dir, mana_dir) = setup_mana_dir_with_archive();
         let mut archive = ArchiveIndex::build(&mana_dir).unwrap();
         assert_eq!(archive.units.len(), 2);
 
         // Append a new entry
-        let mut new_bean = crate::unit::Unit::new("7", "New archived");
-        new_bean.status = crate::unit::Status::Closed;
-        archive.append(IndexEntry::from(&new_bean));
+        let mut new_unit = crate::unit::Unit::new("7", "New archived");
+        new_unit.status = crate::unit::Status::Closed;
+        archive.append(IndexEntry::from(&new_unit));
         assert_eq!(archive.units.len(), 3);
 
         // Append again with same ID — should replace, not duplicate
-        let mut updated_bean = crate::unit::Unit::new("7", "Updated title");
-        updated_bean.status = crate::unit::Status::Closed;
-        archive.append(IndexEntry::from(&updated_bean));
+        let mut updated_unit = crate::unit::Unit::new("7", "Updated title");
+        updated_unit.status = crate::unit::Status::Closed;
+        archive.append(IndexEntry::from(&updated_unit));
         assert_eq!(archive.units.len(), 3);
 
         let entry = archive.units.iter().find(|e| e.id == "7").unwrap();
@@ -1137,7 +1137,7 @@ mod archive_index_tests {
 
     #[test]
     fn archive_index_remove() {
-        let (_dir, mana_dir) = setup_beans_dir_with_archive();
+        let (_dir, mana_dir) = setup_mana_dir_with_archive();
         let mut archive = ArchiveIndex::build(&mana_dir).unwrap();
         assert_eq!(archive.units.len(), 2);
 
@@ -1152,7 +1152,7 @@ mod archive_index_tests {
 
     #[test]
     fn archive_index_is_stale_when_no_archive_yaml() {
-        let (_dir, mana_dir) = setup_beans_dir_with_archive();
+        let (_dir, mana_dir) = setup_mana_dir_with_archive();
         // Archive dir exists but archive.yaml doesn't
         assert!(ArchiveIndex::is_stale(&mana_dir).unwrap());
     }
@@ -1168,7 +1168,7 @@ mod archive_index_tests {
 
     #[test]
     fn archive_index_not_stale_after_build_and_save() {
-        let (_dir, mana_dir) = setup_beans_dir_with_archive();
+        let (_dir, mana_dir) = setup_mana_dir_with_archive();
         let archive = ArchiveIndex::build(&mana_dir).unwrap();
         archive.save(&mana_dir).unwrap();
         assert!(!ArchiveIndex::is_stale(&mana_dir).unwrap());
@@ -1176,24 +1176,24 @@ mod archive_index_tests {
 
     #[test]
     fn archive_index_stale_when_file_newer() {
-        let (_dir, mana_dir) = setup_beans_dir_with_archive();
+        let (_dir, mana_dir) = setup_mana_dir_with_archive();
         let archive = ArchiveIndex::build(&mana_dir).unwrap();
         archive.save(&mana_dir).unwrap();
 
         // Wait and add a new file to the archive
         std::thread::sleep(std::time::Duration::from_millis(50));
         let archive_dir = mana_dir.join("archive").join("2026").join("03");
-        let mut new_bean = crate::unit::Unit::new("9", "Newer");
-        new_bean.status = crate::unit::Status::Closed;
-        new_bean.is_archived = true;
-        new_bean.to_file(archive_dir.join("9-newer.md")).unwrap();
+        let mut new_unit = crate::unit::Unit::new("9", "Newer");
+        new_unit.status = crate::unit::Status::Closed;
+        new_unit.is_archived = true;
+        new_unit.to_file(archive_dir.join("9-newer.md")).unwrap();
 
         assert!(ArchiveIndex::is_stale(&mana_dir).unwrap());
     }
 
     #[test]
     fn archive_index_load_or_rebuild_builds_when_stale() {
-        let (_dir, mana_dir) = setup_beans_dir_with_archive();
+        let (_dir, mana_dir) = setup_mana_dir_with_archive();
         let archive = ArchiveIndex::load_or_rebuild(&mana_dir).unwrap();
         assert_eq!(archive.units.len(), 2);
         // Should have created archive.yaml

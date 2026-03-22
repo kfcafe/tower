@@ -19,7 +19,7 @@ use sha2::{Digest, Sha256};
 /// Information stored in each lock file.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LockInfo {
-    pub bean_id: String,
+    pub unit_id: String,
     pub pid: u32,
     pub file_path: String,
     pub locked_at: i64,
@@ -69,11 +69,11 @@ fn lock_file_path(mana_dir: &Path, file_path: &str) -> Result<PathBuf> {
 ///
 /// Uses atomic file creation (`O_CREAT | O_EXCL`) to prevent TOCTOU races
 /// when multiple agents attempt to lock the same file concurrently.
-pub fn acquire(mana_dir: &Path, bean_id: &str, pid: u32, file_path: &str) -> Result<bool> {
+pub fn acquire(mana_dir: &Path, unit_id: &str, pid: u32, file_path: &str) -> Result<bool> {
     let lock_path = lock_file_path(mana_dir, file_path)?;
 
     let info = LockInfo {
-        bean_id: bean_id.to_string(),
+        unit_id: unit_id.to_string(),
         pid,
         file_path: file_path.to_string(),
         locked_at: chrono::Utc::now().timestamp(),
@@ -96,7 +96,7 @@ pub fn acquire(mana_dir: &Path, bean_id: &str, pid: u32, file_path: &str) -> Res
             }
             Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
                 match read_lock(&lock_path) {
-                    Some(existing) if existing.bean_id == bean_id && existing.pid == pid => {
+                    Some(existing) if existing.unit_id == unit_id && existing.pid == pid => {
                         // Same owner re-acquiring — idempotent success
                         return Ok(true);
                     }
@@ -123,10 +123,10 @@ pub fn acquire(mana_dir: &Path, bean_id: &str, pid: u32, file_path: &str) -> Res
 }
 
 /// Release all locks held by a specific unit.
-pub fn release_all_for_bean(mana_dir: &Path, bean_id: &str) -> Result<u32> {
+pub fn release_all_for_unit(mana_dir: &Path, unit_id: &str) -> Result<u32> {
     let mut released = 0;
     for lock in list_locks(mana_dir)? {
-        if lock.info.bean_id == bean_id {
+        if lock.info.unit_id == unit_id {
             let _ = fs::remove_file(&lock.lock_path);
             released += 1;
         }
@@ -238,7 +238,7 @@ fn is_process_alive(pid: u32) -> bool {
 mod tests {
     use super::*;
 
-    fn temp_beans_dir() -> (tempfile::TempDir, PathBuf) {
+    fn temp_mana_dir() -> (tempfile::TempDir, PathBuf) {
         let dir = tempfile::tempdir().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir_all(&mana_dir).unwrap();
@@ -246,8 +246,8 @@ mod tests {
     }
 
     #[test]
-    fn acquire_and_release_via_bean() {
-        let (_dir, mana_dir) = temp_beans_dir();
+    fn acquire_and_release_via_unit() {
+        let (_dir, mana_dir) = temp_mana_dir();
         let pid = std::process::id();
 
         let acquired = acquire(&mana_dir, "1.1", pid, "/tmp/test.rs").unwrap();
@@ -255,24 +255,24 @@ mod tests {
 
         let info = check_lock(&mana_dir, "/tmp/test.rs").unwrap();
         assert!(info.is_some());
-        assert_eq!(info.unwrap().bean_id, "1.1");
+        assert_eq!(info.unwrap().unit_id, "1.1");
 
-        release_all_for_bean(&mana_dir, "1.1").unwrap();
+        release_all_for_unit(&mana_dir, "1.1").unwrap();
 
         let info = check_lock(&mana_dir, "/tmp/test.rs").unwrap();
         assert!(info.is_none());
     }
 
     #[test]
-    fn release_all_for_bean_works() {
-        let (_dir, mana_dir) = temp_beans_dir();
+    fn release_all_for_unit_works() {
+        let (_dir, mana_dir) = temp_mana_dir();
         let pid = std::process::id();
 
         acquire(&mana_dir, "2.1", pid, "/tmp/a.rs").unwrap();
         acquire(&mana_dir, "2.1", pid, "/tmp/b.rs").unwrap();
         acquire(&mana_dir, "2.2", pid, "/tmp/c.rs").unwrap();
 
-        let released = release_all_for_bean(&mana_dir, "2.1").unwrap();
+        let released = release_all_for_unit(&mana_dir, "2.1").unwrap();
         assert_eq!(released, 2);
 
         // c.rs should still be locked
@@ -282,7 +282,7 @@ mod tests {
 
     #[test]
     fn list_locks_returns_all() {
-        let (_dir, mana_dir) = temp_beans_dir();
+        let (_dir, mana_dir) = temp_mana_dir();
         let pid = std::process::id();
 
         acquire(&mana_dir, "3.1", pid, "/tmp/x.rs").unwrap();
@@ -294,7 +294,7 @@ mod tests {
 
     #[test]
     fn clear_all_removes_everything() {
-        let (_dir, mana_dir) = temp_beans_dir();
+        let (_dir, mana_dir) = temp_mana_dir();
         let pid = std::process::id();
 
         acquire(&mana_dir, "4.1", pid, "/tmp/p.rs").unwrap();
@@ -309,12 +309,12 @@ mod tests {
 
     #[test]
     fn stale_lock_is_cleaned() {
-        let (_dir, mana_dir) = temp_beans_dir();
+        let (_dir, mana_dir) = temp_mana_dir();
 
         // Write a lock with a dead PID
         let lock_path = lock_file_path(&mana_dir, "/tmp/stale.rs").unwrap();
         let info = LockInfo {
-            bean_id: "5.1".to_string(),
+            unit_id: "5.1".to_string(),
             pid: 999_999_999, // almost certainly dead
             file_path: "/tmp/stale.rs".to_string(),
             locked_at: 0,
@@ -329,12 +329,12 @@ mod tests {
 
     #[test]
     fn acquire_cleans_stale_and_succeeds() {
-        let (_dir, mana_dir) = temp_beans_dir();
+        let (_dir, mana_dir) = temp_mana_dir();
 
         // Plant a stale lock
         let lock_path = lock_file_path(&mana_dir, "/tmp/stale2.rs").unwrap();
         let info = LockInfo {
-            bean_id: "6.1".to_string(),
+            unit_id: "6.1".to_string(),
             pid: 999_999_999,
             file_path: "/tmp/stale2.rs".to_string(),
             locked_at: 0,
@@ -348,7 +348,7 @@ mod tests {
 
     #[test]
     fn same_owner_reacquire_is_idempotent() {
-        let (_dir, mana_dir) = temp_beans_dir();
+        let (_dir, mana_dir) = temp_mana_dir();
         let pid = std::process::id();
 
         let first = acquire(&mana_dir, "7.1", pid, "/tmp/idem.rs").unwrap();
@@ -361,12 +361,12 @@ mod tests {
         // Lock should still be valid
         let info = check_lock(&mana_dir, "/tmp/idem.rs").unwrap();
         assert!(info.is_some());
-        assert_eq!(info.unwrap().bean_id, "7.1");
+        assert_eq!(info.unwrap().unit_id, "7.1");
     }
 
     #[test]
     fn different_owner_blocked_by_live_lock() {
-        let (_dir, mana_dir) = temp_beans_dir();
+        let (_dir, mana_dir) = temp_mana_dir();
         let pid = std::process::id();
 
         let first = acquire(&mana_dir, "8.1", pid, "/tmp/contested.rs").unwrap();
@@ -379,7 +379,7 @@ mod tests {
 
     #[test]
     fn list_locks_filters_stale() {
-        let (_dir, mana_dir) = temp_beans_dir();
+        let (_dir, mana_dir) = temp_mana_dir();
         let pid = std::process::id();
 
         // One live lock
@@ -388,7 +388,7 @@ mod tests {
         // One stale lock (manually planted)
         let stale_path = lock_file_path(&mana_dir, "/tmp/ghost.rs").unwrap();
         let stale = LockInfo {
-            bean_id: "9.2".to_string(),
+            unit_id: "9.2".to_string(),
             pid: 999_999_999,
             file_path: "/tmp/ghost.rs".to_string(),
             locked_at: 0,
@@ -398,7 +398,7 @@ mod tests {
         // list_locks should return only the live one and clean the stale one
         let locks = list_locks(&mana_dir).unwrap();
         assert_eq!(locks.len(), 1);
-        assert_eq!(locks[0].info.bean_id, "9.1");
+        assert_eq!(locks[0].info.unit_id, "9.1");
         assert!(!stale_path.exists());
     }
 }

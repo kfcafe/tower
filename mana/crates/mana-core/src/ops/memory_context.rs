@@ -10,7 +10,7 @@ use crate::unit::{AttemptOutcome, Status, Unit};
 
 /// A working unit with attempt context.
 #[derive(Debug)]
-pub struct WorkingBean {
+pub struct WorkingUnit {
     pub unit: Unit,
     pub failed_attempts: usize,
     pub last_failure_notes: Option<String>,
@@ -32,7 +32,7 @@ pub struct RecentWork {
 /// Assembled memory context for session-start injection.
 pub struct MemoryContext {
     pub warnings: Vec<String>,
-    pub working_on: Vec<WorkingBean>,
+    pub working_on: Vec<WorkingUnit>,
     pub relevant_facts: Vec<RelevantFact>,
     pub recent_work: Vec<RecentWork>,
 }
@@ -49,7 +49,7 @@ pub fn memory_context(mana_dir: &Path) -> Result<MemoryContext> {
     let mut working_paths: Vec<String> = Vec::new();
     let mut working_deps: Vec<String> = Vec::new();
     let mut warnings: Vec<String> = Vec::new();
-    let mut working_on: Vec<WorkingBean> = Vec::new();
+    let mut working_on: Vec<WorkingUnit> = Vec::new();
 
     // Collect working units
     for entry in &index.units {
@@ -57,12 +57,12 @@ pub fn memory_context(mana_dir: &Path) -> Result<MemoryContext> {
             continue;
         }
 
-        let bean_path = match find_unit_file(mana_dir, &entry.id) {
+        let unit_path = match find_unit_file(mana_dir, &entry.id) {
             Ok(p) => p,
             Err(_) => continue,
         };
 
-        let unit = match Unit::from_file(&bean_path) {
+        let unit = match Unit::from_file(&unit_path) {
             Ok(b) => b,
             Err(_) => continue,
         };
@@ -87,7 +87,7 @@ pub fn memory_context(mana_dir: &Path) -> Result<MemoryContext> {
             ));
         }
 
-        working_on.push(WorkingBean {
+        working_on.push(WorkingUnit {
             failed_attempts: failed_attempts.len(),
             last_failure_notes,
             unit,
@@ -96,19 +96,19 @@ pub fn memory_context(mana_dir: &Path) -> Result<MemoryContext> {
 
     // Check facts for staleness
     for entry in index.units.iter().chain(archived.iter()) {
-        let bean_path = match find_unit_file(mana_dir, &entry.id)
+        let unit_path = match find_unit_file(mana_dir, &entry.id)
             .or_else(|_| find_archived_unit(mana_dir, &entry.id))
         {
             Ok(p) => p,
             Err(_) => continue,
         };
 
-        let unit = match Unit::from_file(&bean_path) {
+        let unit = match Unit::from_file(&unit_path) {
             Ok(b) => b,
             Err(_) => continue,
         };
 
-        if unit.bean_type != "fact" {
+        if unit.unit_type != "fact" {
             continue;
         }
 
@@ -127,19 +127,19 @@ pub fn memory_context(mana_dir: &Path) -> Result<MemoryContext> {
     let mut relevant_facts: Vec<RelevantFact> = Vec::new();
 
     for entry in index.units.iter().chain(archived.iter()) {
-        let bean_path = match find_unit_file(mana_dir, &entry.id)
+        let unit_path = match find_unit_file(mana_dir, &entry.id)
             .or_else(|_| find_archived_unit(mana_dir, &entry.id))
         {
             Ok(p) => p,
             Err(_) => continue,
         };
 
-        let unit = match Unit::from_file(&bean_path) {
+        let unit = match Unit::from_file(&unit_path) {
             Ok(b) => b,
             Err(_) => continue,
         };
 
-        if unit.bean_type != "fact" {
+        if unit.unit_type != "fact" {
             continue;
         }
 
@@ -160,17 +160,17 @@ pub fn memory_context(mana_dir: &Path) -> Result<MemoryContext> {
             continue;
         }
 
-        let bean_path = match find_archived_unit(mana_dir, &entry.id) {
+        let unit_path = match find_archived_unit(mana_dir, &entry.id) {
             Ok(p) => p,
             Err(_) => continue,
         };
 
-        let unit = match Unit::from_file(&bean_path) {
+        let unit = match Unit::from_file(&unit_path) {
             Ok(b) => b,
             Err(_) => continue,
         };
 
-        if unit.bean_type == "fact" {
+        if unit.unit_type == "fact" {
             continue;
         }
 
@@ -253,7 +253,7 @@ mod tests {
     }
 
     #[test]
-    fn memory_context_shows_claimed_beans() {
+    fn memory_context_shows_claimed_units() {
         let (_dir, mana_dir) = setup();
 
         let mut unit = Unit::new("1", "Working on auth");
@@ -274,7 +274,7 @@ mod tests {
         let (_dir, mana_dir) = setup();
 
         let mut unit = Unit::new("1", "Auth uses RS256");
-        unit.bean_type = "fact".to_string();
+        unit.unit_type = "fact".to_string();
         unit.stale_after = Some(Utc::now() - Duration::days(5));
         unit.verify = Some("true".to_string());
         let slug = crate::util::title_to_slug(&unit.title);

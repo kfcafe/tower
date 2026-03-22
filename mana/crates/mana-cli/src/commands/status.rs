@@ -113,10 +113,10 @@ pub fn cmd_status(json: bool, mana_dir: &Path) -> Result<()> {
         }
     }
 
-    sort_beans(&mut features);
-    sort_beans(&mut claimed);
-    sort_beans(&mut ready);
-    sort_beans(&mut goals);
+    sort_units(&mut features);
+    sort_units(&mut claimed);
+    sort_units(&mut ready);
+    sort_units(&mut goals);
     blocked.sort_by(|(a, _), (b, _)| match a.priority.cmp(&b.priority) {
         std::cmp::Ordering::Equal => natural_cmp(&a.id, &b.id),
         other => other,
@@ -246,7 +246,7 @@ pub fn cmd_status(json: bool, mana_dir: &Path) -> Result<()> {
     Ok(())
 }
 
-fn sort_beans(units: &mut Vec<&IndexEntry>) {
+fn sort_units(units: &mut Vec<&IndexEntry>) {
     units.sort_by(|a, b| match a.priority.cmp(&b.priority) {
         std::cmp::Ordering::Equal => natural_cmp(&a.id, &b.id),
         other => other,

@@ -16,7 +16,7 @@ use crate::timeout::{self, MonitorResult, TimeoutConfig};
 use crate::unit::{Status, Unit};
 use crate::util::natural_cmp;
 
-use super::plan::SizedBean;
+use super::plan::SizedUnit;
 use super::wave::{compute_downstream_weights, compute_waves};
 use super::{format_duration, AgentResult};
 
@@ -59,21 +59,21 @@ pub(super) fn all_deps_closed(entry: &IndexEntry, index: &Index, archive: &Archi
 }
 
 /// Check if a unit's dependencies are all satisfied.
-fn is_bean_ready(
-    unit: &SizedBean,
+fn is_unit_ready(
+    unit: &SizedUnit,
     completed: &HashSet<String>,
-    all_bean_ids: &HashSet<String>,
-    all_beans: &[SizedBean],
+    all_unit_ids: &HashSet<String>,
+    all_units: &[SizedUnit],
 ) -> bool {
     // All explicit deps must be completed or not in our dispatch set
     let explicit_ok = unit
         .dependencies
         .iter()
-        .all(|d| completed.contains(d) || !all_bean_ids.contains(d));
+        .all(|d| completed.contains(d) || !all_unit_ids.contains(d));
 
     // All requires must be satisfied (producer completed or not in set)
     let requires_ok = unit.requires.iter().all(|req| {
-        if let Some(producer) = all_beans.iter().find(|other| {
+        if let Some(producer) = all_units.iter().find(|other| {
             other.id != unit.id && other.parent == unit.parent && other.produces.contains(req)
         }) {
             completed.contains(&producer.id)
@@ -85,9 +85,9 @@ fn is_bean_ready(
     explicit_ok && requires_ok
 }
 
-/// Check if a bean's paths conflict with currently-running beans.
-fn has_path_conflict(bean: &SizedBean, running_paths: &HashSet<String>) -> bool {
-    bean.paths.iter().any(|p| running_paths.contains(p))
+/// Check if a unit's paths conflict with currently-running units.
+fn has_path_conflict(unit: &SizedUnit, running_paths: &HashSet<String>) -> bool {
+    unit.paths.iter().any(|p| running_paths.contains(p))
 }
 
 /// Format a human-friendly token count (e.g. 15000 → "15k").
@@ -141,7 +141,7 @@ fn print_result_line(result: &AgentResult) {
 /// complete, rather than waiting for an entire wave to finish.
 pub(super) fn run_ready_queue_direct(
     mana_dir: &Path,
-    all_beans: &[SizedBean],
+    all_units: &[SizedUnit],
     index: &Index,
     cfg: &super::RunConfig,
     keep_going: bool,
@@ -152,7 +152,7 @@ pub(super) fn run_ready_queue_direct(
     let json_stream = cfg.json_stream;
     let file_locking = cfg.file_locking;
     let batch_verify = cfg.batch_verify;
-    let all_bean_ids: HashSet<String> = all_beans.iter().map(|b| b.id.clone()).collect();
+    let all_unit_ids: HashSet<String> = all_units.iter().map(|b| b.id.clone()).collect();
 
     // Already-closed units count as completed (same logic as compute_waves)
     let mut completed: HashSet<String> = index
@@ -162,7 +162,7 @@ pub(super) fn run_ready_queue_direct(
         .map(|e| e.id.clone())
         .collect();
 
-    let mut remaining: HashMap<String, SizedBean> = all_beans
+    let mut remaining: HashMap<String, SizedUnit> = all_units
         .iter()
         .map(|b| (b.id.clone(), b.clone()))
         .collect();
@@ -171,10 +171,10 @@ pub(super) fn run_ready_queue_direct(
     let mut running_count: usize = 0;
     let mut any_failed = false;
 
-    // Track file paths of currently-running beans to avoid scheduling conflicts
+    // Track file paths of currently-running units to avoid scheduling conflicts
     let mut running_paths: HashSet<String> = HashSet::new();
-    // Map bean ID → its paths, so we can remove them when the bean finishes
-    let mut running_bean_paths: HashMap<String, Vec<String>> = HashMap::new();
+    // Map unit ID → its paths, so we can remove them when the unit finishes
+    let mut running_unit_paths: HashMap<String, Vec<String>> = HashMap::new();
 
     // Channel for completed agents to report back
     let (tx, rx) = mpsc::channel::<AgentResult>();
@@ -182,7 +182,7 @@ pub(super) fn run_ready_queue_direct(
     // Assign a "round" number for display: use compute_waves to figure out
     // which wave each unit would be in (for json_stream events)
     let wave_map: HashMap<String, usize> = {
-        let waves = compute_waves(all_beans, index);
+        let waves = compute_waves(all_units, index);
         let mut m = HashMap::new();
         for (i, wave) in waves.iter().enumerate() {
             for b in &wave.units {
@@ -193,23 +193,23 @@ pub(super) fn run_ready_queue_direct(
     };
 
     // Compute downstream weights for critical-path prioritization
-    let weight_map = compute_downstream_weights(all_beans);
+    let weight_map = compute_downstream_weights(all_units);
 
     loop {
         // Find units that are ready and we have capacity for
         let mut newly_started = 0;
         let ready_ids: Vec<String> = remaining
             .values()
-            .filter(|b| is_bean_ready(b, &completed, &all_bean_ids, all_beans))
+            .filter(|b| is_unit_ready(b, &completed, &all_unit_ids, all_units))
             .map(|b| b.id.clone())
             .collect();
 
         // Sort ready units by priority then ID (stable ordering)
-        let mut ready_beans: Vec<SizedBean> = ready_ids
+        let mut ready_units: Vec<SizedUnit> = ready_ids
             .iter()
             .filter_map(|id| remaining.get(id).cloned())
             .collect();
-        ready_beans.sort_by(|a, b| {
+        ready_units.sort_by(|a, b| {
             a.priority
                 .cmp(&b.priority)
                 .then_with(|| {
@@ -221,7 +221,7 @@ pub(super) fn run_ready_queue_direct(
                 .then_with(|| natural_cmp(&a.id, &b.id))
         });
 
-        for sb in ready_beans {
+        for sb in ready_units {
             if running_count >= max_jobs {
                 break;
             }
@@ -231,7 +231,7 @@ pub(super) fn run_ready_queue_direct(
                 break;
             }
 
-            // Skip beans whose paths conflict with currently-running beans
+            // Skip units whose paths conflict with currently-running units
             if has_path_conflict(&sb, &running_paths) {
                 continue;
             }
@@ -239,16 +239,16 @@ pub(super) fn run_ready_queue_direct(
             remaining.remove(&sb.id);
             running_count += 1;
 
-            // Register this bean's paths as occupied
+            // Register this unit's paths as occupied
             for p in &sb.paths {
                 running_paths.insert(p.clone());
             }
-            running_bean_paths.insert(sb.id.clone(), sb.paths.clone());
+            running_unit_paths.insert(sb.id.clone(), sb.paths.clone());
 
             let round = wave_map.get(&sb.id).copied().unwrap_or(1);
 
             if json_stream {
-                stream::emit(&StreamEvent::BeanStart {
+                stream::emit(&StreamEvent::UnitStart {
                     id: sb.id.clone(),
                     title: sb.title.clone(),
                     round,
@@ -344,15 +344,15 @@ pub(super) fn run_ready_queue_direct(
             };
             running_count -= 1;
 
-            // Release this bean's paths so deferred beans can be scheduled
-            if let Some(paths) = running_bean_paths.remove(&result.id) {
+            // Release this unit's paths so deferred units can be scheduled
+            if let Some(paths) = running_unit_paths.remove(&result.id) {
                 for p in &paths {
                     running_paths.remove(p);
                 }
             }
 
             let success = result.success;
-            let bean_id = result.id.clone();
+            let unit_id = result.id.clone();
 
             // Print real-time completion for CLI users
             if !json_stream {
@@ -360,7 +360,7 @@ pub(super) fn run_ready_queue_direct(
             }
 
             if success {
-                completed.insert(bean_id.clone());
+                completed.insert(unit_id.clone());
             } else {
                 any_failed = true;
                 // If not keep_going, drain remaining and stop spawning
@@ -467,7 +467,7 @@ fn build_pi_command(prompt_result: &crate::prompt::PromptResult, model: Option<&
 #[allow(clippy::too_many_arguments)]
 pub(super) fn run_single_direct(
     mana_dir: &Path,
-    sb: &SizedBean,
+    sb: &SizedUnit,
     timeout_minutes: u32,
     idle_timeout_minutes: u32,
     config_run_model: Option<&str>,
@@ -488,7 +488,7 @@ pub(super) fn run_single_direct(
                     let holder = crate::locks::check_lock(mana_dir, path)
                         .ok()
                         .flatten()
-                        .map(|l| format!("unit {} (pid {})", l.bean_id, l.pid))
+                        .map(|l| format!("unit {} (pid {})", l.unit_id, l.pid))
                         .unwrap_or_else(|| "unknown".to_string());
                     eprintln!(
                         "  ⚠ Cannot lock {} for unit {} — held by {}",
@@ -503,7 +503,7 @@ pub(super) fn run_single_direct(
     }
 
     // Load the full unit for prompt construction
-    let bean_file = match crate::discovery::find_unit_file(mana_dir, &sb.id) {
+    let unit_file = match crate::discovery::find_unit_file(mana_dir, &sb.id) {
         Ok(p) => p,
         Err(e) => {
             return AgentResult {
@@ -522,7 +522,7 @@ pub(super) fn run_single_direct(
         }
     };
 
-    let unit = match Unit::from_file(&bean_file) {
+    let unit = match Unit::from_file(&unit_file) {
         Ok(b) => b,
         Err(e) => {
             return AgentResult {
@@ -640,7 +640,7 @@ pub(super) fn run_single_direct(
     let mut cumulative_output_tokens: u64 = 0;
     let mut tool_log: Vec<String> = Vec::new();
     let mut turns: usize = 0;
-    let bean_id = sb.id.clone();
+    let unit_id = sb.id.clone();
     let mut shown_thinking = false;
 
     // Monitor the process, parsing JSON events
@@ -651,20 +651,20 @@ pub(super) fn run_single_direct(
                 match event {
                     AgentEvent::Thinking { ref text } => {
                         if json_stream {
-                            stream::emit(&StreamEvent::BeanThinking {
-                                id: bean_id.clone(),
+                            stream::emit(&StreamEvent::UnitThinking {
+                                id: unit_id.clone(),
                                 text: text.clone(),
                             });
                         } else if !shown_thinking {
-                            eprintln!("  {}  thinking...", bean_id);
+                            eprintln!("  {}  thinking...", unit_id);
                             shown_thinking = true;
                         }
                     }
                     AgentEvent::ToolStart { ref name, .. } => {
                         tool_count += 1;
                         if json_stream {
-                            stream::emit(&StreamEvent::BeanTool {
-                                id: bean_id.clone(),
+                            stream::emit(&StreamEvent::UnitTool {
+                                id: unit_id.clone(),
                                 tool_name: name.clone(),
                                 tool_count,
                                 file_path: None,
@@ -682,16 +682,16 @@ pub(super) fn run_single_direct(
                             file_path.as_deref().unwrap_or("")
                         ));
                         if json_stream {
-                            stream::emit(&StreamEvent::BeanTool {
-                                id: bean_id.clone(),
+                            stream::emit(&StreamEvent::UnitTool {
+                                id: unit_id.clone(),
                                 tool_name: name.clone(),
                                 tool_count,
                                 file_path,
                             });
                         } else {
                             match file_path {
-                                Some(ref p) => eprintln!("  {}  ⚙ {} {}", bean_id, name, p),
-                                None => eprintln!("  {}  ⚙ {}", bean_id, name),
+                                Some(ref p) => eprintln!("  {}  ⚙ {} {}", unit_id, name, p),
+                                None => eprintln!("  {}  ⚙ {}", unit_id, name),
                             }
                         }
                     }
@@ -708,8 +708,8 @@ pub(super) fn run_single_direct(
                         cumulative_cost += cost;
                         turns += 1;
                         if json_stream {
-                            stream::emit(&StreamEvent::BeanTokens {
-                                id: bean_id.clone(),
+                            stream::emit(&StreamEvent::UnitTokens {
+                                id: unit_id.clone(),
                                 input_tokens,
                                 output_tokens,
                                 cache_read,
@@ -758,14 +758,14 @@ pub(super) fn run_single_direct(
 
     // Release all file locks held by this unit.
     if file_locking {
-        let _ = crate::locks::release_all_for_bean(mana_dir, &sb.id);
+        let _ = crate::locks::release_all_for_unit(mana_dir, &sb.id);
     }
 
     // Log to agent_history.jsonl (fire-and-forget)
     history::append_history(
         mana_dir,
         &AgentHistoryEntry {
-            bean_id: sb.id.clone(),
+            unit_id: sb.id.clone(),
             title: sb.title.clone(),
             attempt: unit.attempts + 1,
             success,
@@ -783,12 +783,12 @@ pub(super) fn run_single_direct(
     // This gives the next retry agent context about what was tried and why it failed.
     let failure_summary = if !success {
         let mut summary_result = None;
-        if let Ok(bean_path) = crate::discovery::find_unit_file(mana_dir, &sb.id) {
-            if let Ok(mut fresh_bean) = Unit::from_file(&bean_path) {
+        if let Ok(unit_path) = crate::discovery::find_unit_file(mana_dir, &sb.id) {
+            if let Ok(mut fresh_unit) = Unit::from_file(&unit_path) {
                 let ctx = failure::FailureContext {
-                    bean_id: sb.id.clone(),
-                    bean_title: sb.title.clone(),
-                    attempt: fresh_bean.attempts.max(1),
+                    unit_id: sb.id.clone(),
+                    unit_title: sb.title.clone(),
+                    attempt: fresh_unit.attempts.max(1),
                     duration_secs: duration.as_secs(),
                     tool_count,
                     turns,
@@ -797,18 +797,18 @@ pub(super) fn run_single_direct(
                     cost: cumulative_cost,
                     error: error.clone(),
                     tool_log,
-                    verify_command: fresh_bean.verify.clone(),
+                    verify_command: fresh_unit.verify.clone(),
                 };
                 let summary = failure::build_failure_summary(&ctx);
 
-                match &mut fresh_bean.notes {
+                match &mut fresh_unit.notes {
                     Some(notes) => {
                         notes.push('\n');
                         notes.push_str(&summary);
                     }
-                    None => fresh_bean.notes = Some(summary.clone()),
+                    None => fresh_unit.notes = Some(summary.clone()),
                 }
-                let _ = fresh_bean.to_file(&bean_path);
+                let _ = fresh_unit.to_file(&unit_path);
                 summary_result = Some(summary);
             }
         }
@@ -843,13 +843,13 @@ pub(super) fn run_single_direct(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::commands::run::BeanAction;
+    use crate::commands::run::UnitAction;
     use crate::index::Index;
     use std::fs;
     use std::path::Path;
     use tempfile::TempDir;
 
-    fn make_beans_dir() -> (TempDir, std::path::PathBuf) {
+    fn make_mana_dir() -> (TempDir, std::path::PathBuf) {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -906,16 +906,16 @@ mod tests {
         assert!(!args.iter().any(|arg| arg == "--model"));
     }
 
-    fn make_sized_bean(
+    fn make_sized_unit(
         id: &str,
         deps: Vec<&str>,
         produces: Vec<&str>,
         requires: Vec<&str>,
-    ) -> SizedBean {
-        SizedBean {
+    ) -> SizedUnit {
+        SizedUnit {
             id: id.to_string(),
             title: format!("Unit {}", id),
-            action: BeanAction::Implement,
+            action: UnitAction::Implement,
             priority: 2,
             dependencies: deps.into_iter().map(|s| s.to_string()).collect(),
             parent: Some("parent".to_string()),
@@ -927,118 +927,118 @@ mod tests {
     }
 
     #[test]
-    fn is_bean_ready_no_deps() {
-        let unit = make_sized_bean("1", vec![], vec![], vec![]);
-        let all_beans = vec![unit.clone()];
-        let all_ids: HashSet<String> = all_beans.iter().map(|b| b.id.clone()).collect();
+    fn is_unit_ready_no_deps() {
+        let unit = make_sized_unit("1", vec![], vec![], vec![]);
+        let all_units = vec![unit.clone()];
+        let all_ids: HashSet<String> = all_units.iter().map(|b| b.id.clone()).collect();
         let completed = HashSet::new();
 
-        assert!(is_bean_ready(&unit, &completed, &all_ids, &all_beans));
+        assert!(is_unit_ready(&unit, &completed, &all_ids, &all_units));
     }
 
     #[test]
-    fn is_bean_ready_explicit_dep_not_met() {
-        let unit = make_sized_bean("2", vec!["1"], vec![], vec![]);
-        let dep = make_sized_bean("1", vec![], vec![], vec![]);
-        let all_beans = vec![dep, unit.clone()];
-        let all_ids: HashSet<String> = all_beans.iter().map(|b| b.id.clone()).collect();
+    fn is_unit_ready_explicit_dep_not_met() {
+        let unit = make_sized_unit("2", vec!["1"], vec![], vec![]);
+        let dep = make_sized_unit("1", vec![], vec![], vec![]);
+        let all_units = vec![dep, unit.clone()];
+        let all_ids: HashSet<String> = all_units.iter().map(|b| b.id.clone()).collect();
         let completed = HashSet::new();
 
-        assert!(!is_bean_ready(&unit, &completed, &all_ids, &all_beans));
+        assert!(!is_unit_ready(&unit, &completed, &all_ids, &all_units));
     }
 
     #[test]
-    fn is_bean_ready_explicit_dep_met() {
-        let unit = make_sized_bean("2", vec!["1"], vec![], vec![]);
-        let dep = make_sized_bean("1", vec![], vec![], vec![]);
-        let all_beans = vec![dep, unit.clone()];
-        let all_ids: HashSet<String> = all_beans.iter().map(|b| b.id.clone()).collect();
+    fn is_unit_ready_explicit_dep_met() {
+        let unit = make_sized_unit("2", vec!["1"], vec![], vec![]);
+        let dep = make_sized_unit("1", vec![], vec![], vec![]);
+        let all_units = vec![dep, unit.clone()];
+        let all_ids: HashSet<String> = all_units.iter().map(|b| b.id.clone()).collect();
         let mut completed = HashSet::new();
         completed.insert("1".to_string());
 
-        assert!(is_bean_ready(&unit, &completed, &all_ids, &all_beans));
+        assert!(is_unit_ready(&unit, &completed, &all_ids, &all_units));
     }
 
     #[test]
-    fn is_bean_ready_requires_not_met() {
-        let producer = make_sized_bean("1", vec![], vec!["TypesFile"], vec![]);
-        let consumer = make_sized_bean("2", vec![], vec![], vec!["TypesFile"]);
-        let all_beans = vec![producer, consumer.clone()];
-        let all_ids: HashSet<String> = all_beans.iter().map(|b| b.id.clone()).collect();
+    fn is_unit_ready_requires_not_met() {
+        let producer = make_sized_unit("1", vec![], vec!["TypesFile"], vec![]);
+        let consumer = make_sized_unit("2", vec![], vec![], vec!["TypesFile"]);
+        let all_units = vec![producer, consumer.clone()];
+        let all_ids: HashSet<String> = all_units.iter().map(|b| b.id.clone()).collect();
         let completed = HashSet::new();
 
-        assert!(!is_bean_ready(&consumer, &completed, &all_ids, &all_beans));
+        assert!(!is_unit_ready(&consumer, &completed, &all_ids, &all_units));
     }
 
     #[test]
-    fn is_bean_ready_requires_met() {
-        let producer = make_sized_bean("1", vec![], vec!["TypesFile"], vec![]);
-        let consumer = make_sized_bean("2", vec![], vec![], vec!["TypesFile"]);
-        let all_beans = vec![producer, consumer.clone()];
-        let all_ids: HashSet<String> = all_beans.iter().map(|b| b.id.clone()).collect();
+    fn is_unit_ready_requires_met() {
+        let producer = make_sized_unit("1", vec![], vec!["TypesFile"], vec![]);
+        let consumer = make_sized_unit("2", vec![], vec![], vec!["TypesFile"]);
+        let all_units = vec![producer, consumer.clone()];
+        let all_ids: HashSet<String> = all_units.iter().map(|b| b.id.clone()).collect();
         let mut completed = HashSet::new();
         completed.insert("1".to_string());
 
-        assert!(is_bean_ready(&consumer, &completed, &all_ids, &all_beans));
+        assert!(is_unit_ready(&consumer, &completed, &all_ids, &all_units));
     }
 
     #[test]
-    fn is_bean_ready_dep_outside_set_treated_as_met() {
+    fn is_unit_ready_dep_outside_set_treated_as_met() {
         // If a dependency isn't in the dispatch set, treat as satisfied
-        let unit = make_sized_bean("2", vec!["external"], vec![], vec![]);
-        let all_beans = vec![unit.clone()];
-        let all_ids: HashSet<String> = all_beans.iter().map(|b| b.id.clone()).collect();
+        let unit = make_sized_unit("2", vec!["external"], vec![], vec![]);
+        let all_units = vec![unit.clone()];
+        let all_ids: HashSet<String> = all_units.iter().map(|b| b.id.clone()).collect();
         let completed = HashSet::new();
 
         // "external" is not in all_ids, so it's treated as met
-        assert!(is_bean_ready(&unit, &completed, &all_ids, &all_beans));
+        assert!(is_unit_ready(&unit, &completed, &all_ids, &all_units));
     }
 
     #[test]
-    fn is_bean_ready_diamond_both_deps_needed() {
+    fn is_unit_ready_diamond_both_deps_needed() {
         // C requires both A and B
-        let a = make_sized_bean("A", vec![], vec!["X"], vec![]);
-        let b = make_sized_bean("B", vec![], vec!["Y"], vec![]);
-        let c = make_sized_bean("C", vec![], vec![], vec!["X", "Y"]);
-        let all_beans = vec![a, b, c.clone()];
-        let all_ids: HashSet<String> = all_beans.iter().map(|b| b.id.clone()).collect();
+        let a = make_sized_unit("A", vec![], vec!["X"], vec![]);
+        let b = make_sized_unit("B", vec![], vec!["Y"], vec![]);
+        let c = make_sized_unit("C", vec![], vec![], vec!["X", "Y"]);
+        let all_units = vec![a, b, c.clone()];
+        let all_ids: HashSet<String> = all_units.iter().map(|b| b.id.clone()).collect();
 
         // Only A completed — C not ready
         let mut completed = HashSet::new();
         completed.insert("A".to_string());
-        assert!(!is_bean_ready(&c, &completed, &all_ids, &all_beans));
+        assert!(!is_unit_ready(&c, &completed, &all_ids, &all_units));
 
         // Both completed — C ready
         completed.insert("B".to_string());
-        assert!(is_bean_ready(&c, &completed, &all_ids, &all_beans));
+        assert!(is_unit_ready(&c, &completed, &all_ids, &all_units));
     }
 
     #[test]
-    fn ready_queue_starts_independent_beans_immediately() {
+    fn ready_queue_starts_independent_units_immediately() {
         // Simulate: A (no deps), B (no deps), C (depends on A only)
         // In wave model: wave 1 = [A, B], wave 2 = [C]
         // In ready-queue: A and B start immediately, C starts when A finishes
         // (even if B is still running)
         let index = Index { units: vec![] };
-        let a = make_sized_bean("A", vec![], vec!["X"], vec![]);
-        let b = make_sized_bean("B", vec![], vec![], vec![]);
-        let c = make_sized_bean("C", vec![], vec![], vec!["X"]);
-        let all_beans = vec![a.clone(), b.clone(), c.clone()];
-        let all_ids: HashSet<String> = all_beans.iter().map(|b| b.id.clone()).collect();
+        let a = make_sized_unit("A", vec![], vec!["X"], vec![]);
+        let b = make_sized_unit("B", vec![], vec![], vec![]);
+        let c = make_sized_unit("C", vec![], vec![], vec!["X"]);
+        let all_units = vec![a.clone(), b.clone(), c.clone()];
+        let all_ids: HashSet<String> = all_units.iter().map(|b| b.id.clone()).collect();
 
         // Initially: A and B are ready, C is not
         let completed = HashSet::new();
-        assert!(is_bean_ready(&a, &completed, &all_ids, &all_beans));
-        assert!(is_bean_ready(&b, &completed, &all_ids, &all_beans));
-        assert!(!is_bean_ready(&c, &completed, &all_ids, &all_beans));
+        assert!(is_unit_ready(&a, &completed, &all_ids, &all_units));
+        assert!(is_unit_ready(&b, &completed, &all_ids, &all_units));
+        assert!(!is_unit_ready(&c, &completed, &all_ids, &all_units));
 
         // After A completes: C becomes ready (even though B hasn't finished)
         let mut completed = HashSet::new();
         completed.insert("A".to_string());
-        assert!(is_bean_ready(&c, &completed, &all_ids, &all_beans));
+        assert!(is_unit_ready(&c, &completed, &all_ids, &all_units));
 
         // Verify wave model would have put C in wave 2 (after both A and B)
-        let waves = compute_waves(&all_beans, &index);
+        let waves = compute_waves(&all_units, &index);
         assert_eq!(waves.len(), 2);
         assert_eq!(waves[0].units.len(), 2); // A and B
         assert_eq!(waves[1].units.len(), 1); // C
@@ -1046,8 +1046,8 @@ mod tests {
     }
 
     #[test]
-    fn build_prompt_returns_err_for_missing_bean() {
-        let (_dir, mana_dir) = make_beans_dir();
+    fn build_prompt_returns_err_for_missing_unit() {
+        let (_dir, mana_dir) = make_mana_dir();
         write_config(&mana_dir, None);
 
         // build_agent_prompt requires a Unit struct, so a missing unit is
@@ -1070,7 +1070,7 @@ mod tests {
 
     #[test]
     fn build_prompt_includes_rules() {
-        let (_dir, mana_dir) = make_beans_dir();
+        let (_dir, mana_dir) = make_mana_dir();
         write_config(&mana_dir, None);
 
         // Write a rules file
@@ -1230,11 +1230,11 @@ mod tests {
 
     // -- file conflict avoidance tests --
 
-    fn make_sized_bean_with_paths(id: &str, paths: Vec<&str>) -> SizedBean {
-        SizedBean {
+    fn make_sized_unit_with_paths(id: &str, paths: Vec<&str>) -> SizedUnit {
+        SizedUnit {
             id: id.to_string(),
             title: format!("Unit {}", id),
-            action: BeanAction::Implement,
+            action: UnitAction::Implement,
             priority: 2,
             dependencies: vec![],
             parent: Some("parent".to_string()),
@@ -1247,77 +1247,77 @@ mod tests {
 
     #[test]
     fn file_conflict_detected() {
-        let bean = make_sized_bean_with_paths("A", vec!["src/lib.rs", "src/util.rs"]);
+        let unit = make_sized_unit_with_paths("A", vec!["src/lib.rs", "src/util.rs"]);
         let mut running = HashSet::new();
         running.insert("src/lib.rs".to_string());
 
-        assert!(has_path_conflict(&bean, &running));
+        assert!(has_path_conflict(&unit, &running));
     }
 
     #[test]
     fn file_conflict_no_overlap() {
-        let bean = make_sized_bean_with_paths("A", vec!["src/foo.rs"]);
+        let unit = make_sized_unit_with_paths("A", vec!["src/foo.rs"]);
         let mut running = HashSet::new();
         running.insert("src/bar.rs".to_string());
 
-        assert!(!has_path_conflict(&bean, &running));
+        assert!(!has_path_conflict(&unit, &running));
     }
 
     #[test]
     fn file_conflict_empty_paths() {
-        let bean = make_sized_bean_with_paths("A", vec![]);
+        let unit = make_sized_unit_with_paths("A", vec![]);
         let mut running = HashSet::new();
         running.insert("src/lib.rs".to_string());
 
         // Empty paths never conflict
-        assert!(!has_path_conflict(&bean, &running));
+        assert!(!has_path_conflict(&unit, &running));
     }
 
     #[test]
     fn file_conflict_partial_overlap() {
-        // Bean touches 3 files, only 1 overlaps with running set
-        let bean = make_sized_bean_with_paths("A", vec!["src/a.rs", "src/b.rs", "src/c.rs"]);
+        // Unit touches 3 files, only 1 overlaps with running set
+        let unit = make_sized_unit_with_paths("A", vec!["src/a.rs", "src/b.rs", "src/c.rs"]);
         let mut running = HashSet::new();
         running.insert("src/b.rs".to_string());
 
-        assert!(has_path_conflict(&bean, &running));
+        assert!(has_path_conflict(&unit, &running));
     }
 
     #[test]
     fn file_conflict_multiple_running() {
-        // Running set is the union of multiple beans' paths
-        let bean = make_sized_bean_with_paths("C", vec!["src/shared.rs"]);
+        // Running set is the union of multiple units' paths
+        let unit = make_sized_unit_with_paths("C", vec!["src/shared.rs"]);
         let mut running = HashSet::new();
-        // Bean A's paths
+        // Unit A's paths
         running.insert("src/foo.rs".to_string());
-        // Bean B's paths
+        // Unit B's paths
         running.insert("src/shared.rs".to_string());
 
-        assert!(has_path_conflict(&bean, &running));
+        assert!(has_path_conflict(&unit, &running));
     }
 
     #[test]
-    fn critical_path_bean_scheduled_first() {
-        // Two beans with same priority are both ready.
-        // Bean A has a chain of dependents (A→B→C), weight=3.
-        // Bean D is independent, weight=1.
+    fn critical_path_unit_scheduled_first() {
+        // Two units with same priority are both ready.
+        // Unit A has a chain of dependents (A→B→C), weight=3.
+        // Unit D is independent, weight=1.
         // A should sort before D because it has higher downstream weight.
         use super::super::wave::compute_downstream_weights;
 
-        let a = make_sized_bean("A", vec![], vec![], vec![]);
-        let b = make_sized_bean("B", vec!["A"], vec![], vec![]);
-        let c = make_sized_bean("C", vec!["B"], vec![], vec![]);
-        let d = make_sized_bean("D", vec![], vec![], vec![]);
-        let all_beans = vec![a, b, c, d];
+        let a = make_sized_unit("A", vec![], vec![], vec![]);
+        let b = make_sized_unit("B", vec!["A"], vec![], vec![]);
+        let c = make_sized_unit("C", vec!["B"], vec![], vec![]);
+        let d = make_sized_unit("D", vec![], vec![], vec![]);
+        let all_units = vec![a, b, c, d];
 
-        let weight_map = compute_downstream_weights(&all_beans);
+        let weight_map = compute_downstream_weights(&all_units);
 
         // Both A and D are ready (no deps). Collect them.
-        let all_ids: HashSet<String> = all_beans.iter().map(|b| b.id.clone()).collect();
+        let all_ids: HashSet<String> = all_units.iter().map(|b| b.id.clone()).collect();
         let completed: HashSet<String> = HashSet::new();
-        let mut ready: Vec<SizedBean> = all_beans
+        let mut ready: Vec<SizedUnit> = all_units
             .iter()
-            .filter(|b| is_bean_ready(b, &completed, &all_ids, &all_beans))
+            .filter(|b| is_unit_ready(b, &completed, &all_ids, &all_units))
             .cloned()
             .collect();
 

@@ -195,9 +195,9 @@ pub fn cmd_create(mana_dir: &Path, args: CreateArgs) -> Result<String> {
     };
 
     let result = create::create(mana_dir, params)?;
-    let bean_id = result.unit.id.clone();
+    let unit_id = result.unit.id.clone();
 
-    eprintln!("Created unit {}: {}", bean_id, title);
+    eprintln!("Created unit {}: {}", unit_id, title);
 
     if !has_verify {
         let project_dir = mana_dir
@@ -212,10 +212,10 @@ pub fn cmd_create(mana_dir: &Path, args: CreateArgs) -> Result<String> {
     }
 
     if args.claim {
-        cmd_claim(mana_dir, &bean_id, args.by, true)?;
+        cmd_claim(mana_dir, &unit_id, args.by, true)?;
     }
 
-    Ok(bean_id)
+    Ok(unit_id)
 }
 
 /// Create a new unit that automatically depends on @latest (the most recently updated unit).

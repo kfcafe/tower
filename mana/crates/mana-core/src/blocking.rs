@@ -117,7 +117,7 @@ pub fn check_blocked_with_archive(
 /// Check for scope warnings (non-blocking).
 ///
 /// Returns a warning if scope is large (`produces > MAX_PRODUCES` or `paths > MAX_PATHS`).
-/// Beans with no scope (no produces, no paths) are fine — not every unit needs explicit paths.
+/// Units with no scope (no produces, no paths) are fine — not every unit needs explicit paths.
 pub fn check_scope_warning(entry: &IndexEntry) -> Option<ScopeWarning> {
     if entry.produces.len() > MAX_PRODUCES || entry.paths.len() > MAX_PATHS {
         return Some(ScopeWarning::Oversized);
@@ -335,7 +335,7 @@ mod tests {
     // -- Unscoped is NOT blocking --
 
     #[test]
-    fn unscoped_bean_is_not_blocked() {
+    fn unscoped_unit_is_not_blocked() {
         let entry = make_entry("1"); // produces=[], paths=[]
 
         let index = make_index(vec![entry.clone()]);
@@ -376,7 +376,7 @@ mod tests {
     // -- Priority: deps still checked --
 
     #[test]
-    fn blocking_deps_still_block_oversized_beans() {
+    fn blocking_deps_still_block_oversized_units() {
         let dep = make_entry("1"); // open
 
         let mut entry = make_entry("2");
@@ -392,7 +392,7 @@ mod tests {
     }
 
     #[test]
-    fn blocking_deps_still_block_unscoped_beans() {
+    fn blocking_deps_still_block_unscoped_units() {
         let dep = make_entry("1"); // open
 
         let mut entry = make_entry("2");

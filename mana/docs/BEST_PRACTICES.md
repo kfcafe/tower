@@ -1282,7 +1282,7 @@ Template notes:
 
 ---
 
-## The Beanstalk Vision: Future Toolchain
+## The Unitstalk Vision: Future Toolchain
 
 Mana is evolving from a task tracker into a comprehensive orchestration platform. Here's the strategic vision:
 

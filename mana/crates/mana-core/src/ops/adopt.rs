@@ -72,13 +72,13 @@ fn update_all_dependencies(mana_dir: &Path, id_map: &HashMap<String, String>) ->
             .and_then(|n| n.to_str())
             .unwrap_or_default();
 
-        let is_bean_file = (filename.ends_with(".md") && filename.contains('-'))
+        let is_unit_file = (filename.ends_with(".md") && filename.contains('-'))
             || (filename.ends_with(".yaml")
                 && filename != "config.yaml"
                 && filename != "index.yaml"
                 && filename != "unit.yaml");
 
-        if !is_bean_file {
+        if !is_unit_file {
             continue;
         }
 
@@ -126,7 +126,7 @@ fn update_all_dependencies(mana_dir: &Path, id_map: &HashMap<String, String>) ->
 pub fn adopt(mana_dir: &Path, parent_id: &str, child_ids: &[String]) -> Result<AdoptResult> {
     let parent_path = find_unit_file(mana_dir, parent_id)
         .with_context(|| format!("Parent unit '{}' not found", parent_id))?;
-    let _parent_bean = Unit::from_file(&parent_path)
+    let _parent_unit = Unit::from_file(&parent_path)
         .with_context(|| format!("Failed to load parent unit '{}'", parent_id))?;
 
     let mut id_map: HashMap<String, String> = HashMap::new();
@@ -177,7 +177,7 @@ mod tests {
     use crate::config::Config;
     use tempfile::TempDir;
 
-    fn setup_beans_dir() -> (TempDir, std::path::PathBuf) {
+    fn setup_mana_dir() -> (TempDir, std::path::PathBuf) {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -218,8 +218,8 @@ mod tests {
     }
 
     #[test]
-    fn adopt_single_bean() {
-        let (_dir, mana_dir) = setup_beans_dir();
+    fn adopt_single_unit() {
+        let (_dir, mana_dir) = setup_mana_dir();
 
         let mut parent = Unit::new("1", "Parent task");
         parent.slug = Some("parent-task".to_string());
@@ -240,7 +240,7 @@ mod tests {
 
     #[test]
     fn adopt_fails_for_missing_parent() {
-        let (_dir, mana_dir) = setup_beans_dir();
+        let (_dir, mana_dir) = setup_mana_dir();
 
         let mut child = Unit::new("2", "Child");
         child.slug = Some("child".to_string());
@@ -252,7 +252,7 @@ mod tests {
 
     #[test]
     fn adopt_updates_dependencies() {
-        let (_dir, mana_dir) = setup_beans_dir();
+        let (_dir, mana_dir) = setup_mana_dir();
 
         let mut parent = Unit::new("1", "Parent");
         parent.slug = Some("parent".to_string());

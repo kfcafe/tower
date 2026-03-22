@@ -26,7 +26,7 @@ pub struct FactParams {
 /// Result of creating a fact.
 #[derive(Debug)]
 pub struct FactResult {
-    pub bean_id: String,
+    pub unit_id: String,
     pub unit: Unit,
 }
 
@@ -51,7 +51,7 @@ pub struct VerifyFactsResult {
     pub suspect_entries: Vec<(String, String)>,
 }
 
-/// Create a verified fact (unit with bean_type=fact).
+/// Create a verified fact (unit with unit_type=fact).
 ///
 /// Facts require a verify command — that's the point. If you can't write a
 /// verify command, the knowledge belongs in agents.md, not in a fact.
@@ -89,11 +89,11 @@ pub fn create_fact(mana_dir: &Path, params: FactParams) -> Result<FactResult> {
         },
     )?;
 
-    let bean_id = create_result.unit.id.clone();
-    let bean_path = create_result.path;
+    let unit_id = create_result.unit.id.clone();
+    let unit_path = create_result.path;
     let mut unit = create_result.unit;
 
-    unit.bean_type = "fact".to_string();
+    unit.unit_type = "fact".to_string();
 
     let ttl = params.ttl_days.unwrap_or(DEFAULT_TTL_DAYS);
     unit.stale_after = Some(Utc::now() + Duration::days(ttl));
@@ -106,17 +106,17 @@ pub fn create_fact(mana_dir: &Path, params: FactParams) -> Result<FactResult> {
             .collect();
     }
 
-    unit.to_file(&bean_path)?;
+    unit.to_file(&unit_path)?;
 
     let index = Index::build(mana_dir)?;
     index.save(mana_dir)?;
 
-    Ok(FactResult { bean_id, unit })
+    Ok(FactResult { unit_id, unit })
 }
 
 /// Verify all facts and return structured results.
 ///
-/// Re-runs verify commands for all units with bean_type=fact.
+/// Re-runs verify commands for all units with unit_type=fact.
 /// Reports which facts are stale (past their stale_after date)
 /// and which have failing verify commands.
 ///
@@ -142,23 +142,23 @@ pub fn verify_facts(mana_dir: &Path) -> Result<VerifyFactsResult> {
     let mut entries: Vec<FactVerifyEntry> = Vec::new();
 
     for entry in index.units.iter().chain(archived.iter()) {
-        let bean_path = if entry.status == Status::Closed {
+        let unit_path = if entry.status == Status::Closed {
             find_archived_unit(mana_dir, &entry.id).ok()
         } else {
             find_unit_file(mana_dir, &entry.id).ok()
         };
 
-        let bean_path = match bean_path {
+        let unit_path = match unit_path {
             Some(p) => p,
             None => continue,
         };
 
-        let mut unit = match Unit::from_file(&bean_path) {
+        let mut unit = match Unit::from_file(&unit_path) {
             Ok(b) => b,
             Err(_) => continue,
         };
 
-        if unit.bean_type != "fact" {
+        if unit.unit_type != "fact" {
             continue;
         }
 
@@ -191,7 +191,7 @@ pub fn verify_facts(mana_dir: &Path) -> Result<VerifyFactsResult> {
                     if unit.stale_after.is_some() {
                         unit.stale_after = Some(now + Duration::days(DEFAULT_TTL_DAYS));
                     }
-                    unit.to_file(&bean_path)?;
+                    unit.to_file(&unit_path)?;
                     (Some(true), None)
                 }
                 Ok(_) => {
@@ -299,7 +299,7 @@ mod tests {
     use std::fs;
     use tempfile::TempDir;
 
-    fn setup_beans_dir() -> (TempDir, std::path::PathBuf) {
+    fn setup_mana_dir() -> (TempDir, std::path::PathBuf) {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -340,8 +340,8 @@ mod tests {
     }
 
     #[test]
-    fn create_fact_sets_bean_type() {
-        let (_dir, mana_dir) = setup_beans_dir();
+    fn create_fact_sets_unit_type() {
+        let (_dir, mana_dir) = setup_mana_dir();
 
         let result = create_fact(
             &mana_dir,
@@ -356,7 +356,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(result.unit.bean_type, "fact");
+        assert_eq!(result.unit.unit_type, "fact");
         assert!(result.unit.labels.contains(&"fact".to_string()));
         assert!(result.unit.stale_after.is_some());
         assert!(result.unit.verify.is_some());
@@ -364,7 +364,7 @@ mod tests {
 
     #[test]
     fn create_fact_with_paths() {
-        let (_dir, mana_dir) = setup_beans_dir();
+        let (_dir, mana_dir) = setup_mana_dir();
 
         let result = create_fact(
             &mana_dir,
@@ -384,7 +384,7 @@ mod tests {
 
     #[test]
     fn create_fact_with_custom_ttl() {
-        let (_dir, mana_dir) = setup_beans_dir();
+        let (_dir, mana_dir) = setup_mana_dir();
 
         let result = create_fact(
             &mana_dir,
@@ -406,7 +406,7 @@ mod tests {
 
     #[test]
     fn create_fact_requires_verify() {
-        let (_dir, mana_dir) = setup_beans_dir();
+        let (_dir, mana_dir) = setup_mana_dir();
 
         let result = create_fact(
             &mana_dir,

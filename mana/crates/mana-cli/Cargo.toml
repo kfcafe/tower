@@ -20,7 +20,7 @@ exclude = [
     "tools/",
     "VIBECHECK.md",
     "VIBES.md",
-    "DESIGN-bean-run-native.md",
+    "DESIGN-unit-run-native.md",
 ]
 
 [lib]

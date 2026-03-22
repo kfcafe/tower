@@ -13,13 +13,13 @@ pub struct GetResult {
 
 /// Load a unit by ID and return its full data.
 pub fn get(mana_dir: &Path, id: &str) -> Result<GetResult> {
-    let bean_path =
+    let unit_path =
         find_unit_file(mana_dir, id).with_context(|| format!("Unit not found: {}", id))?;
     let unit =
-        Unit::from_file(&bean_path).with_context(|| format!("Failed to load unit: {}", id))?;
+        Unit::from_file(&unit_path).with_context(|| format!("Failed to load unit: {}", id))?;
     Ok(GetResult {
         unit,
-        path: bean_path,
+        path: unit_path,
     })
 }
 

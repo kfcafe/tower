@@ -21,7 +21,7 @@ use crate::util::{natural_cmp, title_to_slug};
 pub fn tool_definitions() -> Vec<ToolDefinition> {
     vec![
         ToolDefinition {
-            name: "list_beans".to_string(),
+            name: "list_units".to_string(),
             description: "List units with optional status and priority filters".to_string(),
             input_schema: json!({
                 "type": "object",
@@ -45,7 +45,7 @@ pub fn tool_definitions() -> Vec<ToolDefinition> {
             }),
         },
         ToolDefinition {
-            name: "show_bean".to_string(),
+            name: "show_unit".to_string(),
             description: "Get full unit details including description, acceptance criteria, verify command, and history".to_string(),
             input_schema: json!({
                 "type": "object",
@@ -59,7 +59,7 @@ pub fn tool_definitions() -> Vec<ToolDefinition> {
             }),
         },
         ToolDefinition {
-            name: "ready_beans".to_string(),
+            name: "ready_units".to_string(),
             description: "Get units ready to work on (open, has verify command, all dependencies resolved)".to_string(),
             input_schema: json!({
                 "type": "object",
@@ -67,7 +67,7 @@ pub fn tool_definitions() -> Vec<ToolDefinition> {
             }),
         },
         ToolDefinition {
-            name: "create_bean".to_string(),
+            name: "create_unit".to_string(),
             description: "Create a new unit (task/spec for agents)".to_string(),
             input_schema: json!({
                 "type": "object",
@@ -107,7 +107,7 @@ pub fn tool_definitions() -> Vec<ToolDefinition> {
             }),
         },
         ToolDefinition {
-            name: "claim_bean".to_string(),
+            name: "claim_unit".to_string(),
             description: "Claim a unit for work (sets status to in_progress)".to_string(),
             input_schema: json!({
                 "type": "object",
@@ -125,7 +125,7 @@ pub fn tool_definitions() -> Vec<ToolDefinition> {
             }),
         },
         ToolDefinition {
-            name: "close_bean".to_string(),
+            name: "close_unit".to_string(),
             description: "Close a unit (runs verify gate first if configured). Returns error if verify fails.".to_string(),
             input_schema: json!({
                 "type": "object",
@@ -148,7 +148,7 @@ pub fn tool_definitions() -> Vec<ToolDefinition> {
             }),
         },
         ToolDefinition {
-            name: "verify_bean".to_string(),
+            name: "verify_unit".to_string(),
             description: "Run a unit's verify command without closing it. Returns pass/fail and output.".to_string(),
             input_schema: json!({
                 "type": "object",
@@ -162,7 +162,7 @@ pub fn tool_definitions() -> Vec<ToolDefinition> {
             }),
         },
         ToolDefinition {
-            name: "context_bean".to_string(),
+            name: "context_unit".to_string(),
             description: "Get assembled context for a unit (reads files referenced in description)".to_string(),
             input_schema: json!({
                 "type": "object",
@@ -206,14 +206,14 @@ pub fn tool_definitions() -> Vec<ToolDefinition> {
 /// Dispatch a tool call to the appropriate handler.
 pub fn handle_tool_call(name: &str, args: &Value, mana_dir: &Path) -> Value {
     let result = match name {
-        "list_beans" => handle_list_beans(args, mana_dir),
-        "show_bean" => handle_show_bean(args, mana_dir),
-        "ready_beans" => handle_ready_beans(mana_dir),
-        "create_bean" => handle_create_bean(args, mana_dir),
-        "claim_bean" => handle_claim_bean(args, mana_dir),
-        "close_bean" => handle_close_bean(args, mana_dir),
-        "verify_bean" => handle_verify_bean(args, mana_dir),
-        "context_bean" => handle_context_bean(args, mana_dir),
+        "list_units" => handle_list_units(args, mana_dir),
+        "show_unit" => handle_show_unit(args, mana_dir),
+        "ready_units" => handle_ready_units(mana_dir),
+        "create_unit" => handle_create_unit(args, mana_dir),
+        "claim_unit" => handle_claim_unit(args, mana_dir),
+        "close_unit" => handle_close_unit(args, mana_dir),
+        "verify_unit" => handle_verify_unit(args, mana_dir),
+        "context_unit" => handle_context_unit(args, mana_dir),
         "status" => handle_status(mana_dir),
         "tree" => handle_tree(args, mana_dir),
         _ => Err(anyhow::anyhow!("Unknown tool: {}", name)),
@@ -234,7 +234,7 @@ pub fn handle_tool_call(name: &str, args: &Value, mana_dir: &Path) -> Value {
 // Individual Handlers
 // ---------------------------------------------------------------------------
 
-fn handle_list_beans(args: &Value, mana_dir: &Path) -> Result<String> {
+fn handle_list_units(args: &Value, mana_dir: &Path) -> Result<String> {
     let index = Index::load_or_rebuild(mana_dir)?;
 
     let status_filter = args
@@ -294,20 +294,20 @@ fn handle_list_beans(args: &Value, mana_dir: &Path) -> Result<String> {
         .context("Failed to serialize unit list")
 }
 
-fn handle_show_bean(args: &Value, mana_dir: &Path) -> Result<String> {
+fn handle_show_unit(args: &Value, mana_dir: &Path) -> Result<String> {
     let id = args
         .get("id")
         .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("Missing required parameter: id"))?;
 
-    crate::util::validate_bean_id(id)?;
-    let bean_path = find_unit_file(mana_dir, id)?;
-    let unit = Unit::from_file(&bean_path)?;
+    crate::util::validate_unit_id(id)?;
+    let unit_path = find_unit_file(mana_dir, id)?;
+    let unit = Unit::from_file(&unit_path)?;
 
     serde_json::to_string_pretty(&unit).context("Failed to serialize unit")
 }
 
-fn handle_ready_beans(mana_dir: &Path) -> Result<String> {
+fn handle_ready_units(mana_dir: &Path) -> Result<String> {
     let index = Index::load_or_rebuild(mana_dir)?;
 
     let mut ready: Vec<&IndexEntry> = index
@@ -340,7 +340,7 @@ fn handle_ready_beans(mana_dir: &Path) -> Result<String> {
         .context("Failed to serialize ready units")
 }
 
-fn handle_create_bean(args: &Value, mana_dir: &Path) -> Result<String> {
+fn handle_create_unit(args: &Value, mana_dir: &Path) -> Result<String> {
     let title = args
         .get("title")
         .and_then(|v| v.as_str())
@@ -362,8 +362,8 @@ fn handle_create_bean(args: &Value, mana_dir: &Path) -> Result<String> {
 
     // Determine unit ID
     let mut config = Config::load(mana_dir)?;
-    let bean_id = if let Some(parent_id) = parent {
-        crate::util::validate_bean_id(parent_id)?;
+    let unit_id = if let Some(parent_id) = parent {
+        crate::util::validate_unit_id(parent_id)?;
         crate::commands::create::assign_child_id(mana_dir, parent_id)?
     } else {
         let id = config.increment_id();
@@ -372,7 +372,7 @@ fn handle_create_bean(args: &Value, mana_dir: &Path) -> Result<String> {
     };
 
     let slug = title_to_slug(title);
-    let mut unit = Unit::try_new(&bean_id, title)?;
+    let mut unit = Unit::try_new(&unit_id, title)?;
     unit.slug = Some(slug.clone());
 
     if let Some(desc) = description {
@@ -395,26 +395,26 @@ fn handle_create_bean(args: &Value, mana_dir: &Path) -> Result<String> {
     }
 
     // Write unit file
-    let bean_path = mana_dir.join(format!("{}-{}.md", bean_id, slug));
-    unit.to_file(&bean_path)?;
+    let unit_path = mana_dir.join(format!("{}-{}.md", unit_id, slug));
+    unit.to_file(&unit_path)?;
 
     // Rebuild index
     let index = Index::build(mana_dir)?;
     index.save(mana_dir)?;
 
-    Ok(format!("Created unit {}: {}", bean_id, title))
+    Ok(format!("Created unit {}: {}", unit_id, title))
 }
 
-fn handle_claim_bean(args: &Value, mana_dir: &Path) -> Result<String> {
+fn handle_claim_unit(args: &Value, mana_dir: &Path) -> Result<String> {
     let id = args
         .get("id")
         .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("Missing required parameter: id"))?;
     let by = args.get("by").and_then(|v| v.as_str());
 
-    crate::util::validate_bean_id(id)?;
-    let bean_path = find_unit_file(mana_dir, id)?;
-    let mut unit = Unit::from_file(&bean_path)?;
+    crate::util::validate_unit_id(id)?;
+    let unit_path = find_unit_file(mana_dir, id)?;
+    let mut unit = Unit::from_file(&unit_path)?;
 
     if unit.status != Status::Open {
         anyhow::bail!(
@@ -430,7 +430,7 @@ fn handle_claim_bean(args: &Value, mana_dir: &Path) -> Result<String> {
     unit.claimed_at = Some(now);
     unit.updated_at = now;
 
-    unit.to_file(&bean_path)?;
+    unit.to_file(&unit_path)?;
 
     // Rebuild index
     let index = Index::build(mana_dir)?;
@@ -443,7 +443,7 @@ fn handle_claim_bean(args: &Value, mana_dir: &Path) -> Result<String> {
     ))
 }
 
-fn handle_close_bean(args: &Value, mana_dir: &Path) -> Result<String> {
+fn handle_close_unit(args: &Value, mana_dir: &Path) -> Result<String> {
     let id = args
         .get("id")
         .and_then(|v| v.as_str())
@@ -451,9 +451,9 @@ fn handle_close_bean(args: &Value, mana_dir: &Path) -> Result<String> {
     let force = args.get("force").and_then(|v| v.as_bool()).unwrap_or(false);
     let reason = args.get("reason").and_then(|v| v.as_str());
 
-    crate::util::validate_bean_id(id)?;
-    let bean_path = find_unit_file(mana_dir, id)?;
-    let mut unit = Unit::from_file(&bean_path)?;
+    crate::util::validate_unit_id(id)?;
+    let unit_path = find_unit_file(mana_dir, id)?;
+    let mut unit = Unit::from_file(&unit_path)?;
 
     // Run verify if configured and not forced
     if let Some(ref verify_cmd) = unit.verify {
@@ -480,7 +480,7 @@ fn handle_close_bean(args: &Value, mana_dir: &Path) -> Result<String> {
 
                 unit.attempts += 1;
                 unit.updated_at = Utc::now();
-                unit.to_file(&bean_path)?;
+                unit.to_file(&unit_path)?;
 
                 // Rebuild index to reflect attempt count
                 let index = Index::build(mana_dir)?;
@@ -504,24 +504,24 @@ fn handle_close_bean(args: &Value, mana_dir: &Path) -> Result<String> {
     unit.close_reason = reason.map(|s| s.to_string());
     unit.updated_at = now;
 
-    unit.to_file(&bean_path)?;
+    unit.to_file(&unit_path)?;
 
     // Archive the unit
     let slug = unit
         .slug
         .clone()
         .unwrap_or_else(|| title_to_slug(&unit.title));
-    let ext = bean_path
+    let ext = unit_path
         .extension()
         .and_then(|e| e.to_str())
         .unwrap_or("md");
     let today = chrono::Local::now().naive_local().date();
-    let archive_path = crate::discovery::archive_path_for_bean(mana_dir, id, &slug, ext, today);
+    let archive_path = crate::discovery::archive_path_for_unit(mana_dir, id, &slug, ext, today);
 
     if let Some(parent) = archive_path.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    std::fs::rename(&bean_path, &archive_path)?;
+    std::fs::rename(&unit_path, &archive_path)?;
 
     unit.is_archived = true;
     unit.to_file(&archive_path)?;
@@ -545,15 +545,15 @@ fn handle_close_bean(args: &Value, mana_dir: &Path) -> Result<String> {
     Ok(format!("Closed unit {}: {}", id, unit.title))
 }
 
-fn handle_verify_bean(args: &Value, mana_dir: &Path) -> Result<String> {
+fn handle_verify_unit(args: &Value, mana_dir: &Path) -> Result<String> {
     let id = args
         .get("id")
         .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("Missing required parameter: id"))?;
 
-    crate::util::validate_bean_id(id)?;
-    let bean_path = find_unit_file(mana_dir, id)?;
-    let unit = Unit::from_file(&bean_path)?;
+    crate::util::validate_unit_id(id)?;
+    let unit_path = find_unit_file(mana_dir, id)?;
+    let unit = Unit::from_file(&unit_path)?;
 
     let verify_cmd = match &unit.verify {
         Some(cmd) => cmd.clone(),
@@ -584,15 +584,15 @@ fn handle_verify_bean(args: &Value, mana_dir: &Path) -> Result<String> {
     }))?)
 }
 
-fn handle_context_bean(args: &Value, mana_dir: &Path) -> Result<String> {
+fn handle_context_unit(args: &Value, mana_dir: &Path) -> Result<String> {
     let id = args
         .get("id")
         .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("Missing required parameter: id"))?;
 
-    crate::util::validate_bean_id(id)?;
-    let bean_path = find_unit_file(mana_dir, id)?;
-    let unit = Unit::from_file(&bean_path)?;
+    crate::util::validate_unit_id(id)?;
+    let unit_path = find_unit_file(mana_dir, id)?;
+    let unit = Unit::from_file(&unit_path)?;
 
     let project_dir = mana_dir
         .parent()
@@ -727,8 +727,8 @@ fn all_children_closed(mana_dir: &Path, parent_id: &str) -> Result<bool> {
 
 /// Auto-close a parent unit when all children are closed.
 fn auto_close_parent(mana_dir: &Path, parent_id: &str) -> Result<()> {
-    let bean_path = find_unit_file(mana_dir, parent_id)?;
-    let mut unit = Unit::from_file(&bean_path)?;
+    let unit_path = find_unit_file(mana_dir, parent_id)?;
+    let mut unit = Unit::from_file(&unit_path)?;
 
     if unit.status == Status::Closed {
         return Ok(());
@@ -739,24 +739,24 @@ fn auto_close_parent(mana_dir: &Path, parent_id: &str) -> Result<()> {
     unit.closed_at = Some(now);
     unit.close_reason = Some("All children closed".to_string());
     unit.updated_at = now;
-    unit.to_file(&bean_path)?;
+    unit.to_file(&unit_path)?;
 
     // Archive
     let slug = unit
         .slug
         .clone()
         .unwrap_or_else(|| title_to_slug(&unit.title));
-    let ext = bean_path
+    let ext = unit_path
         .extension()
         .and_then(|e| e.to_str())
         .unwrap_or("md");
     let today = chrono::Local::now().naive_local().date();
     let archive_path =
-        crate::discovery::archive_path_for_bean(mana_dir, parent_id, &slug, ext, today);
+        crate::discovery::archive_path_for_unit(mana_dir, parent_id, &slug, ext, today);
     if let Some(parent) = archive_path.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    std::fs::rename(&bean_path, &archive_path)?;
+    std::fs::rename(&unit_path, &archive_path)?;
     unit.is_archived = true;
     unit.to_file(&archive_path)?;
 

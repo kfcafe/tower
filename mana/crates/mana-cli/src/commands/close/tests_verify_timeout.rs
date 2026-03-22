@@ -4,7 +4,7 @@ use crate::util::title_to_slug;
 use std::fs;
 use tempfile::{Builder, TempDir};
 
-fn setup_test_beans_dir() -> (TempDir, std::path::PathBuf) {
+fn setup_test_mana_dir() -> (TempDir, std::path::PathBuf) {
     let dir = Builder::new()
         .prefix("mana-close-verify-timeout-")
         .tempdir()
@@ -17,7 +17,7 @@ fn setup_test_beans_dir() -> (TempDir, std::path::PathBuf) {
 
 #[test]
 fn verify_timeout_kills_slow_process_and_records_timeout() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
 
     let mut unit = Unit::new("1", "Slow verify task");
     unit.verify = Some("sleep 60".to_string());
@@ -48,7 +48,7 @@ fn verify_timeout_kills_slow_process_and_records_timeout() {
 
 #[test]
 fn verify_timeout_does_not_affect_fast_commands() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
 
     let mut unit = Unit::new("1", "Fast verify task");
     unit.verify = Some("true".to_string());
@@ -66,8 +66,8 @@ fn verify_timeout_does_not_affect_fast_commands() {
 }
 
 #[test]
-fn verify_timeout_bean_level_overrides_config() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+fn verify_timeout_unit_level_overrides_config() {
+    let (_dir, mana_dir) = setup_test_mana_dir();
 
     let config_yaml = "project: test\nnext_id: 2\nverify_timeout: 60\n";
     fs::write(mana_dir.join("config.yaml"), config_yaml).unwrap();
@@ -88,8 +88,8 @@ fn verify_timeout_bean_level_overrides_config() {
 }
 
 #[test]
-fn verify_timeout_config_level_applies_when_bean_has_none() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+fn verify_timeout_config_level_applies_when_unit_has_none() {
+    let (_dir, mana_dir) = setup_test_mana_dir();
 
     let config_yaml = "project: test\nnext_id: 2\nverify_timeout: 1\n";
     fs::write(mana_dir.join("config.yaml"), config_yaml).unwrap();
@@ -110,7 +110,7 @@ fn verify_timeout_config_level_applies_when_bean_has_none() {
 
 #[test]
 fn verify_timeout_appends_to_notes() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
 
     let mut unit = Unit::new("1", "Timeout notes test");
     unit.verify = Some("sleep 60".to_string());
@@ -132,7 +132,7 @@ fn verify_timeout_appends_to_notes() {
 }
 
 #[test]
-fn effective_verify_timeout_bean_wins_over_config() {
+fn effective_verify_timeout_unit_wins_over_config() {
     let unit = {
         let mut b = Unit::new("1", "Test");
         b.verify_timeout = Some(5);

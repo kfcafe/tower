@@ -40,8 +40,8 @@ impl std::fmt::Display for AgentAction {
 
 /// A running agent process tracked by the spawner.
 pub struct AgentProcess {
-    pub bean_id: String,
-    pub bean_title: String,
+    pub unit_id: String,
+    pub unit_title: String,
     pub action: AgentAction,
     pub pid: u32,
     pub started_at: Instant,
@@ -52,8 +52,8 @@ pub struct AgentProcess {
 /// Result of a completed agent process.
 #[derive(Debug)]
 pub struct CompletedAgent {
-    pub bean_id: String,
-    pub bean_title: String,
+    pub unit_id: String,
+    pub unit_title: String,
     pub action: AgentAction,
     pub success: bool,
     pub exit_code: Option<i32>,
@@ -77,20 +77,20 @@ pub struct Spawner {
 /// If `model` is `Some`, replaces `{model}` with the value.
 /// If `model` is `None`, `{model}` is left as-is (backward compatible).
 #[must_use]
-pub fn substitute_template(template: &str, bean_id: &str) -> String {
-    template.replace("{id}", bean_id)
+pub fn substitute_template(template: &str, unit_id: &str) -> String {
+    template.replace("{id}", unit_id)
 }
 
 /// Replace `{id}` and `{model}` placeholders in a command template.
 ///
-/// Model substitution follows precedence: bean-level override > config-level > no substitution.
+/// Model substitution follows precedence: unit-level override > config-level > no substitution.
 #[must_use]
 pub fn substitute_template_with_model(
     template: &str,
-    bean_id: &str,
+    unit_id: &str,
     model: Option<&str>,
 ) -> String {
-    let result = template.replace("{id}", bean_id);
+    let result = template.replace("{id}", unit_id);
     match model {
         Some(m) => result.replace("{model}", m),
         None => result,
@@ -101,9 +101,9 @@ pub fn substitute_template_with_model(
 ///
 /// Format: `{log_dir}/{safe_id}-{timestamp}.log`
 /// Dots in unit IDs are replaced with underscores for filesystem safety.
-pub fn build_log_path(bean_id: &str) -> Result<PathBuf> {
+pub fn build_log_path(unit_id: &str) -> Result<PathBuf> {
     let dir = logs::log_dir()?;
-    let safe_id = bean_id.replace('.', "_");
+    let safe_id = unit_id.replace('.', "_");
     let timestamp = chrono::Utc::now().format("%Y%m%d-%H%M%S");
     Ok(dir.join(format!("{}-{}.log", safe_id, timestamp)))
 }
@@ -131,14 +131,14 @@ impl Spawner {
     /// 6. Registers the process in the agents persistence file
     pub fn spawn(
         &mut self,
-        bean_id: &str,
-        bean_title: &str,
+        unit_id: &str,
+        unit_title: &str,
         action: AgentAction,
         config: &Config,
         mana_dir: Option<&std::path::Path>,
     ) -> Result<()> {
-        if self.running.contains_key(bean_id) {
-            return Err(anyhow!("Unit {} already has a running agent", bean_id));
+        if self.running.contains_key(unit_id) {
+            return Err(anyhow!("Unit {} already has a running agent", unit_id));
         }
 
         let (template, model) = match action {
@@ -158,14 +158,14 @@ impl Spawner {
             ),
         };
 
-        let cmd = substitute_template_with_model(template, bean_id, model);
-        let log_path = build_log_path(bean_id)?;
+        let cmd = substitute_template_with_model(template, unit_id, model);
+        let log_path = build_log_path(unit_id)?;
 
         // Build agent identity: user/agent-N (namespaced under the user who spawned)
         let agent_identity = build_agent_identity(mana_dir);
 
         // Claim the unit before spawning with agent identity
-        claim_bean(bean_id, agent_identity.as_deref())?;
+        claim_unit(unit_id, agent_identity.as_deref())?;
 
         // Open log file for output capture
         let log_file = OpenOptions::new()
@@ -187,21 +187,21 @@ impl Spawner {
             Ok(child) => child,
             Err(e) => {
                 // Release claim on spawn failure
-                let _ = release_bean(bean_id);
-                return Err(anyhow!("Failed to spawn agent for {}: {}", bean_id, e));
+                let _ = release_unit(unit_id);
+                return Err(anyhow!("Failed to spawn agent for {}: {}", unit_id, e));
             }
         };
 
         let pid = child.id();
 
         // Register in agents persistence file
-        let _ = register_agent(bean_id, bean_title, action, pid, &log_path);
+        let _ = register_agent(unit_id, unit_title, action, pid, &log_path);
 
         self.running.insert(
-            bean_id.to_string(),
+            unit_id.to_string(),
             AgentProcess {
-                bean_id: bean_id.to_string(),
-                bean_title: bean_title.to_string(),
+                unit_id: unit_id.to_string(),
+                unit_title: unit_title.to_string(),
                 action,
                 pid,
                 started_at: Instant::now(),
@@ -229,15 +229,15 @@ impl Spawner {
                     let exit_code = status.code();
 
                     if !success {
-                        let _ = release_bean(id);
+                        let _ = release_unit(id);
                     }
 
                     // Update agents persistence
                     let _ = finish_agent(id, exit_code);
 
                     completed.push(CompletedAgent {
-                        bean_id: id.clone(),
-                        bean_title: proc.bean_title.clone(),
+                        unit_id: id.clone(),
+                        unit_title: proc.unit_title.clone(),
                         action: proc.action,
                         success,
                         exit_code,
@@ -249,11 +249,11 @@ impl Spawner {
                 Ok(None) => {} // Still running
                 Err(e) => {
                     eprintln!("Error checking agent for {}: {}", id, e);
-                    let _ = release_bean(id);
+                    let _ = release_unit(id);
                     let _ = finish_agent(id, Some(-1));
                     completed.push(CompletedAgent {
-                        bean_id: id.clone(),
-                        bean_title: proc.bean_title.clone(),
+                        unit_id: id.clone(),
+                        unit_title: proc.unit_title.clone(),
                         action: proc.action,
                         success: false,
                         exit_code: Some(-1),
@@ -295,7 +295,7 @@ impl Spawner {
         for (id, proc) in self.running.iter_mut() {
             let _ = proc.child.kill();
             let _ = proc.child.wait(); // Reap the zombie
-            let _ = release_bean(id);
+            let _ = release_unit(id);
             let _ = finish_agent(id, Some(-9));
         }
         self.running.clear();
@@ -328,7 +328,7 @@ impl Spawner {
                 }
             }
             for id in &finished_ids {
-                let _ = release_bean(id);
+                let _ = release_unit(id);
                 let _ = finish_agent(id, Some(-15));
                 self.running.remove(id);
             }
@@ -364,8 +364,8 @@ fn build_agent_identity(mana_dir: Option<&std::path::Path>) -> Option<String> {
 }
 
 /// Claim a unit by running `mana claim {id}`.
-fn claim_bean(bean_id: &str, by: Option<&str>) -> Result<()> {
-    let mut args = vec!["claim", bean_id, "--force"];
+fn claim_unit(unit_id: &str, by: Option<&str>) -> Result<()> {
+    let mut args = vec!["claim", unit_id, "--force"];
     let by_owned;
     if let Some(identity) = by {
         args.push("--by");
@@ -377,12 +377,12 @@ fn claim_bean(bean_id: &str, by: Option<&str>) -> Result<()> {
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .status()
-        .with_context(|| format!("Failed to run mana claim {}", bean_id))?;
+        .with_context(|| format!("Failed to run mana claim {}", unit_id))?;
 
     if !status.success() {
         return Err(anyhow!(
             "mana claim {} failed with exit code {}",
-            bean_id,
+            unit_id,
             status.code().unwrap_or(-1)
         ));
     }
@@ -390,18 +390,18 @@ fn claim_bean(bean_id: &str, by: Option<&str>) -> Result<()> {
 }
 
 /// Release a unit claim by running `mana claim {id} --release`.
-fn release_bean(bean_id: &str) -> Result<()> {
+fn release_unit(unit_id: &str) -> Result<()> {
     let status = Command::new("mana")
-        .args(["claim", bean_id, "--release"])
+        .args(["claim", unit_id, "--release"])
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .status()
-        .with_context(|| format!("Failed to run mana claim {} --release", bean_id))?;
+        .with_context(|| format!("Failed to run mana claim {} --release", unit_id))?;
 
     if !status.success() {
         return Err(anyhow!(
             "mana claim {} --release failed with exit code {}",
-            bean_id,
+            unit_id,
             status.code().unwrap_or(-1)
         ));
     }
@@ -414,18 +414,18 @@ fn release_bean(bean_id: &str) -> Result<()> {
 
 /// Register a newly spawned agent in the agents.json persistence file.
 fn register_agent(
-    bean_id: &str,
-    bean_title: &str,
+    unit_id: &str,
+    unit_title: &str,
     action: AgentAction,
     pid: u32,
     log_path: &std::path::Path,
 ) -> Result<()> {
     let mut agents = crate::commands::agents::load_agents().unwrap_or_default();
     agents.insert(
-        bean_id.to_string(),
+        unit_id.to_string(),
         AgentEntry {
             pid,
-            title: bean_title.to_string(),
+            title: unit_title.to_string(),
             action: action.to_string(),
             started_at: chrono::Utc::now().timestamp(),
             log_path: Some(log_path.display().to_string()),
@@ -437,9 +437,9 @@ fn register_agent(
 }
 
 /// Mark an agent as finished in the agents.json persistence file.
-fn finish_agent(bean_id: &str, exit_code: Option<i32>) -> Result<()> {
+fn finish_agent(unit_id: &str, exit_code: Option<i32>) -> Result<()> {
     let mut agents = crate::commands::agents::load_agents().unwrap_or_default();
-    if let Some(entry) = agents.get_mut(bean_id) {
+    if let Some(entry) = agents.get_mut(unit_id) {
         entry.finished_at = Some(chrono::Utc::now().timestamp());
         entry.exit_code = exit_code;
         save_agents(&agents)?;
@@ -459,13 +459,13 @@ pub fn log_dir() -> Result<PathBuf> {
 }
 
 /// Find the most recent log file for a unit.
-pub fn find_latest_log(bean_id: &str) -> Result<Option<PathBuf>> {
-    logs::find_latest_log(bean_id)
+pub fn find_latest_log(unit_id: &str) -> Result<Option<PathBuf>> {
+    logs::find_latest_log(unit_id)
 }
 
 /// Find all log files for a unit, sorted oldest to newest.
-pub fn find_all_logs(bean_id: &str) -> Result<Vec<PathBuf>> {
-    logs::find_all_logs(bean_id)
+pub fn find_all_logs(unit_id: &str) -> Result<Vec<PathBuf>> {
+    logs::find_all_logs(unit_id)
 }
 
 // ---------------------------------------------------------------------------
@@ -512,8 +512,8 @@ mod tests {
         spawner.running.insert(
             "1".to_string(),
             AgentProcess {
-                bean_id: "1".to_string(),
-                bean_title: "Test".to_string(),
+                unit_id: "1".to_string(),
+                unit_title: "Test".to_string(),
                 action: AgentAction::Implement,
                 pid: child.id(),
                 started_at: Instant::now(),
@@ -643,8 +643,8 @@ mod tests {
         spawner.running.insert(
             "test-1".to_string(),
             AgentProcess {
-                bean_id: "test-1".to_string(),
-                bean_title: "Instant task".to_string(),
+                unit_id: "test-1".to_string(),
+                unit_title: "Instant task".to_string(),
                 action: AgentAction::Implement,
                 pid: child.id(),
                 started_at: Instant::now(),
@@ -658,7 +658,7 @@ mod tests {
 
         let completed = spawner.check_completed();
         assert_eq!(completed.len(), 1);
-        assert_eq!(completed[0].bean_id, "test-1");
+        assert_eq!(completed[0].unit_id, "test-1");
         assert!(completed[0].success);
         assert_eq!(completed[0].exit_code, Some(0));
         assert_eq!(spawner.running_count(), 0);
@@ -682,8 +682,8 @@ mod tests {
         spawner.running.insert(
             "test-2".to_string(),
             AgentProcess {
-                bean_id: "test-2".to_string(),
-                bean_title: "Failing task".to_string(),
+                unit_id: "test-2".to_string(),
+                unit_title: "Failing task".to_string(),
                 action: AgentAction::Plan,
                 pid: child.id(),
                 started_at: Instant::now(),
@@ -696,7 +696,7 @@ mod tests {
 
         let completed = spawner.check_completed();
         assert_eq!(completed.len(), 1);
-        assert_eq!(completed[0].bean_id, "test-2");
+        assert_eq!(completed[0].unit_id, "test-2");
         assert!(!completed[0].success);
         assert_eq!(completed[0].exit_code, Some(1));
 
@@ -720,8 +720,8 @@ mod tests {
         spawner.running.insert(
             "test-3".to_string(),
             AgentProcess {
-                bean_id: "test-3".to_string(),
-                bean_title: "Long task".to_string(),
+                unit_id: "test-3".to_string(),
+                unit_title: "Long task".to_string(),
                 action: AgentAction::Implement,
                 pid: child.id(),
                 started_at: Instant::now(),

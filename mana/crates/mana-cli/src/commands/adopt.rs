@@ -86,7 +86,7 @@ pub fn cmd_adopt(
     // Validate parent exists
     let parent_path = find_unit_file(mana_dir, parent_id)
         .with_context(|| format!("Parent unit '{}' not found", parent_id))?;
-    let _parent_bean = Unit::from_file(&parent_path)
+    let _parent_unit = Unit::from_file(&parent_path)
         .with_context(|| format!("Failed to load parent unit '{}'", parent_id))?;
 
     // Track ID mappings: old_id -> new_id
@@ -163,13 +163,13 @@ fn update_all_dependencies(mana_dir: &Path, id_map: &HashMap<String, String>) ->
             .unwrap_or_default();
 
         // Only process unit files (.md with hyphen or .yaml)
-        let is_bean_file = (filename.ends_with(".md") && filename.contains('-'))
+        let is_unit_file = (filename.ends_with(".md") && filename.contains('-'))
             || (filename.ends_with(".yaml")
                 && filename != "config.yaml"
                 && filename != "index.yaml"
                 && filename != "unit.yaml");
 
-        if !is_bean_file {
+        if !is_unit_file {
             continue;
         }
 
@@ -218,7 +218,7 @@ mod tests {
     use crate::config::Config;
     use tempfile::TempDir;
 
-    fn setup_beans_dir_with_config() -> (TempDir, std::path::PathBuf) {
+    fn setup_mana_dir_with_config() -> (TempDir, std::path::PathBuf) {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -258,8 +258,8 @@ mod tests {
     }
 
     #[test]
-    fn adopt_single_bean() {
-        let (_dir, mana_dir) = setup_beans_dir_with_config();
+    fn adopt_single_unit() {
+        let (_dir, mana_dir) = setup_mana_dir_with_config();
 
         // Create parent unit
         let mut parent = Unit::new("1", "Parent task");
@@ -293,8 +293,8 @@ mod tests {
     }
 
     #[test]
-    fn adopt_multiple_beans() {
-        let (_dir, mana_dir) = setup_beans_dir_with_config();
+    fn adopt_multiple_units() {
+        let (_dir, mana_dir) = setup_mana_dir_with_config();
 
         // Create parent
         let mut parent = Unit::new("1", "Parent");
@@ -333,7 +333,7 @@ mod tests {
 
     #[test]
     fn adopt_with_existing_children() {
-        let (_dir, mana_dir) = setup_beans_dir_with_config();
+        let (_dir, mana_dir) = setup_mana_dir_with_config();
 
         // Create parent with existing child
         let mut parent = Unit::new("1", "Parent");
@@ -350,10 +350,10 @@ mod tests {
             .unwrap();
 
         // Create new unit to adopt
-        let mut new_bean = Unit::new("5", "New unit");
-        new_bean.slug = Some("new-unit".to_string());
-        new_bean.verify = Some("true".to_string());
-        new_bean.to_file(mana_dir.join("5-new-unit.md")).unwrap();
+        let mut new_unit = Unit::new("5", "New unit");
+        new_unit.slug = Some("new-unit".to_string());
+        new_unit.verify = Some("true".to_string());
+        new_unit.to_file(mana_dir.join("5-new-unit.md")).unwrap();
 
         // Adopt - should get 1.2, not 1.1
         let result = cmd_adopt(&mana_dir, "1", &["5".to_string()]).unwrap();
@@ -364,7 +364,7 @@ mod tests {
 
     #[test]
     fn adopt_updates_dependencies() {
-        let (_dir, mana_dir) = setup_beans_dir_with_config();
+        let (_dir, mana_dir) = setup_mana_dir_with_config();
 
         // Create parent
         let mut parent = Unit::new("1", "Parent");
@@ -395,7 +395,7 @@ mod tests {
 
     #[test]
     fn adopt_fails_for_missing_parent() {
-        let (_dir, mana_dir) = setup_beans_dir_with_config();
+        let (_dir, mana_dir) = setup_mana_dir_with_config();
 
         // Create only the child, no parent
         let mut child = Unit::new("2", "Child");
@@ -414,7 +414,7 @@ mod tests {
 
     #[test]
     fn adopt_fails_for_missing_child() {
-        let (_dir, mana_dir) = setup_beans_dir_with_config();
+        let (_dir, mana_dir) = setup_mana_dir_with_config();
 
         // Create only the parent
         let mut parent = Unit::new("1", "Parent");
@@ -433,7 +433,7 @@ mod tests {
 
     #[test]
     fn adopt_rebuilds_index() {
-        let (_dir, mana_dir) = setup_beans_dir_with_config();
+        let (_dir, mana_dir) = setup_mana_dir_with_config();
 
         // Create parent and child
         let mut parent = Unit::new("1", "Parent");

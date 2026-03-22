@@ -30,9 +30,9 @@ pub fn relevance_score(unit: &Unit, working_paths: &[String], working_deps: &[St
 
 /// Count how many paths overlap between two sets.
 /// Uses prefix matching — "src/auth" matches "src/auth/types.rs".
-fn count_path_overlap(bean_paths: &[String], working_paths: &[String]) -> u32 {
+fn count_path_overlap(unit_paths: &[String], working_paths: &[String]) -> u32 {
     let mut count = 0;
-    for bp in bean_paths {
+    for bp in unit_paths {
         for wp in working_paths {
             if paths_overlap(bp, wp) {
                 count += 1;

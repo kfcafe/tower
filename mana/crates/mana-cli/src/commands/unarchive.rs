@@ -87,14 +87,14 @@ mod tests {
     use std::fs;
     use tempfile::TempDir;
 
-    fn setup_test_beans_dir() -> (TempDir, std::path::PathBuf) {
+    fn setup_test_mana_dir() -> (TempDir, std::path::PathBuf) {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
         (dir, mana_dir)
     }
 
-    fn create_archived_bean(
+    fn create_archived_unit(
         mana_dir: &Path,
         id: &str,
         title: &str,
@@ -108,18 +108,18 @@ mod tests {
         unit.is_archived = true;
 
         let slug = title_to_slug(title);
-        let bean_path = archive_dir.join(format!("{}-{}.md", id, slug));
-        unit.to_file(&bean_path).unwrap();
+        let unit_path = archive_dir.join(format!("{}-{}.md", id, slug));
+        unit.to_file(&unit_path).unwrap();
 
-        bean_path
+        unit_path
     }
 
     #[test]
     fn test_unarchive_basic() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
+        let (_dir, mana_dir) = setup_test_mana_dir();
 
         // Create an archived unit
-        let archived_path = create_archived_bean(&mana_dir, "1", "Task", "2026", "01");
+        let archived_path = create_archived_unit(&mana_dir, "1", "Task", "2026", "01");
         assert!(archived_path.exists());
 
         // Unarchive it
@@ -133,17 +133,17 @@ mod tests {
         assert!(unarchived_path.exists());
 
         // Verify is_archived is false
-        let unarchived_bean = Unit::from_file(&unarchived_path).unwrap();
-        assert!(!unarchived_bean.is_archived);
+        let unarchived_unit = Unit::from_file(&unarchived_path).unwrap();
+        assert!(!unarchived_unit.is_archived);
     }
 
     #[test]
     fn test_unarchive_preserves_slug() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
+        let (_dir, mana_dir) = setup_test_mana_dir();
 
         // Create an archived unit with a specific title/slug
         let archived_path =
-            create_archived_bean(&mana_dir, "12", "Complex Unit Title", "2026", "01");
+            create_archived_unit(&mana_dir, "12", "Complex Unit Title", "2026", "01");
 
         cmd_unarchive(&mana_dir, "12").unwrap();
 
@@ -152,25 +152,25 @@ mod tests {
         assert!(expected_path.exists());
         assert!(!archived_path.exists());
 
-        let unarchived_bean = Unit::from_file(&expected_path).unwrap();
-        assert_eq!(unarchived_bean.id, "12");
-        assert_eq!(unarchived_bean.title, "Complex Unit Title");
-        assert!(!unarchived_bean.is_archived);
+        let unarchived_unit = Unit::from_file(&expected_path).unwrap();
+        assert_eq!(unarchived_unit.id, "12");
+        assert_eq!(unarchived_unit.title, "Complex Unit Title");
+        assert!(!unarchived_unit.is_archived);
     }
 
     #[test]
-    fn test_unarchive_nonexistent_bean() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
+    fn test_unarchive_nonexistent_unit() {
+        let (_dir, mana_dir) = setup_test_mana_dir();
         let result = cmd_unarchive(&mana_dir, "999");
         assert!(result.is_err());
     }
 
     #[test]
     fn test_unarchive_updates_index() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
+        let (_dir, mana_dir) = setup_test_mana_dir();
 
         // Create an archived unit
-        create_archived_bean(&mana_dir, "1", "Task", "2026", "01");
+        create_archived_unit(&mana_dir, "1", "Task", "2026", "01");
 
         // Build initial index (should be empty)
         let initial_index = Index::build(&mana_dir).unwrap();
@@ -187,32 +187,32 @@ mod tests {
 
     #[test]
     fn test_unarchive_updates_updated_at() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
+        let (_dir, mana_dir) = setup_test_mana_dir();
 
-        let archived_path = create_archived_bean(&mana_dir, "1", "Task", "2026", "01");
-        let original_bean = Unit::from_file(&archived_path).unwrap();
-        let original_updated_at = original_bean.updated_at;
+        let archived_path = create_archived_unit(&mana_dir, "1", "Task", "2026", "01");
+        let original_unit = Unit::from_file(&archived_path).unwrap();
+        let original_updated_at = original_unit.updated_at;
 
         std::thread::sleep(std::time::Duration::from_millis(10));
 
         cmd_unarchive(&mana_dir, "1").unwrap();
 
         let unarchived_path = mana_dir.join("1-task.md");
-        let unarchived_bean = Unit::from_file(&unarchived_path).unwrap();
-        assert!(unarchived_bean.updated_at > original_updated_at);
+        let unarchived_unit = Unit::from_file(&unarchived_path).unwrap();
+        assert!(unarchived_unit.updated_at > original_updated_at);
     }
 
     #[test]
     fn test_unarchive_already_in_main_dir() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
+        let (_dir, mana_dir) = setup_test_mana_dir();
 
         // Create an archived unit
-        create_archived_bean(&mana_dir, "1", "Task", "2026", "01");
+        create_archived_unit(&mana_dir, "1", "Task", "2026", "01");
 
         // Pre-create the unit in the main directory
         let main_path = mana_dir.join("1-task.md");
-        let existing_bean = Unit::new("1", "Existing");
-        existing_bean.to_file(&main_path).unwrap();
+        let existing_unit = Unit::new("1", "Existing");
+        existing_unit.to_file(&main_path).unwrap();
 
         // Try to unarchive - should fail because unit already exists in main dir
         let result = cmd_unarchive(&mana_dir, "1");
@@ -221,7 +221,7 @@ mod tests {
 
     #[test]
     fn test_unarchive_not_marked_archived() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
+        let (_dir, mana_dir) = setup_test_mana_dir();
 
         // Create a unit that's not marked as archived in the archive directory
         let archive_dir = mana_dir.join("archive").join("2026").join("01");
@@ -230,8 +230,8 @@ mod tests {
         let mut unit = Unit::new("1", "Task");
         unit.is_archived = false; // Not archived!
         let slug = title_to_slug("Task");
-        let bean_path = archive_dir.join(format!("1-{}.md", slug));
-        unit.to_file(&bean_path).unwrap();
+        let unit_path = archive_dir.join(format!("1-{}.md", slug));
+        unit.to_file(&unit_path).unwrap();
 
         // Try to unarchive - should fail because unit is not marked as archived
         let result = cmd_unarchive(&mana_dir, "1");
@@ -239,8 +239,8 @@ mod tests {
     }
 
     #[test]
-    fn test_unarchive_preserves_bean_data() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
+    fn test_unarchive_preserves_unit_data() {
+        let (_dir, mana_dir) = setup_test_mana_dir();
 
         let archive_dir = mana_dir.join("archive").join("2026").join("01");
         fs::create_dir_all(&archive_dir).unwrap();
@@ -253,57 +253,57 @@ mod tests {
         unit.labels = vec!["label1".to_string(), "label2".to_string()];
 
         let slug = title_to_slug("Complex Task");
-        let bean_path = archive_dir.join(format!("1-{}.md", slug));
-        unit.to_file(&bean_path).unwrap();
+        let unit_path = archive_dir.join(format!("1-{}.md", slug));
+        unit.to_file(&unit_path).unwrap();
 
         cmd_unarchive(&mana_dir, "1").unwrap();
 
         let unarchived_path = mana_dir.join("1-complex-task.md");
-        let unarchived_bean = Unit::from_file(&unarchived_path).unwrap();
+        let unarchived_unit = Unit::from_file(&unarchived_path).unwrap();
 
         // Verify all data is preserved
-        assert_eq!(unarchived_bean.id, "1");
-        assert_eq!(unarchived_bean.title, "Complex Task");
+        assert_eq!(unarchived_unit.id, "1");
+        assert_eq!(unarchived_unit.title, "Complex Task");
         assert_eq!(
-            unarchived_bean.description,
+            unarchived_unit.description,
             Some("This is a detailed description".to_string())
         );
         assert_eq!(
-            unarchived_bean.acceptance,
+            unarchived_unit.acceptance,
             Some("- Acceptance 1\n- Acceptance 2".to_string())
         );
-        assert_eq!(unarchived_bean.priority, 1);
+        assert_eq!(unarchived_unit.priority, 1);
         assert_eq!(
-            unarchived_bean.labels,
+            unarchived_unit.labels,
             vec!["label1".to_string(), "label2".to_string()]
         );
-        assert!(!unarchived_bean.is_archived);
+        assert!(!unarchived_unit.is_archived);
     }
 
     #[test]
     fn test_unarchive_nested_year_month_structure() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
+        let (_dir, mana_dir) = setup_test_mana_dir();
 
         // Create archived unit in deeply nested structure
-        create_archived_bean(&mana_dir, "5", "Deep Task", "2025", "06");
+        create_archived_unit(&mana_dir, "5", "Deep Task", "2025", "06");
 
         cmd_unarchive(&mana_dir, "5").unwrap();
 
         let unarchived_path = mana_dir.join("5-deep-task.md");
         assert!(unarchived_path.exists());
 
-        let unarchived_bean = Unit::from_file(&unarchived_path).unwrap();
-        assert_eq!(unarchived_bean.id, "5");
-        assert!(!unarchived_bean.is_archived);
+        let unarchived_unit = Unit::from_file(&unarchived_path).unwrap();
+        assert_eq!(unarchived_unit.id, "5");
+        assert!(!unarchived_unit.is_archived);
     }
 
     #[test]
     fn test_unarchive_removes_from_archive_yaml() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
+        let (_dir, mana_dir) = setup_test_mana_dir();
 
         // Create two archived units
-        create_archived_bean(&mana_dir, "1", "Task One", "2026", "01");
-        create_archived_bean(&mana_dir, "2", "Task Two", "2026", "01");
+        create_archived_unit(&mana_dir, "1", "Task One", "2026", "01");
+        create_archived_unit(&mana_dir, "2", "Task Two", "2026", "01");
 
         // Build and save archive index with both units
         let archive = ArchiveIndex::build(&mana_dir).unwrap();

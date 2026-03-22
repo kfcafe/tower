@@ -56,7 +56,7 @@ fn find_mana_dir_in_ancestors(start: &Path) -> Option<PathBuf> {
 /// * If glob pattern matching fails
 pub fn find_unit_file(mana_dir: &Path, id: &str) -> Result<PathBuf> {
     // Validate ID to prevent path traversal attacks
-    crate::util::validate_bean_id(id)?;
+    crate::util::validate_unit_id(id)?;
 
     // First, try the new naming convention: {id}-{slug}.md
     let md_pattern = format!("{}/*{}-*.md", mana_dir.display(), id);
@@ -95,7 +95,7 @@ pub fn find_unit_file(mana_dir: &Path, id: &str) -> Result<PathBuf> {
 ///
 /// # Examples
 /// ```ignore
-/// let path = archive_path_for_bean(
+/// let path = archive_path_for_unit(
 ///     Path::new(".mana"),
 ///     "12",
 ///     "unit-archive-system",
@@ -104,7 +104,7 @@ pub fn find_unit_file(mana_dir: &Path, id: &str) -> Result<PathBuf> {
 /// );
 /// // Returns: .mana/archive/2026/01/12-unit-archive-system.md
 /// ```
-pub fn archive_path_for_bean(
+pub fn archive_path_for_unit(
     mana_dir: &Path,
     id: &str,
     slug: &str,
@@ -141,7 +141,7 @@ pub fn archive_path_for_bean(
 /// ```
 pub fn find_archived_unit(mana_dir: &Path, id: &str) -> Result<PathBuf> {
     // Validate ID to prevent path traversal attacks
-    crate::util::validate_bean_id(id)?;
+    crate::util::validate_unit_id(id)?;
 
     let archive_dir = mana_dir.join("archive");
 
@@ -168,18 +168,18 @@ pub fn find_archived_unit(mana_dir: &Path, id: &str) -> Result<PathBuf> {
             }
 
             // Search through unit files in month directory
-            for bean_entry in
+            for unit_entry in
                 std::fs::read_dir(&month_path).context("Failed to read month directory")?
             {
-                let bean_path = bean_entry?.path();
-                if !bean_path.is_file() {
+                let unit_path = unit_entry?.path();
+                if !unit_path.is_file() {
                     continue;
                 }
 
                 // Check if filename matches the pattern {id}-*.md
-                if let Some(filename) = bean_path.file_name().and_then(|n| n.to_str()) {
+                if let Some(filename) = unit_path.file_name().and_then(|n| n.to_str()) {
                     if filename.starts_with(&format!("{}-", id)) && filename.ends_with(".md") {
-                        return Ok(bean_path);
+                        return Ok(unit_path);
                     }
                 }
             }
@@ -195,7 +195,7 @@ mod tests {
     use std::fs;
 
     #[test]
-    fn finds_beans_in_current_dir() {
+    fn finds_units_in_current_dir() {
         let dir = tempfile::tempdir().unwrap();
         fs::create_dir(dir.path().join(".mana")).unwrap();
 
@@ -204,7 +204,7 @@ mod tests {
     }
 
     #[test]
-    fn finds_beans_in_parent_dir() {
+    fn finds_units_in_parent_dir() {
         let dir = tempfile::tempdir().unwrap();
         fs::create_dir(dir.path().join(".mana")).unwrap();
         let child = dir.path().join("src");
@@ -216,7 +216,7 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn finds_beans_through_symlinked_start_path() {
+    fn finds_units_through_symlinked_start_path() {
         use std::os::unix::fs::symlink;
 
         let dir = tempfile::tempdir().unwrap();
@@ -236,7 +236,7 @@ mod tests {
     }
 
     #[test]
-    fn finds_beans_in_grandparent_dir() {
+    fn finds_units_in_grandparent_dir() {
         let dir = tempfile::tempdir().unwrap();
         fs::create_dir(dir.path().join(".mana")).unwrap();
         let child = dir.path().join("src").join("deep");
@@ -247,7 +247,7 @@ mod tests {
     }
 
     #[test]
-    fn returns_error_when_no_beans_exists() {
+    fn returns_error_when_no_units_exists() {
         let dir = tempfile::tempdir().unwrap();
         let child = dir.path().join("some").join("nested").join("dir");
         fs::create_dir_all(&child).unwrap();
@@ -263,7 +263,7 @@ mod tests {
     }
 
     #[test]
-    fn prefers_closest_beans_dir() {
+    fn prefers_closest_mana_dir() {
         let dir = tempfile::tempdir().unwrap();
         // Parent has .mana
         fs::create_dir(dir.path().join(".mana")).unwrap();
@@ -281,7 +281,7 @@ mod tests {
     // =====================================================================
 
     #[test]
-    fn find_bean_file_simple_id() {
+    fn find_unit_file_simple_id() {
         let dir = tempfile::tempdir().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -294,7 +294,7 @@ mod tests {
     }
 
     #[test]
-    fn find_bean_file_hierarchical_id() {
+    fn find_unit_file_hierarchical_id() {
         let dir = tempfile::tempdir().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -307,7 +307,7 @@ mod tests {
     }
 
     #[test]
-    fn find_bean_file_three_level_id() {
+    fn find_unit_file_three_level_id() {
         let dir = tempfile::tempdir().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -320,7 +320,7 @@ mod tests {
     }
 
     #[test]
-    fn find_bean_file_returns_first_match() {
+    fn find_unit_file_returns_first_match() {
         let dir = tempfile::tempdir().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -342,7 +342,7 @@ mod tests {
     }
 
     #[test]
-    fn find_bean_file_not_found() {
+    fn find_unit_file_not_found() {
         let dir = tempfile::tempdir().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -355,7 +355,7 @@ mod tests {
     }
 
     #[test]
-    fn find_bean_file_validates_id() {
+    fn find_unit_file_validates_id() {
         let dir = tempfile::tempdir().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -368,7 +368,7 @@ mod tests {
     }
 
     #[test]
-    fn find_bean_file_validates_empty_id() {
+    fn find_unit_file_validates_empty_id() {
         let dir = tempfile::tempdir().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -381,7 +381,7 @@ mod tests {
     }
 
     #[test]
-    fn find_bean_file_with_long_slug() {
+    fn find_unit_file_with_long_slug() {
         let dir = tempfile::tempdir().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -396,7 +396,7 @@ mod tests {
     }
 
     #[test]
-    fn find_bean_file_supports_legacy_yaml_files() {
+    fn find_unit_file_supports_legacy_yaml_files() {
         let dir = tempfile::tempdir().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -411,7 +411,7 @@ mod tests {
     }
 
     #[test]
-    fn find_bean_file_prefers_md_over_yaml() {
+    fn find_unit_file_prefers_md_over_yaml() {
         let dir = tempfile::tempdir().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -426,7 +426,7 @@ mod tests {
     }
 
     #[test]
-    fn find_bean_file_ignores_files_without_proper_prefix() {
+    fn find_unit_file_ignores_files_without_proper_prefix() {
         let dir = tempfile::tempdir().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -440,7 +440,7 @@ mod tests {
     }
 
     #[test]
-    fn find_bean_file_handles_numeric_id_prefix_matching() {
+    fn find_unit_file_handles_numeric_id_prefix_matching() {
         let dir = tempfile::tempdir().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -455,7 +455,7 @@ mod tests {
     }
 
     #[test]
-    fn find_bean_file_with_special_chars_in_slug() {
+    fn find_unit_file_with_special_chars_in_slug() {
         let dir = tempfile::tempdir().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -468,7 +468,7 @@ mod tests {
     }
 
     #[test]
-    fn find_bean_file_rejects_special_chars_in_id() {
+    fn find_unit_file_rejects_special_chars_in_id() {
         let dir = tempfile::tempdir().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -480,16 +480,16 @@ mod tests {
     }
 
     // =====================================================================
-    // Tests for archive_path_for_bean()
+    // Tests for archive_path_for_unit()
     // =====================================================================
 
     #[test]
-    fn archive_path_for_bean_basic() {
+    fn archive_path_for_unit_basic() {
         let dir = tempfile::tempdir().unwrap();
         let mana_dir = dir.path().join(".mana");
 
         let date = chrono::NaiveDate::from_ymd_opt(2026, 1, 31).unwrap();
-        let path = archive_path_for_bean(&mana_dir, "12", "unit-archive-system", "md", date);
+        let path = archive_path_for_unit(&mana_dir, "12", "unit-archive-system", "md", date);
 
         // Verify path structure
         assert_eq!(
@@ -499,12 +499,12 @@ mod tests {
     }
 
     #[test]
-    fn archive_path_for_bean_hierarchical_id() {
+    fn archive_path_for_unit_hierarchical_id() {
         let dir = tempfile::tempdir().unwrap();
         let mana_dir = dir.path().join(".mana");
 
         let date = chrono::NaiveDate::from_ymd_opt(2025, 12, 15).unwrap();
-        let path = archive_path_for_bean(&mana_dir, "11.1", "refactor-parser", "md", date);
+        let path = archive_path_for_unit(&mana_dir, "11.1", "refactor-parser", "md", date);
 
         assert_eq!(
             path,
@@ -513,36 +513,36 @@ mod tests {
     }
 
     #[test]
-    fn archive_path_for_bean_single_digit_month() {
+    fn archive_path_for_unit_single_digit_month() {
         let dir = tempfile::tempdir().unwrap();
         let mana_dir = dir.path().join(".mana");
 
         let date = chrono::NaiveDate::from_ymd_opt(2026, 3, 5).unwrap();
-        let path = archive_path_for_bean(&mana_dir, "5", "task", "md", date);
+        let path = archive_path_for_unit(&mana_dir, "5", "task", "md", date);
 
         // Month should be zero-padded (03, not 3)
         assert_eq!(path, mana_dir.join("archive/2026/03/5-task.md"));
     }
 
     #[test]
-    fn archive_path_for_bean_three_level_id() {
+    fn archive_path_for_unit_three_level_id() {
         let dir = tempfile::tempdir().unwrap();
         let mana_dir = dir.path().join(".mana");
 
         let date = chrono::NaiveDate::from_ymd_opt(2024, 8, 20).unwrap();
-        let path = archive_path_for_bean(&mana_dir, "3.2.1", "deep-task", "md", date);
+        let path = archive_path_for_unit(&mana_dir, "3.2.1", "deep-task", "md", date);
 
         assert_eq!(path, mana_dir.join("archive/2024/08/3.2.1-deep-task.md"));
     }
 
     #[test]
-    fn archive_path_for_bean_long_slug() {
+    fn archive_path_for_unit_long_slug() {
         let dir = tempfile::tempdir().unwrap();
         let mana_dir = dir.path().join(".mana");
 
         let date = chrono::NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
         let long_slug = "implement-comprehensive-feature-with-full-test-coverage";
-        let path = archive_path_for_bean(&mana_dir, "42", long_slug, "md", date);
+        let path = archive_path_for_unit(&mana_dir, "42", long_slug, "md", date);
 
         assert!(path.to_str().unwrap().contains(long_slug));
         assert_eq!(
@@ -554,12 +554,12 @@ mod tests {
     }
 
     #[test]
-    fn archive_path_for_bean_yaml_extension() {
+    fn archive_path_for_unit_yaml_extension() {
         let dir = tempfile::tempdir().unwrap();
         let mana_dir = dir.path().join(".mana");
 
         let date = chrono::NaiveDate::from_ymd_opt(2026, 1, 31).unwrap();
-        let path = archive_path_for_bean(&mana_dir, "5", "yaml-task", "yaml", date);
+        let path = archive_path_for_unit(&mana_dir, "5", "yaml-task", "yaml", date);
 
         assert_eq!(path, mana_dir.join("archive/2026/01/5-yaml-task.yaml"));
     }
@@ -569,7 +569,7 @@ mod tests {
     // =====================================================================
 
     #[test]
-    fn find_archived_bean_simple_id() {
+    fn find_archived_unit_simple_id() {
         let dir = tempfile::tempdir().unwrap();
         let mana_dir = dir.path().join(".mana");
         let archive_dir = mana_dir.join("archive/2026/01");
@@ -583,7 +583,7 @@ mod tests {
     }
 
     #[test]
-    fn find_archived_bean_hierarchical_id() {
+    fn find_archived_unit_hierarchical_id() {
         let dir = tempfile::tempdir().unwrap();
         let mana_dir = dir.path().join(".mana");
         let archive_dir = mana_dir.join("archive/2025/12");
@@ -601,7 +601,7 @@ mod tests {
     }
 
     #[test]
-    fn find_archived_bean_multiple_years() {
+    fn find_archived_unit_multiple_years() {
         let dir = tempfile::tempdir().unwrap();
         let mana_dir = dir.path().join(".mana");
 
@@ -633,7 +633,7 @@ mod tests {
     }
 
     #[test]
-    fn find_archived_bean_multiple_months() {
+    fn find_archived_unit_multiple_months() {
         let dir = tempfile::tempdir().unwrap();
         let mana_dir = dir.path().join(".mana");
 
@@ -663,7 +663,7 @@ mod tests {
     }
 
     #[test]
-    fn find_archived_bean_not_found() {
+    fn find_archived_unit_not_found() {
         let dir = tempfile::tempdir().unwrap();
         let mana_dir = dir.path().join(".mana");
         let archive_dir = mana_dir.join("archive/2026/01");
@@ -682,7 +682,7 @@ mod tests {
     }
 
     #[test]
-    fn find_archived_bean_no_archive_dir() {
+    fn find_archived_unit_no_archive_dir() {
         let dir = tempfile::tempdir().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -695,7 +695,7 @@ mod tests {
     }
 
     #[test]
-    fn find_archived_bean_validates_id() {
+    fn find_archived_unit_validates_id() {
         let dir = tempfile::tempdir().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -711,7 +711,7 @@ mod tests {
     }
 
     #[test]
-    fn find_archived_bean_three_level_id() {
+    fn find_archived_unit_three_level_id() {
         let dir = tempfile::tempdir().unwrap();
         let mana_dir = dir.path().join(".mana");
         let archive_dir = mana_dir.join("archive/2024/08");
@@ -725,7 +725,7 @@ mod tests {
     }
 
     #[test]
-    fn find_archived_bean_ignores_non_matching_ids() {
+    fn find_archived_unit_ignores_non_matching_ids() {
         let dir = tempfile::tempdir().unwrap();
         let mana_dir = dir.path().join(".mana");
         let archive_dir = mana_dir.join("archive/2026/01");
@@ -746,7 +746,7 @@ mod tests {
     }
 
     #[test]
-    fn find_archived_bean_with_long_slug() {
+    fn find_archived_unit_with_long_slug() {
         let dir = tempfile::tempdir().unwrap();
         let mana_dir = dir.path().join(".mana");
         let archive_dir = mana_dir.join("archive/2026/01");

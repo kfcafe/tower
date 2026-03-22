@@ -5,7 +5,7 @@ use std::path::Path;
 use anyhow::Result;
 
 use crate::graph;
-use crate::index::{count_bean_formats, Index};
+use crate::index::{count_unit_formats, Index};
 use crate::unit::Unit;
 
 /// Issue types that doctor can detect and potentially fix
@@ -21,15 +21,15 @@ enum Issue {
         files: Vec<String>,
     },
     OrphanedDependency {
-        bean_id: String,
+        unit_id: String,
         missing_dep: String,
     },
     MissingParent {
-        bean_id: String,
+        unit_id: String,
         parent_id: String,
     },
     ArchivedParent {
-        bean_id: String,
+        unit_id: String,
         parent_id: String,
     },
     StaleIndexEntry {
@@ -64,24 +64,24 @@ impl Issue {
                 )
             }
             Issue::OrphanedDependency {
-                bean_id,
+                unit_id,
                 missing_dep,
             } => {
                 format!(
                     "[!] Orphaned dependency: {} depends on non-existent {}",
-                    bean_id, missing_dep
+                    unit_id, missing_dep
                 )
             }
-            Issue::MissingParent { bean_id, parent_id } => {
+            Issue::MissingParent { unit_id, parent_id } => {
                 format!(
                     "[!] Missing parent: {} lists parent {} but it doesn't exist",
-                    bean_id, parent_id
+                    unit_id, parent_id
                 )
             }
-            Issue::ArchivedParent { bean_id, parent_id } => {
+            Issue::ArchivedParent { unit_id, parent_id } => {
                 format!(
                     "[!] Unit {} references parent '{}' which is archived",
-                    bean_id, parent_id
+                    unit_id, parent_id
                 )
             }
             Issue::StaleIndexEntry { id } => {
@@ -102,7 +102,7 @@ impl Issue {
 const EXCLUDED_FILES: &[&str] = &["config.yaml", "index.yaml", "unit.yaml"];
 
 /// Check if a filename represents a unit file
-fn is_bean_filename(filename: &str) -> bool {
+fn is_unit_filename(filename: &str) -> bool {
     if EXCLUDED_FILES.contains(&filename) {
         return false;
     }
@@ -115,7 +115,7 @@ fn is_bean_filename(filename: &str) -> bool {
 }
 
 /// Scan units directory and collect unit files with their IDs
-fn scan_bean_files(mana_dir: &Path) -> Result<HashMap<String, Vec<String>>> {
+fn scan_unit_files(mana_dir: &Path) -> Result<HashMap<String, Vec<String>>> {
     let mut id_to_files: HashMap<String, Vec<String>> = HashMap::new();
 
     let dir_entries = fs::read_dir(mana_dir)?;
@@ -129,7 +129,7 @@ fn scan_bean_files(mana_dir: &Path) -> Result<HashMap<String, Vec<String>>> {
             .and_then(|n| n.to_str())
             .unwrap_or_default();
 
-        if !is_bean_filename(filename) {
+        if !is_unit_filename(filename) {
             continue;
         }
 
@@ -146,7 +146,7 @@ fn scan_bean_files(mana_dir: &Path) -> Result<HashMap<String, Vec<String>>> {
 }
 
 /// Get all unit source files that exist
-fn get_existing_bean_files(mana_dir: &Path) -> Result<Vec<String>> {
+fn get_existing_unit_files(mana_dir: &Path) -> Result<Vec<String>> {
     let mut existing = Vec::new();
 
     let dir_entries = fs::read_dir(mana_dir)?;
@@ -160,7 +160,7 @@ fn get_existing_bean_files(mana_dir: &Path) -> Result<Vec<String>> {
             .and_then(|n| n.to_str())
             .unwrap_or_default();
 
-        if is_bean_filename(filename) {
+        if is_unit_filename(filename) {
             if let Ok(unit) = Unit::from_file(&path) {
                 existing.push(unit.id);
             }
@@ -189,7 +189,7 @@ pub fn cmd_doctor(mana_dir: &Path, fix: bool) -> Result<()> {
     }
 
     // Check 2: Mixed unit formats (.yaml and .md)
-    let (md_count, yaml_count) = count_bean_formats(mana_dir)?;
+    let (md_count, yaml_count) = count_unit_formats(mana_dir)?;
     if md_count > 0 && yaml_count > 0 {
         issues.push(Issue::MixedFormats {
             md_count,
@@ -198,7 +198,7 @@ pub fn cmd_doctor(mana_dir: &Path, fix: bool) -> Result<()> {
     }
 
     // Check 3: Duplicate IDs
-    let id_to_files = scan_bean_files(mana_dir)?;
+    let id_to_files = scan_unit_files(mana_dir)?;
     for (id, files) in &id_to_files {
         if files.len() > 1 {
             issues.push(Issue::DuplicateId {
@@ -238,7 +238,7 @@ pub fn cmd_doctor(mana_dir: &Path, fix: bool) -> Result<()> {
             let dep_archived = archived_ids.contains(dep_id);
             if !dep_exists && !dep_archived {
                 issues.push(Issue::OrphanedDependency {
-                    bean_id: entry.id.clone(),
+                    unit_id: entry.id.clone(),
                     missing_dep: dep_id.clone(),
                 });
             }
@@ -254,12 +254,12 @@ pub fn cmd_doctor(mana_dir: &Path, fix: bool) -> Result<()> {
 
             if parent_archived {
                 issues.push(Issue::ArchivedParent {
-                    bean_id: entry.id.clone(),
+                    unit_id: entry.id.clone(),
                     parent_id: parent_id.clone(),
                 });
             } else if !parent_in_index {
                 issues.push(Issue::MissingParent {
-                    bean_id: entry.id.clone(),
+                    unit_id: entry.id.clone(),
                     parent_id: parent_id.clone(),
                 });
             }
@@ -267,7 +267,7 @@ pub fn cmd_doctor(mana_dir: &Path, fix: bool) -> Result<()> {
     }
 
     // Check 7: Stale index entries (entries without source files)
-    let existing_ids = get_existing_bean_files(mana_dir)?;
+    let existing_ids = get_existing_unit_files(mana_dir)?;
     for entry in &index.units {
         if !existing_ids.contains(&entry.id) {
             issues.push(Issue::StaleIndexEntry {
@@ -359,12 +359,12 @@ mod tests {
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
 
-        let bean1 = Unit::new("1", "Task one");
-        let mut bean2 = Unit::new("2", "Task two");
-        bean2.dependencies = vec!["1".to_string()];
+        let unit1 = Unit::new("1", "Task one");
+        let mut unit2 = Unit::new("2", "Task two");
+        unit2.dependencies = vec!["1".to_string()];
 
-        bean1.to_file(mana_dir.join("1.yaml")).unwrap();
-        bean2.to_file(mana_dir.join("2.yaml")).unwrap();
+        unit1.to_file(mana_dir.join("1.yaml")).unwrap();
+        unit2.to_file(mana_dir.join("2.yaml")).unwrap();
 
         // Rebuild index to make it fresh
         Index::build(&mana_dir).unwrap().save(&mana_dir).unwrap();
@@ -414,18 +414,18 @@ mod tests {
         fs::create_dir(&mana_dir).unwrap();
 
         // Create a cycle: 1 -> 2 -> 3 -> 1
-        let mut bean1 = Unit::new("1", "Task 1");
-        bean1.dependencies = vec!["3".to_string()];
+        let mut unit1 = Unit::new("1", "Task 1");
+        unit1.dependencies = vec!["3".to_string()];
 
-        let mut bean2 = Unit::new("2", "Task 2");
-        bean2.dependencies = vec!["1".to_string()];
+        let mut unit2 = Unit::new("2", "Task 2");
+        unit2.dependencies = vec!["1".to_string()];
 
-        let mut bean3 = Unit::new("3", "Task 3");
-        bean3.dependencies = vec!["2".to_string()];
+        let mut unit3 = Unit::new("3", "Task 3");
+        unit3.dependencies = vec!["2".to_string()];
 
-        bean1.to_file(mana_dir.join("1.yaml")).unwrap();
-        bean2.to_file(mana_dir.join("2.yaml")).unwrap();
-        bean3.to_file(mana_dir.join("3.yaml")).unwrap();
+        unit1.to_file(mana_dir.join("1.yaml")).unwrap();
+        unit2.to_file(mana_dir.join("2.yaml")).unwrap();
+        unit3.to_file(mana_dir.join("3.yaml")).unwrap();
 
         let result = cmd_doctor(&mana_dir, false);
         assert!(result.is_ok());
@@ -438,20 +438,20 @@ mod tests {
         fs::create_dir(&mana_dir).unwrap();
 
         // Create units in both formats
-        let bean1 = Unit::new("1", "Task one in yaml");
-        let bean2 = Unit::new("2", "Task two in md");
+        let unit1 = Unit::new("1", "Task one in yaml");
+        let unit2 = Unit::new("2", "Task two in md");
 
         // .yaml file (legacy format)
-        bean1.to_file(mana_dir.join("1.yaml")).unwrap();
+        unit1.to_file(mana_dir.join("1.yaml")).unwrap();
         // .md file (new format)
-        bean2.to_file(mana_dir.join("2-task-two-in-md.md")).unwrap();
+        unit2.to_file(mana_dir.join("2-task-two-in-md.md")).unwrap();
 
         // Doctor should succeed but detect the issue
         let result = cmd_doctor(&mana_dir, false);
         assert!(result.is_ok());
 
         // Verify counts are correct
-        let (md_count, yaml_count) = count_bean_formats(&mana_dir).unwrap();
+        let (md_count, yaml_count) = count_unit_formats(&mana_dir).unwrap();
         assert_eq!(md_count, 1);
         assert_eq!(yaml_count, 1);
     }
@@ -463,17 +463,17 @@ mod tests {
         fs::create_dir(&mana_dir).unwrap();
 
         // Create units only in .md format
-        let bean1 = Unit::new("1", "Task one");
-        let bean2 = Unit::new("2", "Task two");
+        let unit1 = Unit::new("1", "Task one");
+        let unit2 = Unit::new("2", "Task two");
 
-        bean1.to_file(mana_dir.join("1-task-one.md")).unwrap();
-        bean2.to_file(mana_dir.join("2-task-two.md")).unwrap();
+        unit1.to_file(mana_dir.join("1-task-one.md")).unwrap();
+        unit2.to_file(mana_dir.join("2-task-two.md")).unwrap();
 
         let result = cmd_doctor(&mana_dir, false);
         assert!(result.is_ok());
 
         // Should have only .md files
-        let (md_count, yaml_count) = count_bean_formats(&mana_dir).unwrap();
+        let (md_count, yaml_count) = count_unit_formats(&mana_dir).unwrap();
         assert_eq!(md_count, 2);
         assert_eq!(yaml_count, 0);
     }
@@ -485,11 +485,11 @@ mod tests {
         fs::create_dir(&mana_dir).unwrap();
 
         // Create two units with the same ID in different files
-        let bean_a = Unit::new("99", "Unit A");
-        let bean_b = Unit::new("99", "Unit B");
+        let unit_a = Unit::new("99", "Unit A");
+        let unit_b = Unit::new("99", "Unit B");
 
-        bean_a.to_file(mana_dir.join("99-a.md")).unwrap();
-        bean_b.to_file(mana_dir.join("99-b.md")).unwrap();
+        unit_a.to_file(mana_dir.join("99-a.md")).unwrap();
+        unit_b.to_file(mana_dir.join("99-b.md")).unwrap();
 
         // Doctor should succeed and report the duplicate
         let result = cmd_doctor(&mana_dir, false);

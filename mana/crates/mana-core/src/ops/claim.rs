@@ -70,9 +70,9 @@ fn run_verify_check(verify_cmd: &str, project_root: &Path) -> Result<bool> {
 /// If it fails, the claim is granted with `fail_first: true` and the current
 /// git HEAD SHA is stored as `checkpoint`.
 pub fn claim(mana_dir: &Path, id: &str, params: ClaimParams) -> Result<ClaimResult> {
-    let bean_path = find_unit_file(mana_dir, id).map_err(|_| anyhow!("Unit not found: {}", id))?;
+    let unit_path = find_unit_file(mana_dir, id).map_err(|_| anyhow!("Unit not found: {}", id))?;
     let mut unit =
-        Unit::from_file(&bean_path).with_context(|| format!("Failed to load unit: {}", id))?;
+        Unit::from_file(&unit_path).with_context(|| format!("Failed to load unit: {}", id))?;
 
     if unit.status != Status::Open {
         return Err(anyhow!(
@@ -133,7 +133,7 @@ pub fn claim(mana_dir: &Path, id: &str, params: ClaimParams) -> Result<ClaimResu
         finished_at: None,
     });
 
-    unit.to_file(&bean_path)
+    unit.to_file(&unit_path)
         .with_context(|| format!("Failed to save unit: {}", id))?;
 
     // Rebuild index
@@ -144,7 +144,7 @@ pub fn claim(mana_dir: &Path, id: &str, params: ClaimParams) -> Result<ClaimResu
 
     Ok(ClaimResult {
         unit,
-        path: bean_path,
+        path: unit_path,
         claimer,
         is_goal,
     })
@@ -155,9 +155,9 @@ pub fn claim(mana_dir: &Path, id: &str, params: ClaimParams) -> Result<ClaimResu
 /// Clears claimed_by/claimed_at and sets status back to Open.
 /// Marks the current attempt as abandoned.
 pub fn release(mana_dir: &Path, id: &str) -> Result<ReleaseResult> {
-    let bean_path = find_unit_file(mana_dir, id).map_err(|_| anyhow!("Unit not found: {}", id))?;
+    let unit_path = find_unit_file(mana_dir, id).map_err(|_| anyhow!("Unit not found: {}", id))?;
     let mut unit =
-        Unit::from_file(&bean_path).with_context(|| format!("Failed to load unit: {}", id))?;
+        Unit::from_file(&unit_path).with_context(|| format!("Failed to load unit: {}", id))?;
 
     let now = Utc::now();
 
@@ -174,7 +174,7 @@ pub fn release(mana_dir: &Path, id: &str) -> Result<ReleaseResult> {
     unit.status = Status::Open;
     unit.updated_at = now;
 
-    unit.to_file(&bean_path)
+    unit.to_file(&unit_path)
         .with_context(|| format!("Failed to save unit: {}", id))?;
 
     // Rebuild index
@@ -185,7 +185,7 @@ pub fn release(mana_dir: &Path, id: &str) -> Result<ReleaseResult> {
 
     Ok(ReleaseResult {
         unit,
-        path: bean_path,
+        path: unit_path,
     })
 }
 
@@ -250,7 +250,7 @@ mod tests {
     }
 
     #[test]
-    fn claim_open_bean() {
+    fn claim_open_unit() {
         let (_dir, bd) = setup();
         create::create(&bd, minimal_params("Task")).unwrap();
 
@@ -272,7 +272,7 @@ mod tests {
     }
 
     #[test]
-    fn claim_non_open_bean_fails() {
+    fn claim_non_open_unit_fails() {
         let (_dir, bd) = setup();
         create::create(&bd, minimal_params("Task")).unwrap();
         let bp = find_unit_file(&bd, "1").unwrap();
@@ -284,7 +284,7 @@ mod tests {
     }
 
     #[test]
-    fn claim_closed_bean_fails() {
+    fn claim_closed_unit_fails() {
         let (_dir, bd) = setup();
         create::create(&bd, minimal_params("Task")).unwrap();
         let bp = find_unit_file(&bd, "1").unwrap();
@@ -296,13 +296,13 @@ mod tests {
     }
 
     #[test]
-    fn claim_nonexistent_bean_fails() {
+    fn claim_nonexistent_unit_fails() {
         let (_dir, bd) = setup();
         assert!(claim(&bd, "99", force_params(Some("alice"))).is_err());
     }
 
     #[test]
-    fn release_claimed_bean() {
+    fn release_claimed_unit() {
         let (_dir, bd) = setup();
         create::create(&bd, minimal_params("Task")).unwrap();
         // First claim it
@@ -315,7 +315,7 @@ mod tests {
     }
 
     #[test]
-    fn release_nonexistent_bean_fails() {
+    fn release_nonexistent_unit_fails() {
         let (_dir, bd) = setup();
         assert!(release(&bd, "99").is_err());
     }
@@ -346,7 +346,7 @@ mod tests {
     }
 
     #[test]
-    fn claim_bean_without_verify_is_goal() {
+    fn claim_unit_without_verify_is_goal() {
         let (_dir, bd) = setup();
         create::create(&bd, minimal_params("Task")).unwrap();
 
@@ -355,7 +355,7 @@ mod tests {
     }
 
     #[test]
-    fn claim_bean_with_verify_is_not_goal() {
+    fn claim_unit_with_verify_is_not_goal() {
         let (_dir, bd) = setup();
         let mut params = minimal_params("Task");
         params.verify = Some("cargo test".to_string());
@@ -366,7 +366,7 @@ mod tests {
     }
 
     #[test]
-    fn claim_bean_with_empty_verify_is_goal() {
+    fn claim_unit_with_empty_verify_is_goal() {
         let (_dir, bd) = setup();
         let mut params = minimal_params("Task");
         params.verify = Some("   ".to_string());

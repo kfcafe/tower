@@ -61,7 +61,7 @@ src/
 │   ├── close.rs         — Verification + close logic (largest command, 3330L)
 │   ├── run/
 │   │   ├── mod.rs       — Agent orchestration entry point (cmd_run, spawn modes)
-│   │   ├── plan.rs      — Dispatch planning (SizedBean, waves, priority)
+│   │   ├── plan.rs      — Dispatch planning (SizedUnit, waves, priority)
 │   │   ├── ready_queue.rs — Ready-queue executor (direct mode, dep-aware dispatch)
 │   │   └── wave.rs      — Wave-based executor (template mode, legacy)
 │   ├── plan.rs          — Unit decomposition planning
@@ -156,9 +156,9 @@ main.rs ──▶ cli.rs (parse) ──▶ commands/*.rs (execute)
 **Load-bearing modules** (high fan-in — most commands import these):
 - `unit.rs` — Unit, Status
 - `index.rs` — Index, IndexEntry
-- `discovery.rs` — find_beans_dir, find_bean_file
+- `discovery.rs` — find_mana_dir, find_unit_file
 - `config.rs` — Config
-- `util.rs` — validate_bean_id, natural_cmp, title_to_slug
+- `util.rs` — validate_unit_id, natural_cmp, title_to_slug
 
 ## Data Model
 
@@ -208,7 +208,7 @@ No GitHub Actions, Makefile, or Justfile. Tests run locally only.
 - **CLI structure:** One file per command in `src/commands/`, each exports a `cmd_*` function
 - **Serialization:** serde derive on all types, `#[serde(skip_serializing_if)]` for optional fields
 - **File naming:** Unit files use `{id}-{slug}.md` format (legacy: `{id}.yaml`)
-- **ID validation:** All unit IDs validated via `util::validate_bean_id()` to prevent path traversal
+- **ID validation:** All unit IDs validated via `util::validate_unit_id()` to prevent path traversal
 - **Sorting:** Natural sort (`util::natural_cmp`) for unit IDs (1, 2, 10 not 1, 10, 2)
 - **Testing:** Heavy inline `#[cfg(test)]` modules — 891+ tests, mostly unit tests inside source files
 - **No async:** Entire codebase is synchronous (no tokio/async-std)

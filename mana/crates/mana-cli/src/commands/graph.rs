@@ -372,47 +372,47 @@ mod tests {
     use std::fs;
     use tempfile::TempDir;
 
-    fn setup_test_beans() -> (TempDir, std::path::PathBuf) {
+    fn setup_test_units() -> (TempDir, std::path::PathBuf) {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
 
-        let bean1 = Unit::new("1", "Task one");
-        let bean2 = Unit::new("2", "Task two");
-        let mut bean3 = Unit::new("3", "Task three");
-        bean3.dependencies = vec!["1".to_string(), "2".to_string()];
+        let unit1 = Unit::new("1", "Task one");
+        let unit2 = Unit::new("2", "Task two");
+        let mut unit3 = Unit::new("3", "Task three");
+        unit3.dependencies = vec!["1".to_string(), "2".to_string()];
 
-        bean1.to_file(mana_dir.join("1.yaml")).unwrap();
-        bean2.to_file(mana_dir.join("2.yaml")).unwrap();
-        bean3.to_file(mana_dir.join("3.yaml")).unwrap();
+        unit1.to_file(mana_dir.join("1.yaml")).unwrap();
+        unit2.to_file(mana_dir.join("2.yaml")).unwrap();
+        unit3.to_file(mana_dir.join("3.yaml")).unwrap();
 
         (dir, mana_dir)
     }
 
     #[test]
     fn mermaid_output_valid() {
-        let (_dir, mana_dir) = setup_test_beans();
+        let (_dir, mana_dir) = setup_test_units();
         let result = cmd_graph(&mana_dir, "mermaid");
         assert!(result.is_ok());
     }
 
     #[test]
     fn dot_output_valid() {
-        let (_dir, mana_dir) = setup_test_beans();
+        let (_dir, mana_dir) = setup_test_units();
         let result = cmd_graph(&mana_dir, "dot");
         assert!(result.is_ok());
     }
 
     #[test]
     fn ascii_output_valid() {
-        let (_dir, mana_dir) = setup_test_beans();
+        let (_dir, mana_dir) = setup_test_units();
         let result = cmd_graph(&mana_dir, "ascii");
         assert!(result.is_ok());
     }
 
     #[test]
     fn default_format_is_ascii() {
-        let (_dir, mana_dir) = setup_test_beans();
+        let (_dir, mana_dir) = setup_test_units();
         let result = cmd_graph(&mana_dir, "");
         assert!(result.is_ok());
     }
@@ -445,7 +445,7 @@ mod tests {
     }
 
     #[test]
-    fn ascii_with_single_isolated_bean() {
+    fn ascii_with_single_isolated_unit() {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -458,18 +458,18 @@ mod tests {
     }
 
     #[test]
-    fn ascii_with_multiple_isolated_beans() {
+    fn ascii_with_multiple_isolated_units() {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
 
-        let bean1 = Unit::new("1", "Task one");
-        let bean2 = Unit::new("2", "Task two");
-        let bean3 = Unit::new("3", "Task three");
+        let unit1 = Unit::new("1", "Task one");
+        let unit2 = Unit::new("2", "Task two");
+        let unit3 = Unit::new("3", "Task three");
 
-        bean1.to_file(mana_dir.join("1.yaml")).unwrap();
-        bean2.to_file(mana_dir.join("2.yaml")).unwrap();
-        bean3.to_file(mana_dir.join("3.yaml")).unwrap();
+        unit1.to_file(mana_dir.join("1.yaml")).unwrap();
+        unit2.to_file(mana_dir.join("2.yaml")).unwrap();
+        unit3.to_file(mana_dir.join("3.yaml")).unwrap();
 
         let result = cmd_graph(&mana_dir, "ascii");
         assert!(result.is_ok());
@@ -481,19 +481,19 @@ mod tests {
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
 
-        let bean1 = Unit::new("1", "Root");
-        let mut bean2 = Unit::new("2", "Left branch");
-        let mut bean3 = Unit::new("3", "Right branch");
-        let mut bean4 = Unit::new("4", "Merge");
+        let unit1 = Unit::new("1", "Root");
+        let mut unit2 = Unit::new("2", "Left branch");
+        let mut unit3 = Unit::new("3", "Right branch");
+        let mut unit4 = Unit::new("4", "Merge");
 
-        bean2.dependencies = vec!["1".to_string()];
-        bean3.dependencies = vec!["1".to_string()];
-        bean4.dependencies = vec!["2".to_string(), "3".to_string()];
+        unit2.dependencies = vec!["1".to_string()];
+        unit3.dependencies = vec!["1".to_string()];
+        unit4.dependencies = vec!["2".to_string(), "3".to_string()];
 
-        bean1.to_file(mana_dir.join("1.yaml")).unwrap();
-        bean2.to_file(mana_dir.join("2.yaml")).unwrap();
-        bean3.to_file(mana_dir.join("3.yaml")).unwrap();
-        bean4.to_file(mana_dir.join("4.yaml")).unwrap();
+        unit1.to_file(mana_dir.join("1.yaml")).unwrap();
+        unit2.to_file(mana_dir.join("2.yaml")).unwrap();
+        unit3.to_file(mana_dir.join("3.yaml")).unwrap();
+        unit4.to_file(mana_dir.join("4.yaml")).unwrap();
 
         let result = cmd_graph(&mana_dir, "ascii");
         assert!(result.is_ok());
@@ -505,17 +505,17 @@ mod tests {
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
 
-        let mut bean1 = Unit::new("1", "Task one");
-        let mut bean2 = Unit::new("2", "Task two");
-        let mut bean3 = Unit::new("3", "Task three");
+        let mut unit1 = Unit::new("1", "Task one");
+        let mut unit2 = Unit::new("2", "Task two");
+        let mut unit3 = Unit::new("3", "Task three");
 
-        bean1.dependencies = vec!["2".to_string()];
-        bean2.dependencies = vec!["3".to_string()];
-        bean3.dependencies = vec!["1".to_string()];
+        unit1.dependencies = vec!["2".to_string()];
+        unit2.dependencies = vec!["3".to_string()];
+        unit3.dependencies = vec!["1".to_string()];
 
-        bean1.to_file(mana_dir.join("1.yaml")).unwrap();
-        bean2.to_file(mana_dir.join("2.yaml")).unwrap();
-        bean3.to_file(mana_dir.join("3.yaml")).unwrap();
+        unit1.to_file(mana_dir.join("1.yaml")).unwrap();
+        unit2.to_file(mana_dir.join("2.yaml")).unwrap();
+        unit3.to_file(mana_dir.join("3.yaml")).unwrap();
 
         let result = cmd_graph(&mana_dir, "ascii");
         assert!(result.is_ok());
@@ -546,16 +546,16 @@ mod tests {
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
 
-        let bean1 = Unit::new("1", "Open task");
-        let mut bean2 = Unit::new("2", "In progress task");
-        let mut bean3 = Unit::new("3", "Closed task");
+        let unit1 = Unit::new("1", "Open task");
+        let mut unit2 = Unit::new("2", "In progress task");
+        let mut unit3 = Unit::new("3", "Closed task");
 
-        bean2.status = Status::InProgress;
-        bean3.status = Status::Closed;
+        unit2.status = Status::InProgress;
+        unit3.status = Status::Closed;
 
-        bean1.to_file(mana_dir.join("1.yaml")).unwrap();
-        bean2.to_file(mana_dir.join("2.yaml")).unwrap();
-        bean3.to_file(mana_dir.join("3.yaml")).unwrap();
+        unit1.to_file(mana_dir.join("1.yaml")).unwrap();
+        unit2.to_file(mana_dir.join("2.yaml")).unwrap();
+        unit3.to_file(mana_dir.join("3.yaml")).unwrap();
 
         let result = cmd_graph(&mana_dir, "ascii");
         assert!(result.is_ok());

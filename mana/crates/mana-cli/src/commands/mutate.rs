@@ -26,10 +26,10 @@ pub struct MutateArgs {
 /// Loads the unit, runs its verify to confirm it passes first, then mutates
 /// the git diff and re-runs verify for each mutant. Reports surviving mutants.
 pub fn cmd_mutate(mana_dir: &Path, args: MutateArgs) -> Result<()> {
-    let bean_path =
+    let unit_path =
         find_unit_file(mana_dir, &args.id).map_err(|_| anyhow!("Unit not found: {}", args.id))?;
     let unit =
-        Unit::from_file(&bean_path).with_context(|| format!("Failed to load unit: {}", args.id))?;
+        Unit::from_file(&unit_path).with_context(|| format!("Failed to load unit: {}", args.id))?;
 
     let verify_cmd = unit
         .verify

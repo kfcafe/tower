@@ -52,8 +52,8 @@ struct RaceResult {
 /// Summary of the race.
 #[derive(Debug, Serialize)]
 struct RaceSummary {
-    bean_id: String,
-    bean_title: String,
+    unit_id: String,
+    unit_title: String,
     contestants: u32,
     results: Vec<RaceResult>,
     winner: Option<u32>,
@@ -66,9 +66,9 @@ struct RaceSummary {
 /// and identifies a winner.
 pub fn cmd_race(mana_dir: &Path, args: RaceArgs) -> Result<()> {
     let config = Config::load_with_extends(mana_dir)?;
-    let bean_path = find_unit_file(mana_dir, &args.id)
+    let unit_path = find_unit_file(mana_dir, &args.id)
         .with_context(|| format!("Unit not found: {}", args.id))?;
-    let unit = Unit::from_file(&bean_path)
+    let unit = Unit::from_file(&unit_path)
         .with_context(|| format!("Failed to load unit: {}", args.id))?;
 
     // We need a run template for race mode (direct mode would need multiple
@@ -216,8 +216,8 @@ pub fn cmd_race(mana_dir: &Path, args: RaceArgs) -> Result<()> {
     };
 
     let summary = RaceSummary {
-        bean_id: args.id.clone(),
-        bean_title: unit.title.clone(),
+        unit_id: args.id.clone(),
+        unit_title: unit.title.clone(),
         contestants: count,
         results,
         winner,
@@ -231,7 +231,7 @@ pub fn cmd_race(mana_dir: &Path, args: RaceArgs) -> Result<()> {
     if !args.json {
         eprintln!();
         eprintln!("=== Race Summary ===");
-        eprintln!("Unit: {} — {}", summary.bean_id, summary.bean_title);
+        eprintln!("Unit: {} — {}", summary.unit_id, summary.unit_title);
         eprintln!("Contestants: {}", summary.contestants);
         eprintln!();
         for r in &summary.results {
@@ -267,7 +267,7 @@ mod tests {
     use std::fs;
     use tempfile::TempDir;
 
-    fn setup_beans_dir() -> (TempDir, std::path::PathBuf) {
+    fn setup_mana_dir() -> (TempDir, std::path::PathBuf) {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -282,7 +282,7 @@ mod tests {
         (dir, mana_dir)
     }
 
-    fn write_test_bean(mana_dir: &std::path::Path, unit: &Unit) {
+    fn write_test_unit(mana_dir: &std::path::Path, unit: &Unit) {
         let slug = title_to_slug(&unit.title);
         let path = mana_dir.join(format!("{}-{}.md", unit.id, slug));
         unit.to_file(&path).unwrap();
@@ -303,7 +303,7 @@ mod tests {
 
         let mut unit = Unit::new("1", "Test unit");
         unit.verify = Some("true".to_string());
-        write_test_bean(&mana_dir, &unit);
+        write_test_unit(&mana_dir, &unit);
 
         let args = RaceArgs {
             id: "1".to_string(),
@@ -319,8 +319,8 @@ mod tests {
     }
 
     #[test]
-    fn race_bean_not_found() {
-        let (_dir, mana_dir) = setup_beans_dir();
+    fn race_unit_not_found() {
+        let (_dir, mana_dir) = setup_mana_dir();
 
         let args = RaceArgs {
             id: "999".to_string(),
@@ -336,11 +336,11 @@ mod tests {
 
     #[test]
     fn race_runs_contestants() {
-        let (_dir, mana_dir) = setup_beans_dir();
+        let (_dir, mana_dir) = setup_mana_dir();
 
         let mut unit = Unit::new("1", "Race test");
         unit.verify = Some("true".to_string());
-        write_test_bean(&mana_dir, &unit);
+        write_test_unit(&mana_dir, &unit);
 
         let args = RaceArgs {
             id: "1".to_string(),
@@ -357,11 +357,11 @@ mod tests {
 
     #[test]
     fn race_json_output() {
-        let (_dir, mana_dir) = setup_beans_dir();
+        let (_dir, mana_dir) = setup_mana_dir();
 
         let mut unit = Unit::new("1", "Race JSON test");
         unit.verify = Some("true".to_string());
-        write_test_bean(&mana_dir, &unit);
+        write_test_unit(&mana_dir, &unit);
 
         let args = RaceArgs {
             id: "1".to_string(),
@@ -377,11 +377,11 @@ mod tests {
 
     #[test]
     fn race_minimum_two_contestants() {
-        let (_dir, mana_dir) = setup_beans_dir();
+        let (_dir, mana_dir) = setup_mana_dir();
 
         let mut unit = Unit::new("1", "Race min test");
         unit.verify = Some("true".to_string());
-        write_test_bean(&mana_dir, &unit);
+        write_test_unit(&mana_dir, &unit);
 
         // count=1 should be bumped to 2
         let args = RaceArgs {

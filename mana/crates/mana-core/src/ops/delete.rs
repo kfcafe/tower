@@ -16,12 +16,12 @@ pub struct DeleteResult {
 
 /// Delete a unit and clean up dependency references.
 pub fn delete(mana_dir: &Path, id: &str) -> Result<DeleteResult> {
-    let bean_path =
+    let unit_path =
         find_unit_file(mana_dir, id).with_context(|| format!("Unit not found: {}", id))?;
     let unit =
-        Unit::from_file(&bean_path).with_context(|| format!("Failed to load unit: {}", id))?;
+        Unit::from_file(&unit_path).with_context(|| format!("Failed to load unit: {}", id))?;
     let title = unit.title.clone();
-    fs::remove_file(&bean_path).with_context(|| format!("Failed to delete: {}", id))?;
+    fs::remove_file(&unit_path).with_context(|| format!("Failed to delete: {}", id))?;
     cleanup_dep_references(mana_dir, id)?;
     let index = Index::build(mana_dir)?;
     index.save(mana_dir)?;
@@ -45,12 +45,12 @@ fn cleanup_dep_references(mana_dir: &Path, deleted_id: &str) -> Result<()> {
             continue;
         }
         let ext = path.extension().and_then(|e| e.to_str());
-        let is_bean = match ext {
+        let is_unit = match ext {
             Some("md") => filename.contains('-'),
             Some("yaml") => true,
             _ => false,
         };
-        if !is_bean {
+        if !is_unit {
             continue;
         }
         if let Ok(mut unit) = Unit::from_file(&path) {
@@ -109,7 +109,7 @@ mod tests {
     }
 
     #[test]
-    fn delete_bean() {
+    fn delete_unit() {
         let (_dir, bd) = setup();
         let c = create::create(&bd, minimal_params("Task")).unwrap();
         assert!(c.path.exists());

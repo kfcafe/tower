@@ -87,11 +87,11 @@ pub fn cmd_list(
         let index = Index::load_or_rebuild(mana_dir)?;
         let include_archived = status_filter == Some("closed") || all;
         let combined_index = if include_archived {
-            let mut all_beans = index.units.clone();
+            let mut all_units = index.units.clone();
             if let Ok(archived) = Index::collect_archived(mana_dir) {
-                all_beans.extend(archived);
+                all_units.extend(archived);
             }
-            Index { units: all_beans }
+            Index { units: all_units }
         } else {
             index.clone()
         };
@@ -191,36 +191,36 @@ mod tests {
     use crate::util::{parse_status, title_to_slug};
     use tempfile::TempDir;
 
-    fn setup_test_beans() -> (TempDir, std::path::PathBuf) {
+    fn setup_test_units() -> (TempDir, std::path::PathBuf) {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
 
         // Create some test units
-        let bean1 = crate::unit::Unit::new("1", "First task");
-        let mut bean2 = crate::unit::Unit::new("2", "Second task");
-        bean2.status = Status::InProgress;
-        let mut bean3 = crate::unit::Unit::new("3", "Parent task");
-        bean3.dependencies = vec!["1".to_string()];
+        let unit1 = crate::unit::Unit::new("1", "First task");
+        let mut unit2 = crate::unit::Unit::new("2", "Second task");
+        unit2.status = Status::InProgress;
+        let mut unit3 = crate::unit::Unit::new("3", "Parent task");
+        unit3.dependencies = vec!["1".to_string()];
 
-        let mut bean3_1 = crate::unit::Unit::new("3.1", "Subtask");
-        bean3_1.parent = Some("3".to_string());
+        let mut unit3_1 = crate::unit::Unit::new("3.1", "Subtask");
+        unit3_1.parent = Some("3".to_string());
 
-        let slug1 = title_to_slug(&bean1.title);
-        let slug2 = title_to_slug(&bean2.title);
-        let slug3 = title_to_slug(&bean3.title);
-        let slug3_1 = title_to_slug(&bean3_1.title);
+        let slug1 = title_to_slug(&unit1.title);
+        let slug2 = title_to_slug(&unit2.title);
+        let slug3 = title_to_slug(&unit3.title);
+        let slug3_1 = title_to_slug(&unit3_1.title);
 
-        bean1
+        unit1
             .to_file(mana_dir.join(format!("1-{}.md", slug1)))
             .unwrap();
-        bean2
+        unit2
             .to_file(mana_dir.join(format!("2-{}.md", slug2)))
             .unwrap();
-        bean3
+        unit3
             .to_file(mana_dir.join(format!("3-{}.md", slug3)))
             .unwrap();
-        bean3_1
+        unit3_1
             .to_file(mana_dir.join(format!("3.1-{}.md", slug3_1)))
             .unwrap();
 
@@ -245,7 +245,7 @@ mod tests {
 
     #[test]
     fn blocked_by_open_dependency() {
-        let index = Index::build(&setup_test_beans().1).unwrap();
+        let index = Index::build(&setup_test_units().1).unwrap();
         let entry = index.units.iter().find(|e| e.id == "3").unwrap();
         // unit 3 depends on unit 1 which is open, so unit 3 is blocked
         assert!(check_blocked(entry, &index).is_some());
@@ -253,7 +253,7 @@ mod tests {
 
     #[test]
     fn not_blocked_when_no_dependencies() {
-        let index = Index::build(&setup_test_beans().1).unwrap();
+        let index = Index::build(&setup_test_units().1).unwrap();
         let entry = index.units.iter().find(|e| e.id == "1").unwrap();
         // unit 1 has no deps — unscoped units are no longer blocked
         let reason = check_blocked(entry, &index);
@@ -349,7 +349,7 @@ mod tests {
 
     #[test]
     fn render_tree_hierarchy() {
-        let (_dir, mana_dir) = setup_test_beans();
+        let (_dir, mana_dir) = setup_test_units();
         let index = Index::build(&mana_dir).unwrap();
         let tree = render_tree(&index.units, &index);
 

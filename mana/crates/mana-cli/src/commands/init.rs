@@ -442,7 +442,7 @@ mod tests {
     }
 
     #[test]
-    fn init_creates_beans_dir() {
+    fn init_creates_mana_dir() {
         let dir = TempDir::new().unwrap();
         let result = cmd_init(Some(dir.path()), default_args());
 

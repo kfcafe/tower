@@ -19,7 +19,7 @@ mod plan;
 mod ready_queue;
 mod wave;
 
-pub use plan::{DispatchPlan, SizedBean};
+pub use plan::{DispatchPlan, SizedUnit};
 pub use wave::Wave;
 
 use std::fmt;
@@ -72,14 +72,14 @@ pub struct RunArgs {
 
 /// What action to take for a unit.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BeanAction {
+pub enum UnitAction {
     Implement,
 }
 
-impl fmt::Display for BeanAction {
+impl fmt::Display for UnitAction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            BeanAction::Implement => write!(f, "implement"),
+            UnitAction::Implement => write!(f, "implement"),
         }
     }
 }
@@ -90,7 +90,7 @@ impl fmt::Display for BeanAction {
 struct AgentResult {
     id: String,
     title: String,
-    action: BeanAction,
+    action: UnitAction,
     success: bool,
     duration: Duration,
     total_tokens: Option<u64>,
@@ -195,13 +195,13 @@ struct DecisionWarning {
 
 fn collect_decision_warnings(
     mana_dir: &Path,
-    beans: &[SizedBean],
+    units: &[SizedUnit],
     index: &crate::index::Index,
 ) -> Result<Vec<DecisionWarning>> {
     let mut warnings = Vec::new();
 
-    for bean in beans {
-        let Some(entry) = index.units.iter().find(|entry| entry.id == bean.id) else {
+    for unit in units {
+        let Some(entry) = index.units.iter().find(|entry| entry.id == unit.id) else {
             continue;
         };
 
@@ -209,7 +209,7 @@ fn collect_decision_warnings(
             continue;
         }
 
-        let unit_path = crate::discovery::find_unit_file(mana_dir, &bean.id)?;
+        let unit_path = crate::discovery::find_unit_file(mana_dir, &unit.id)?;
         let unit = Unit::from_file(&unit_path)?;
         if unit.decisions.is_empty() {
             continue;
@@ -399,7 +399,7 @@ fn run_once(
         return Ok(());
     }
 
-    let decision_warnings = collect_decision_warnings(mana_dir, &plan.all_beans, &plan.index)?;
+    let decision_warnings = collect_decision_warnings(mana_dir, &plan.all_units, &plan.index)?;
     if !confirm_dispatch_with_decisions(&decision_warnings, args.json_stream)? {
         if !args.json_stream {
             eprintln!("Dispatch cancelled.");
@@ -416,17 +416,17 @@ fn run_once(
         eprintln!();
     }
 
-    let total_beans: usize = plan.waves.iter().map(|w| w.units.len()).sum();
+    let total_units: usize = plan.waves.iter().map(|w| w.units.len()).sum();
     let total_waves = plan.waves.len();
     let parent_id = args.id.as_deref().unwrap_or("all");
 
     if args.json_stream {
-        let beans_info: Vec<stream::BeanInfo> = plan
+        let units_info: Vec<stream::UnitInfo> = plan
             .waves
             .iter()
             .enumerate()
             .flat_map(|(wave_idx, wave)| {
-                wave.units.iter().map(move |b| stream::BeanInfo {
+                wave.units.iter().map(move |b| stream::UnitInfo {
                     id: b.id.clone(),
                     title: b.title.clone(),
                     round: wave_idx + 1,
@@ -435,9 +435,9 @@ fn run_once(
             .collect();
         stream::emit(&StreamEvent::RunStart {
             parent_id: parent_id.to_string(),
-            total_beans,
+            total_units,
             total_rounds: total_waves,
-            units: beans_info,
+            units: units_info,
         });
     }
 
@@ -462,14 +462,14 @@ fn run_once(
     match spawn_mode {
         SpawnMode::Direct => {
             if !args.json_stream {
-                eprintln!("Dispatching {} unit(s)...", total_beans);
+                eprintln!("Dispatching {} unit(s)...", total_units);
             }
 
             // Ready-queue: start each unit as soon as its specific deps finish.
             // Progress (▸ start, ✓/✗ done) is printed in real-time by the queue.
             let (results, had_failure) = run_ready_queue_direct(
                 mana_dir,
-                &plan.all_beans,
+                &plan.all_units,
                 &plan.index,
                 &run_cfg,
                 args.keep_going,
@@ -482,7 +482,7 @@ fn run_once(
                 total_cost += result.total_cost.unwrap_or(0.0);
                 if result.success {
                     if args.json_stream {
-                        stream::emit(&StreamEvent::BeanDone {
+                        stream::emit(&StreamEvent::UnitDone {
                             id: result.id.clone(),
                             success: true,
                             duration_secs: result.duration.as_secs(),
@@ -498,7 +498,7 @@ fn run_once(
                     successful_ids.push(result.id.clone());
                 } else {
                     if args.json_stream {
-                        stream::emit(&StreamEvent::BeanDone {
+                        stream::emit(&StreamEvent::UnitDone {
                             id: result.id.clone(),
                             success: false,
                             duration_secs: result.duration.as_secs(),
@@ -572,7 +572,7 @@ fn run_once(
                     stream::emit(&StreamEvent::RoundStart {
                         round: wave_idx + 1,
                         total_rounds: total_waves,
-                        bean_count: wave.units.len(),
+                        unit_count: wave.units.len(),
                     });
                 } else {
                     eprintln!("Wave {}: {} unit(s)", wave_idx + 1, wave.units.len());
@@ -587,7 +587,7 @@ fn run_once(
                     let duration = format_duration(result.duration);
                     if result.success {
                         if args.json_stream {
-                            stream::emit(&StreamEvent::BeanDone {
+                            stream::emit(&StreamEvent::UnitDone {
                                 id: result.id.clone(),
                                 success: true,
                                 duration_secs: result.duration.as_secs(),
@@ -606,7 +606,7 @@ fn run_once(
                         successful_ids.push(result.id.clone());
                     } else {
                         if args.json_stream {
-                            stream::emit(&StreamEvent::BeanDone {
+                            stream::emit(&StreamEvent::UnitDone {
                                 id: result.id.clone(),
                                 success: false,
                                 duration_secs: result.duration.as_secs(),
@@ -853,7 +853,7 @@ mod tests {
     use std::fs;
     use tempfile::TempDir;
 
-    fn make_beans_dir() -> (TempDir, std::path::PathBuf) {
+    fn make_mana_dir() -> (TempDir, std::path::PathBuf) {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -889,7 +889,7 @@ mod tests {
 
     #[test]
     fn cmd_run_errors_when_no_run_template_and_no_pi() {
-        let (_dir, mana_dir) = make_beans_dir();
+        let (_dir, mana_dir) = make_mana_dir();
         write_config(&mana_dir, None);
 
         let args = default_args();
@@ -911,7 +911,7 @@ mod tests {
 
     #[test]
     fn dry_run_does_not_spawn() {
-        let (_dir, mana_dir) = make_beans_dir();
+        let (_dir, mana_dir) = make_mana_dir();
         write_config(&mana_dir, Some("echo {id}"));
 
         // Create a ready unit
@@ -931,7 +931,7 @@ mod tests {
 
     #[test]
     fn dry_run_with_json_stream() {
-        let (_dir, mana_dir) = make_beans_dir();
+        let (_dir, mana_dir) = make_mana_dir();
         write_config(&mana_dir, Some("echo {id}"));
 
         let mut unit = crate::unit::Unit::new("1", "Test unit");
@@ -1038,7 +1038,7 @@ mod tests {
         let result = AgentResult {
             id: "1".to_string(),
             title: "Test".to_string(),
-            action: BeanAction::Implement,
+            action: UnitAction::Implement,
             success: true,
             duration: Duration::from_secs(10),
             total_tokens: Some(5000),
@@ -1054,7 +1054,7 @@ mod tests {
 
     #[test]
     fn collect_decision_warnings_only_returns_dispatch_units_with_decisions() {
-        let (_dir, mana_dir) = make_beans_dir();
+        let (_dir, mana_dir) = make_mana_dir();
         write_config(&mana_dir, Some("echo {id}"));
 
         let mut unit1 = crate::unit::Unit::new("1", "Has decisions");
@@ -1067,11 +1067,11 @@ mod tests {
         unit2.to_file(mana_dir.join("2-no-decisions.md")).unwrap();
 
         let index = crate::index::Index::build(&mana_dir).unwrap();
-        let beans = vec![
-            SizedBean {
+        let units = vec![
+            SizedUnit {
                 id: "1".to_string(),
                 title: "Has decisions".to_string(),
-                action: BeanAction::Implement,
+                action: UnitAction::Implement,
                 priority: 2,
                 dependencies: Vec::new(),
                 parent: None,
@@ -1080,10 +1080,10 @@ mod tests {
                 paths: Vec::new(),
                 model: None,
             },
-            SizedBean {
+            SizedUnit {
                 id: "2".to_string(),
                 title: "No decisions".to_string(),
-                action: BeanAction::Implement,
+                action: UnitAction::Implement,
                 priority: 2,
                 dependencies: Vec::new(),
                 parent: None,
@@ -1094,7 +1094,7 @@ mod tests {
             },
         ];
 
-        let warnings = collect_decision_warnings(&mana_dir, &beans, &index).unwrap();
+        let warnings = collect_decision_warnings(&mana_dir, &units, &index).unwrap();
         assert_eq!(warnings.len(), 1);
         assert_eq!(warnings[0].id, "1");
         assert_eq!(warnings[0].decisions, vec!["JWT or session cookies?"]);

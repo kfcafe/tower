@@ -8,7 +8,7 @@ fn new_close_temp_dir(prefix: &str) -> TempDir {
     Builder::new().prefix(prefix).tempdir().unwrap()
 }
 
-fn setup_test_beans_dir() -> (TempDir, std::path::PathBuf) {
+fn setup_test_mana_dir() -> (TempDir, std::path::PathBuf) {
     let dir = new_close_temp_dir("mana-close-test-");
     let project_root = fs::canonicalize(dir.path()).unwrap();
     let mana_dir = project_root.join(".mana");
@@ -17,8 +17,8 @@ fn setup_test_beans_dir() -> (TempDir, std::path::PathBuf) {
 }
 
 #[test]
-fn test_close_single_bean() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+fn test_close_single_unit() {
+    let (_dir, mana_dir) = setup_test_mana_dir();
     let unit = Unit::new("1", "Task");
     let slug = title_to_slug(&unit.title);
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
@@ -36,7 +36,7 @@ fn test_close_single_bean() {
 
 #[test]
 fn test_close_with_reason() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
     let unit = Unit::new("1", "Task");
     let slug = title_to_slug(&unit.title);
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
@@ -58,21 +58,21 @@ fn test_close_with_reason() {
 }
 
 #[test]
-fn test_close_multiple_beans() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
-    let bean1 = Unit::new("1", "Task 1");
-    let bean2 = Unit::new("2", "Task 2");
-    let bean3 = Unit::new("3", "Task 3");
-    let slug1 = title_to_slug(&bean1.title);
-    let slug2 = title_to_slug(&bean2.title);
-    let slug3 = title_to_slug(&bean3.title);
-    bean1
+fn test_close_multiple_units() {
+    let (_dir, mana_dir) = setup_test_mana_dir();
+    let unit1 = Unit::new("1", "Task 1");
+    let unit2 = Unit::new("2", "Task 2");
+    let unit3 = Unit::new("3", "Task 3");
+    let slug1 = title_to_slug(&unit1.title);
+    let slug2 = title_to_slug(&unit2.title);
+    let slug3 = title_to_slug(&unit3.title);
+    unit1
         .to_file(mana_dir.join(format!("1-{}.md", slug1)))
         .unwrap();
-    bean2
+    unit2
         .to_file(mana_dir.join(format!("2-{}.md", slug2)))
         .unwrap();
-    bean3
+    unit3
         .to_file(mana_dir.join(format!("3-{}.md", slug3)))
         .unwrap();
 
@@ -94,30 +94,30 @@ fn test_close_multiple_beans() {
 }
 
 #[test]
-fn test_close_nonexistent_bean() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+fn test_close_nonexistent_unit() {
+    let (_dir, mana_dir) = setup_test_mana_dir();
     let result = cmd_close(&mana_dir, vec!["99".to_string()], None, false);
     assert!(result.is_err());
 }
 
 #[test]
 fn test_close_no_ids() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
     let result = cmd_close(&mana_dir, vec![], None, false);
     assert!(result.is_err());
 }
 
 #[test]
 fn test_close_rebuilds_index() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
-    let bean1 = Unit::new("1", "Task 1");
-    let bean2 = Unit::new("2", "Task 2");
-    let slug1 = title_to_slug(&bean1.title);
-    let slug2 = title_to_slug(&bean2.title);
-    bean1
+    let (_dir, mana_dir) = setup_test_mana_dir();
+    let unit1 = Unit::new("1", "Task 1");
+    let unit2 = Unit::new("2", "Task 2");
+    let slug1 = title_to_slug(&unit1.title);
+    let slug2 = title_to_slug(&unit2.title);
+    unit1
         .to_file(mana_dir.join(format!("1-{}.md", slug1)))
         .unwrap();
-    bean2
+    unit2
         .to_file(mana_dir.join(format!("2-{}.md", slug2)))
         .unwrap();
 
@@ -129,13 +129,13 @@ fn test_close_rebuilds_index() {
     assert_eq!(entry2.status, Status::Open);
 
     let archived = crate::discovery::find_archived_unit(&mana_dir, "1").unwrap();
-    let bean1_archived = Unit::from_file(&archived).unwrap();
-    assert_eq!(bean1_archived.status, Status::Closed);
+    let unit1_archived = Unit::from_file(&archived).unwrap();
+    assert_eq!(unit1_archived.status, Status::Closed);
 }
 
 #[test]
 fn test_close_sets_updated_at() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
     let unit = Unit::new("1", "Task");
     let original_updated_at = unit.updated_at;
     let slug = title_to_slug(&unit.title);
@@ -153,7 +153,7 @@ fn test_close_sets_updated_at() {
 
 #[test]
 fn test_close_with_passing_verify() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
     let mut unit = Unit::new("1", "Task with verify");
     unit.verify = Some("true".to_string());
     let slug = title_to_slug(&unit.title);
@@ -171,7 +171,7 @@ fn test_close_with_passing_verify() {
 
 #[test]
 fn test_close_with_failing_verify_increments_attempts() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
     let mut unit = Unit::new("1", "Task with failing verify");
     unit.verify = Some("false".to_string());
     unit.attempts = 0;
@@ -190,7 +190,7 @@ fn test_close_with_failing_verify_increments_attempts() {
 
 #[test]
 fn test_close_with_failing_verify_multiple_attempts() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
     let mut unit = Unit::new("1", "Task with failing verify");
     unit.verify = Some("false".to_string());
     unit.attempts = 0;
@@ -229,7 +229,7 @@ fn test_close_with_failing_verify_multiple_attempts() {
 
 #[test]
 fn test_close_failure_appends_to_notes() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
     let mut unit = Unit::new("1", "Task with failing verify");
     unit.verify = Some("echo 'test error output' && exit 1".to_string());
     unit.notes = Some("Original notes".to_string());
@@ -251,7 +251,7 @@ fn test_close_failure_appends_to_notes() {
 
 #[test]
 fn test_close_failure_creates_notes_if_none() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
     let mut unit = Unit::new("1", "Task with no notes");
     unit.verify = Some("echo 'failure' && exit 1".to_string());
     let slug = title_to_slug(&unit.title);
@@ -270,7 +270,7 @@ fn test_close_failure_creates_notes_if_none() {
 
 #[test]
 fn test_close_without_verify_still_works() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
     let unit = Unit::new("1", "Task without verify");
     let slug = title_to_slug(&unit.title);
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
@@ -287,7 +287,7 @@ fn test_close_without_verify_still_works() {
 
 #[test]
 fn test_close_with_force_skips_verify() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
     let mut unit = Unit::new("1", "Task with failing verify");
     unit.verify = Some("false".to_string());
     let slug = title_to_slug(&unit.title);
@@ -305,7 +305,7 @@ fn test_close_with_force_skips_verify() {
 
 #[test]
 fn test_close_with_empty_verify_still_closes() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
     let mut unit = Unit::new("1", "Task with empty verify");
     unit.verify = Some("".to_string());
     let slug = title_to_slug(&unit.title);
@@ -323,7 +323,7 @@ fn test_close_with_empty_verify_still_closes() {
 
 #[test]
 fn test_close_with_whitespace_verify_still_closes() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
     let mut unit = Unit::new("1", "Task with whitespace verify");
     unit.verify = Some("   ".to_string());
     let slug = title_to_slug(&unit.title);
@@ -340,7 +340,7 @@ fn test_close_with_whitespace_verify_still_closes() {
 
 #[test]
 fn test_close_with_shell_operators_work() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
     let mut unit = Unit::new("1", "Task with shell operators");
     unit.verify = Some("true && true".to_string());
     let slug = title_to_slug(&unit.title);
@@ -357,7 +357,7 @@ fn test_close_with_shell_operators_work() {
 
 #[test]
 fn test_close_with_pipe_propagates_exit_code() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
     let mut unit = Unit::new("1", "Task with pipe");
     unit.verify = Some("true | false".to_string());
     let slug = title_to_slug(&unit.title);
@@ -378,7 +378,7 @@ fn test_close_with_pipe_propagates_exit_code() {
 
 #[test]
 fn test_close_with_passing_pre_close_hook() {
-    let (dir, mana_dir) = setup_test_beans_dir();
+    let (dir, mana_dir) = setup_test_mana_dir();
     let project_root = dir.path();
     let hooks_dir = mana_dir.join("hooks");
     fs::create_dir_all(&hooks_dir).unwrap();
@@ -409,7 +409,7 @@ fn test_close_with_passing_pre_close_hook() {
 
 #[test]
 fn test_close_with_failing_pre_close_hook_blocks_close() {
-    let (dir, mana_dir) = setup_test_beans_dir();
+    let (dir, mana_dir) = setup_test_mana_dir();
     let project_root = dir.path();
     let hooks_dir = mana_dir.join("hooks");
     fs::create_dir_all(&hooks_dir).unwrap();
@@ -441,7 +441,7 @@ fn test_close_with_failing_pre_close_hook_blocks_close() {
 
 #[test]
 fn test_close_batch_with_mixed_hook_results() {
-    let (dir, mana_dir) = setup_test_beans_dir();
+    let (dir, mana_dir) = setup_test_mana_dir();
     let project_root = dir.path();
     let hooks_dir = mana_dir.join("hooks");
     fs::create_dir_all(&hooks_dir).unwrap();
@@ -457,19 +457,19 @@ fn test_close_batch_with_mixed_hook_results() {
         fs::set_permissions(&hook_path, fs::Permissions::from_mode(0o755)).unwrap();
     }
 
-    let bean1 = Unit::new("1", "Task 1 - will close");
-    let bean2 = Unit::new("2", "Task 2 - will close");
-    let bean3 = Unit::new("3", "Task 3 - will close");
-    let slug1 = title_to_slug(&bean1.title);
-    let slug2 = title_to_slug(&bean2.title);
-    let slug3 = title_to_slug(&bean3.title);
-    bean1
+    let unit1 = Unit::new("1", "Task 1 - will close");
+    let unit2 = Unit::new("2", "Task 2 - will close");
+    let unit3 = Unit::new("3", "Task 3 - will close");
+    let slug1 = title_to_slug(&unit1.title);
+    let slug2 = title_to_slug(&unit2.title);
+    let slug3 = title_to_slug(&unit3.title);
+    unit1
         .to_file(mana_dir.join(format!("1-{}.md", slug1)))
         .unwrap();
-    bean2
+    unit2
         .to_file(mana_dir.join(format!("2-{}.md", slug2)))
         .unwrap();
-    bean3
+    unit3
         .to_file(mana_dir.join(format!("3-{}.md", slug3)))
         .unwrap();
 
@@ -491,7 +491,7 @@ fn test_close_batch_with_mixed_hook_results() {
 
 #[test]
 fn test_close_with_untrusted_hooks_silently_skips() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
     let hooks_dir = mana_dir.join("hooks");
     fs::create_dir_all(&hooks_dir).unwrap();
 
@@ -519,7 +519,7 @@ fn test_close_with_untrusted_hooks_silently_skips() {
 
 #[test]
 fn test_close_with_missing_hook_silently_succeeds() {
-    let (dir, mana_dir) = setup_test_beans_dir();
+    let (dir, mana_dir) = setup_test_mana_dir();
     let project_root = dir.path();
 
     crate::hooks::create_trust(project_root).unwrap();
@@ -539,7 +539,7 @@ fn test_close_with_missing_hook_silently_succeeds() {
 
 #[test]
 fn test_close_passes_reason_to_pre_close_hook() {
-    let (dir, mana_dir) = setup_test_beans_dir();
+    let (dir, mana_dir) = setup_test_mana_dir();
     let project_root = dir.path();
     let hooks_dir = mana_dir.join("hooks");
     fs::create_dir_all(&hooks_dir).unwrap();
@@ -576,7 +576,7 @@ fn test_close_passes_reason_to_pre_close_hook() {
 
 #[test]
 fn test_close_batch_partial_rejection_by_hook() {
-    let (dir, mana_dir) = setup_test_beans_dir();
+    let (dir, mana_dir) = setup_test_mana_dir();
     let project_root = dir.path();
     let hooks_dir = mana_dir.join("hooks");
     fs::create_dir_all(&hooks_dir).unwrap();
@@ -596,19 +596,19 @@ fn test_close_batch_partial_rejection_by_hook() {
         fs::set_permissions(&hook_path, fs::Permissions::from_mode(0o755)).unwrap();
     }
 
-    let bean1 = Unit::new("1", "Task 1");
-    let bean2 = Unit::new("2", "Task 2 - will be rejected");
-    let bean3 = Unit::new("3", "Task 3");
-    let slug1 = title_to_slug(&bean1.title);
-    let slug2 = title_to_slug(&bean2.title);
-    let slug3 = title_to_slug(&bean3.title);
-    bean1
+    let unit1 = Unit::new("1", "Task 1");
+    let unit2 = Unit::new("2", "Task 2 - will be rejected");
+    let unit3 = Unit::new("3", "Task 3");
+    let slug1 = title_to_slug(&unit1.title);
+    let slug2 = title_to_slug(&unit2.title);
+    let slug3 = title_to_slug(&unit3.title);
+    unit1
         .to_file(mana_dir.join(format!("1-{}.md", slug1)))
         .unwrap();
-    bean2
+    unit2
         .to_file(mana_dir.join(format!("2-{}.md", slug2)))
         .unwrap();
-    bean3
+    unit3
         .to_file(mana_dir.join(format!("3-{}.md", slug3)))
         .unwrap();
 
@@ -622,18 +622,18 @@ fn test_close_batch_partial_rejection_by_hook() {
 
     let archived1 = crate::discovery::find_archived_unit(&mana_dir, "1");
     assert!(archived1.is_ok());
-    let bean1_result = Unit::from_file(archived1.unwrap()).unwrap();
-    assert_eq!(bean1_result.status, Status::Closed);
+    let unit1_result = Unit::from_file(archived1.unwrap()).unwrap();
+    assert_eq!(unit1_result.status, Status::Closed);
 
     let open2 = crate::discovery::find_unit_file(&mana_dir, "2");
     assert!(open2.is_ok());
-    let bean2_result = Unit::from_file(open2.unwrap()).unwrap();
-    assert_eq!(bean2_result.status, Status::Open);
+    let unit2_result = Unit::from_file(open2.unwrap()).unwrap();
+    assert_eq!(unit2_result.status, Status::Open);
 
     let archived3 = crate::discovery::find_archived_unit(&mana_dir, "3");
     assert!(archived3.is_ok());
-    let bean3_result = Unit::from_file(archived3.unwrap()).unwrap();
-    assert_eq!(bean3_result.status, Status::Closed);
+    let unit3_result = Unit::from_file(archived3.unwrap()).unwrap();
+    assert_eq!(unit3_result.status, Status::Closed);
 }
 
 // =====================================================================
@@ -642,7 +642,7 @@ fn test_close_batch_partial_rejection_by_hook() {
 
 #[test]
 fn test_post_close_hook_fires_after_successful_close() {
-    let (dir, mana_dir) = setup_test_beans_dir();
+    let (dir, mana_dir) = setup_test_mana_dir();
     let project_root = dir.path();
     let hooks_dir = mana_dir.join("hooks");
     fs::create_dir_all(&hooks_dir).unwrap();
@@ -680,7 +680,7 @@ fn test_post_close_hook_fires_after_successful_close() {
 
 #[test]
 fn test_post_close_hook_failure_does_not_prevent_close() {
-    let (dir, mana_dir) = setup_test_beans_dir();
+    let (dir, mana_dir) = setup_test_mana_dir();
     let project_root = dir.path();
     let hooks_dir = mana_dir.join("hooks");
     fs::create_dir_all(&hooks_dir).unwrap();
@@ -713,7 +713,7 @@ fn test_post_close_hook_failure_does_not_prevent_close() {
 // Auto-Close Parent Tests
 // =====================================================================
 
-fn setup_test_beans_dir_with_config() -> (TempDir, std::path::PathBuf) {
+fn setup_test_mana_dir_with_config() -> (TempDir, std::path::PathBuf) {
     let dir = new_close_temp_dir("mana-close-config-");
     let project_root = fs::canonicalize(dir.path()).unwrap();
     let mana_dir = project_root.join(".mana");
@@ -755,7 +755,7 @@ fn setup_test_beans_dir_with_config() -> (TempDir, std::path::PathBuf) {
 
 #[test]
 fn test_auto_close_parent_when_all_children_closed() {
-    let (_dir, mana_dir) = setup_test_beans_dir_with_config();
+    let (_dir, mana_dir) = setup_test_mana_dir_with_config();
 
     let parent = Unit::new("1", "Parent Task");
     let parent_slug = title_to_slug(&parent.title);
@@ -781,8 +781,8 @@ fn test_auto_close_parent_when_all_children_closed() {
 
     let parent_still_open = crate::discovery::find_unit_file(&mana_dir, "1");
     assert!(parent_still_open.is_ok());
-    let parent_bean = Unit::from_file(parent_still_open.unwrap()).unwrap();
-    assert_eq!(parent_bean.status, Status::Open);
+    let parent_unit = Unit::from_file(parent_still_open.unwrap()).unwrap();
+    assert_eq!(parent_unit.status, Status::Open);
 
     cmd_close(&mana_dir, vec!["1.2".to_string()], None, false).unwrap();
 
@@ -799,7 +799,7 @@ fn test_auto_close_parent_when_all_children_closed() {
 
 #[test]
 fn test_no_auto_close_when_children_still_open() {
-    let (_dir, mana_dir) = setup_test_beans_dir_with_config();
+    let (_dir, mana_dir) = setup_test_mana_dir_with_config();
 
     let parent = Unit::new("1", "Parent Task");
     let parent_slug = title_to_slug(&parent.title);
@@ -825,8 +825,8 @@ fn test_no_auto_close_when_children_still_open() {
 
     let parent_still_open = crate::discovery::find_unit_file(&mana_dir, "1");
     assert!(parent_still_open.is_ok());
-    let parent_bean = Unit::from_file(parent_still_open.unwrap()).unwrap();
-    assert_eq!(parent_bean.status, Status::Open);
+    let parent_unit = Unit::from_file(parent_still_open.unwrap()).unwrap();
+    assert_eq!(parent_unit.status, Status::Open);
 }
 
 #[test]
@@ -884,13 +884,13 @@ fn test_auto_close_disabled_via_config() {
 
     let parent_still_open = crate::discovery::find_unit_file(&mana_dir, "1");
     assert!(parent_still_open.is_ok());
-    let parent_bean = Unit::from_file(parent_still_open.unwrap()).unwrap();
-    assert_eq!(parent_bean.status, Status::Open);
+    let parent_unit = Unit::from_file(parent_still_open.unwrap()).unwrap();
+    assert_eq!(parent_unit.status, Status::Open);
 }
 
 #[test]
 fn test_auto_close_recursive_grandparent() {
-    let (_dir, mana_dir) = setup_test_beans_dir_with_config();
+    let (_dir, mana_dir) = setup_test_mana_dir_with_config();
 
     let grandparent = Unit::new("1", "Grandparent");
     let gp_slug = title_to_slug(&grandparent.title);
@@ -923,15 +923,15 @@ fn test_auto_close_recursive_grandparent() {
     let gp_archived = crate::discovery::find_archived_unit(&mana_dir, "1");
     assert!(gp_archived.is_ok(), "Grandparent should be auto-archived");
 
-    let p_bean = Unit::from_file(p_archived.unwrap()).unwrap();
-    assert!(p_bean
+    let p_unit = Unit::from_file(p_archived.unwrap()).unwrap();
+    assert!(p_unit
         .close_reason
         .as_ref()
         .unwrap()
         .contains("Auto-closed"));
 
-    let gp_bean = Unit::from_file(gp_archived.unwrap()).unwrap();
-    assert!(gp_bean
+    let gp_unit = Unit::from_file(gp_archived.unwrap()).unwrap();
+    assert!(gp_unit
         .close_reason
         .as_ref()
         .unwrap()
@@ -940,7 +940,7 @@ fn test_auto_close_recursive_grandparent() {
 
 #[test]
 fn test_auto_close_with_no_parent() {
-    let (_dir, mana_dir) = setup_test_beans_dir_with_config();
+    let (_dir, mana_dir) = setup_test_mana_dir_with_config();
 
     let unit = Unit::new("1", "Standalone Task");
     let slug = title_to_slug(&unit.title);
@@ -951,13 +951,13 @@ fn test_auto_close_with_no_parent() {
 
     let archived = crate::discovery::find_archived_unit(&mana_dir, "1");
     assert!(archived.is_ok());
-    let bean_result = Unit::from_file(archived.unwrap()).unwrap();
-    assert_eq!(bean_result.status, Status::Closed);
+    let unit_result = Unit::from_file(archived.unwrap()).unwrap();
+    assert_eq!(unit_result.status, Status::Closed);
 }
 
 #[test]
-fn test_all_children_closed_checks_archived_beans() {
-    let (_dir, mana_dir) = setup_test_beans_dir_with_config();
+fn test_all_children_closed_checks_archived_units() {
+    let (_dir, mana_dir) = setup_test_mana_dir_with_config();
 
     let parent = Unit::new("1", "Parent Task");
     let parent_slug = title_to_slug(&parent.title);
@@ -998,8 +998,8 @@ fn test_all_children_closed_checks_archived_beans() {
 // =====================================================================
 
 #[test]
-fn test_feature_bean_not_closed_in_non_tty() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+fn test_feature_unit_not_closed_in_non_tty() {
+    let (_dir, mana_dir) = setup_test_mana_dir();
 
     let mut unit = Unit::new("1", "Task management");
     unit.feature = true;
@@ -1015,8 +1015,8 @@ fn test_feature_bean_not_closed_in_non_tty() {
 }
 
 #[test]
-fn test_feature_bean_force_still_blocked_in_non_tty() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+fn test_feature_unit_force_still_blocked_in_non_tty() {
+    let (_dir, mana_dir) = setup_test_mana_dir();
 
     let mut unit = Unit::new("1", "Release v2");
     unit.feature = true;
@@ -1033,7 +1033,7 @@ fn test_feature_bean_force_still_blocked_in_non_tty() {
 
 #[test]
 fn test_feature_parent_not_auto_closed() {
-    let (_dir, mana_dir) = setup_test_beans_dir_with_config();
+    let (_dir, mana_dir) = setup_test_mana_dir_with_config();
 
     let mut parent = Unit::new("1", "Feature parent");
     parent.feature = true;
@@ -1064,13 +1064,13 @@ fn test_feature_parent_not_auto_closed() {
         parent_still_open.is_ok(),
         "Feature parent should NOT be auto-closed"
     );
-    let parent_bean = Unit::from_file(parent_still_open.unwrap()).unwrap();
-    assert_eq!(parent_bean.status, Status::Open);
+    let parent_unit = Unit::from_file(parent_still_open.unwrap()).unwrap();
+    assert_eq!(parent_unit.status, Status::Open);
 }
 
 #[test]
 fn test_non_feature_parent_still_auto_closes() {
-    let (_dir, mana_dir) = setup_test_beans_dir_with_config();
+    let (_dir, mana_dir) = setup_test_mana_dir_with_config();
 
     let parent = Unit::new("1", "Regular parent");
     let parent_slug = title_to_slug(&parent.title);
@@ -1092,13 +1092,13 @@ fn test_non_feature_parent_still_auto_closes() {
         parent_archived.is_ok(),
         "Regular parent should be auto-archived"
     );
-    let parent_bean = Unit::from_file(parent_archived.unwrap()).unwrap();
-    assert_eq!(parent_bean.status, Status::Closed);
+    let parent_unit = Unit::from_file(parent_archived.unwrap()).unwrap();
+    assert_eq!(parent_unit.status, Status::Closed);
 }
 
 #[test]
 fn test_feature_grandparent_blocks_recursive_auto_close() {
-    let (_dir, mana_dir) = setup_test_beans_dir_with_config();
+    let (_dir, mana_dir) = setup_test_mana_dir_with_config();
 
     let mut grandparent = Unit::new("1", "Feature goal");
     grandparent.feature = true;
@@ -1135,8 +1135,8 @@ fn test_feature_grandparent_blocks_recursive_auto_close() {
         gp_still_open.is_ok(),
         "Feature grandparent should NOT be auto-closed"
     );
-    let gp_bean = Unit::from_file(gp_still_open.unwrap()).unwrap();
-    assert_eq!(gp_bean.status, Status::Open);
+    let gp_unit = Unit::from_file(gp_still_open.unwrap()).unwrap();
+    assert_eq!(gp_unit.status, Status::Open);
 }
 
 // =====================================================================
@@ -1180,7 +1180,7 @@ fn test_truncate_to_char_boundary_zero() {
 
 #[test]
 fn on_close_run_action_executes_command() {
-    let (dir, mana_dir) = setup_test_beans_dir();
+    let (dir, mana_dir) = setup_test_mana_dir();
     let project_root = dir.path();
     crate::hooks::create_trust(project_root).unwrap();
     let marker = project_root.join("on_close_ran");
@@ -1200,7 +1200,7 @@ fn on_close_run_action_executes_command() {
 
 #[test]
 fn on_close_notify_action_prints_message() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
 
     let mut unit = Unit::new("1", "Task with on_close notify");
     unit.on_close = vec![OnCloseAction::Notify {
@@ -1219,7 +1219,7 @@ fn on_close_notify_action_prints_message() {
 
 #[test]
 fn on_close_run_failure_does_not_prevent_close() {
-    let (dir, mana_dir) = setup_test_beans_dir();
+    let (dir, mana_dir) = setup_test_mana_dir();
     let project_root = dir.path();
     crate::hooks::create_trust(project_root).unwrap();
 
@@ -1241,7 +1241,7 @@ fn on_close_run_failure_does_not_prevent_close() {
 
 #[test]
 fn on_close_multiple_actions_all_run() {
-    let (dir, mana_dir) = setup_test_beans_dir();
+    let (dir, mana_dir) = setup_test_mana_dir();
     let project_root = dir.path();
     crate::hooks::create_trust(project_root).unwrap();
     let marker1 = project_root.join("on_close_1");
@@ -1271,7 +1271,7 @@ fn on_close_multiple_actions_all_run() {
 
 #[test]
 fn on_close_run_skipped_without_trust() {
-    let (dir, mana_dir) = setup_test_beans_dir();
+    let (dir, mana_dir) = setup_test_mana_dir();
     let project_root = dir.path();
     let marker = project_root.join("on_close_should_not_exist");
 
@@ -1298,7 +1298,7 @@ fn on_close_run_skipped_without_trust() {
 
 #[test]
 fn on_close_runs_in_project_root() {
-    let (dir, mana_dir) = setup_test_beans_dir();
+    let (dir, mana_dir) = setup_test_mana_dir();
     let project_root = dir.path();
     crate::hooks::create_trust(project_root).unwrap();
 
@@ -1325,7 +1325,7 @@ fn on_close_runs_in_project_root() {
 
 #[test]
 fn history_failure_creates_run_record() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
     let mut unit = Unit::new("1", "Task with failing verify");
     unit.verify = Some("echo 'some error' && exit 1".to_string());
     let slug = title_to_slug(&unit.title);
@@ -1351,7 +1351,7 @@ fn history_failure_creates_run_record() {
 
 #[test]
 fn history_success_creates_run_record() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
     let mut unit = Unit::new("1", "Task with passing verify");
     unit.verify = Some("true".to_string());
     let slug = title_to_slug(&unit.title);
@@ -1371,7 +1371,7 @@ fn history_success_creates_run_record() {
 
 #[test]
 fn history_has_correct_duration() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
     let mut unit = Unit::new("1", "Task with timed verify");
     unit.verify = Some("sleep 0.1 && true".to_string());
     let slug = title_to_slug(&unit.title);
@@ -1393,7 +1393,7 @@ fn history_has_correct_duration() {
 
 #[test]
 fn history_records_exit_code() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
     let mut unit = Unit::new("1", "Task with exit code 42");
     unit.verify = Some("exit 42".to_string());
     let slug = title_to_slug(&unit.title);
@@ -1411,7 +1411,7 @@ fn history_records_exit_code() {
 
 #[test]
 fn history_multiple_attempts_accumulate() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
     let mut unit = Unit::new("1", "Task with multiple failures");
     unit.verify = Some("false".to_string());
     let slug = title_to_slug(&unit.title);
@@ -1437,7 +1437,7 @@ fn history_multiple_attempts_accumulate() {
 fn history_agent_from_env_var() {
     std::env::set_var("MANA_AGENT", "test-agent-42");
 
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
     let mut unit = Unit::new("1", "Task with agent env");
     unit.verify = Some("true".to_string());
     let slug = title_to_slug(&unit.title);
@@ -1456,7 +1456,7 @@ fn history_agent_from_env_var() {
 
 #[test]
 fn history_no_record_without_verify() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
     let unit = Unit::new("1", "Task without verify");
     let slug = title_to_slug(&unit.title);
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
@@ -1474,7 +1474,7 @@ fn history_no_record_without_verify() {
 
 #[test]
 fn history_no_record_when_force_skip() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
     let mut unit = Unit::new("1", "Task force closed");
     unit.verify = Some("false".to_string());
     let slug = title_to_slug(&unit.title);
@@ -1493,7 +1493,7 @@ fn history_no_record_when_force_skip() {
 
 #[test]
 fn history_failure_then_success_accumulates() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
     let mut unit = Unit::new("1", "Task that eventually passes");
     unit.verify = Some("false".to_string());
     let slug = title_to_slug(&unit.title);
@@ -1512,12 +1512,12 @@ fn history_failure_then_success_accumulates() {
     cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
 
     let archived = crate::discovery::find_archived_unit(&mana_dir, "1").unwrap();
-    let final_bean = Unit::from_file(&archived).unwrap();
-    assert_eq!(final_bean.history.len(), 2);
-    assert_eq!(final_bean.history[0].result, RunResult::Fail);
-    assert_eq!(final_bean.history[0].attempt, 1);
-    assert_eq!(final_bean.history[1].result, RunResult::Pass);
-    assert_eq!(final_bean.history[1].attempt, 2);
+    let final_unit = Unit::from_file(&archived).unwrap();
+    assert_eq!(final_unit.history.len(), 2);
+    assert_eq!(final_unit.history[0].result, RunResult::Fail);
+    assert_eq!(final_unit.history[0].attempt, 1);
+    assert_eq!(final_unit.history[1].result, RunResult::Pass);
+    assert_eq!(final_unit.history[1].attempt, 2);
 }
 
 // =====================================================================
@@ -1526,7 +1526,7 @@ fn history_failure_then_success_accumulates() {
 
 #[test]
 fn on_fail_retry_releases_claim_when_under_max() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
     let mut unit = Unit::new("1", "Task with retry on_fail");
     unit.verify = Some("false".to_string());
     unit.on_fail = Some(OnFailAction::Retry {
@@ -1551,7 +1551,7 @@ fn on_fail_retry_releases_claim_when_under_max() {
 
 #[test]
 fn on_fail_retry_keeps_claim_when_at_max() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
     let mut unit = Unit::new("1", "Task exhausted retries");
     unit.verify = Some("false".to_string());
     unit.on_fail = Some(OnFailAction::Retry {
@@ -1576,7 +1576,7 @@ fn on_fail_retry_keeps_claim_when_at_max() {
 
 #[test]
 fn on_fail_retry_max_defaults_to_max_attempts() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
     let mut unit = Unit::new("1", "Task with default max");
     unit.verify = Some("false".to_string());
     unit.max_attempts = 3;
@@ -1598,11 +1598,11 @@ fn on_fail_retry_max_defaults_to_max_attempts() {
     assert!(updated.claimed_by.is_none());
 
     // Re-claim and fail again (2 < 3) — should release
-    let mut bean2 =
+    let mut unit2 =
         Unit::from_file(crate::discovery::find_unit_file(&mana_dir, "1").unwrap()).unwrap();
-    bean2.claimed_by = Some("agent-2".to_string());
-    bean2.claimed_at = Some(Utc::now());
-    bean2
+    unit2.claimed_by = Some("agent-2".to_string());
+    unit2.claimed_at = Some(Utc::now());
+    unit2
         .to_file(crate::discovery::find_unit_file(&mana_dir, "1").unwrap())
         .unwrap();
     cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
@@ -1612,11 +1612,11 @@ fn on_fail_retry_max_defaults_to_max_attempts() {
     assert!(updated.claimed_by.is_none());
 
     // Re-claim and fail again (3 >= 3) — should NOT release
-    let mut bean3 =
+    let mut unit3 =
         Unit::from_file(crate::discovery::find_unit_file(&mana_dir, "1").unwrap()).unwrap();
-    bean3.claimed_by = Some("agent-3".to_string());
-    bean3.claimed_at = Some(Utc::now());
-    bean3
+    unit3.claimed_by = Some("agent-3".to_string());
+    unit3.claimed_at = Some(Utc::now());
+    unit3
         .to_file(crate::discovery::find_unit_file(&mana_dir, "1").unwrap())
         .unwrap();
     cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
@@ -1628,7 +1628,7 @@ fn on_fail_retry_max_defaults_to_max_attempts() {
 
 #[test]
 fn on_fail_retry_with_delay_releases_claim() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
     let mut unit = Unit::new("1", "Task with delay");
     unit.verify = Some("false".to_string());
     unit.on_fail = Some(OnFailAction::Retry {
@@ -1652,7 +1652,7 @@ fn on_fail_retry_with_delay_releases_claim() {
 
 #[test]
 fn on_fail_escalate_updates_priority() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
     let mut unit = Unit::new("1", "Task to escalate");
     unit.verify = Some("false".to_string());
     unit.priority = 2;
@@ -1674,7 +1674,7 @@ fn on_fail_escalate_updates_priority() {
 
 #[test]
 fn on_fail_escalate_appends_message_to_notes() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
     let mut unit = Unit::new("1", "Task with escalation message");
     unit.verify = Some("false".to_string());
     unit.notes = Some("Existing notes".to_string());
@@ -1699,7 +1699,7 @@ fn on_fail_escalate_appends_message_to_notes() {
 
 #[test]
 fn on_fail_escalate_adds_label() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
     let mut unit = Unit::new("1", "Task to label");
     unit.verify = Some("false".to_string());
     unit.on_fail = Some(OnFailAction::Escalate {
@@ -1719,7 +1719,7 @@ fn on_fail_escalate_adds_label() {
 
 #[test]
 fn on_fail_escalate_no_duplicate_label() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
     let mut unit = Unit::new("1", "Task already escalated");
     unit.verify = Some("false".to_string());
     unit.labels = vec!["escalated".to_string()];
@@ -1745,7 +1745,7 @@ fn on_fail_escalate_no_duplicate_label() {
 
 #[test]
 fn on_fail_none_existing_behavior_unchanged() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
     let mut unit = Unit::new("1", "Task with no on_fail");
     unit.verify = Some("false".to_string());
     unit.claimed_by = Some("agent-1".to_string());
@@ -1770,7 +1770,7 @@ fn on_fail_none_existing_behavior_unchanged() {
 
 #[test]
 fn output_capture_json_stdout_stored_as_outputs() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
     let mut unit = Unit::new("1", "Task with JSON output");
     unit.verify = Some(r#"echo '{"passed":42,"failed":0}'"#.to_string());
     let slug = title_to_slug(&unit.title);
@@ -1789,7 +1789,7 @@ fn output_capture_json_stdout_stored_as_outputs() {
 
 #[test]
 fn output_capture_non_json_stdout_stored_as_text() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
     let mut unit = Unit::new("1", "Task with plain text output");
     unit.verify = Some("echo 'hello world'".to_string());
     let slug = title_to_slug(&unit.title);
@@ -1806,7 +1806,7 @@ fn output_capture_non_json_stdout_stored_as_text() {
 
 #[test]
 fn output_capture_empty_stdout_no_outputs() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
     let mut unit = Unit::new("1", "Task with no stdout");
     unit.verify = Some("true".to_string());
     let slug = title_to_slug(&unit.title);
@@ -1825,7 +1825,7 @@ fn output_capture_empty_stdout_no_outputs() {
 
 #[test]
 fn output_capture_large_stdout_truncated() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
     let mut unit = Unit::new("1", "Task with large output");
     unit.verify = Some("python3 -c \"print('x' * 70000)\"".to_string());
     let slug = title_to_slug(&unit.title);
@@ -1847,7 +1847,7 @@ fn output_capture_large_stdout_truncated() {
 
 #[test]
 fn output_capture_stderr_not_captured_as_outputs() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
     let mut unit = Unit::new("1", "Task with stderr only");
     unit.verify = Some("echo 'error info' >&2".to_string());
     let slug = title_to_slug(&unit.title);
@@ -1866,7 +1866,7 @@ fn output_capture_stderr_not_captured_as_outputs() {
 
 #[test]
 fn output_capture_failure_unchanged() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
     let mut unit = Unit::new("1", "Task that fails with output");
     unit.verify = Some(r#"echo '{"result":"data"}' && exit 1"#.to_string());
     let slug = title_to_slug(&unit.title);
@@ -1886,7 +1886,7 @@ fn output_capture_failure_unchanged() {
 
 #[test]
 fn output_capture_json_array() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
     let mut unit = Unit::new("1", "Task with JSON array output");
     unit.verify = Some(r#"echo '["a","b","c"]'"#.to_string());
     let slug = title_to_slug(&unit.title);
@@ -1905,7 +1905,7 @@ fn output_capture_json_array() {
 
 #[test]
 fn output_capture_mixed_stdout_stderr() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
     let mut unit = Unit::new("1", "Task with mixed output");
     unit.verify = Some(r#"echo '{"key":"value"}' && echo 'debug log' >&2"#.to_string());
     let slug = title_to_slug(&unit.title);
@@ -1928,7 +1928,7 @@ fn output_capture_mixed_stdout_stderr() {
 // Circuit Breaker (max_loops) Tests
 // =====================================================================
 
-fn setup_beans_dir_with_max_loops(max_loops: u32) -> (TempDir, std::path::PathBuf) {
+fn setup_mana_dir_with_max_loops(max_loops: u32) -> (TempDir, std::path::PathBuf) {
     let dir = new_close_temp_dir("mana-close-max-loops-");
     let project_root = fs::canonicalize(dir.path()).unwrap();
     let mana_dir = project_root.join(".mana");
@@ -1970,7 +1970,7 @@ fn setup_beans_dir_with_max_loops(max_loops: u32) -> (TempDir, std::path::PathBu
 
 #[test]
 fn max_loops_circuit_breaker_triggers_at_limit() {
-    let (_dir, mana_dir) = setup_beans_dir_with_max_loops(3);
+    let (_dir, mana_dir) = setup_mana_dir_with_max_loops(3);
 
     let parent = Unit::new("1", "Parent");
     let parent_slug = title_to_slug(&parent.title);
@@ -2002,7 +2002,7 @@ fn max_loops_circuit_breaker_triggers_at_limit() {
 
 #[test]
 fn max_loops_circuit_breaker_does_not_trigger_below_limit() {
-    let (_dir, mana_dir) = setup_beans_dir_with_max_loops(5);
+    let (_dir, mana_dir) = setup_mana_dir_with_max_loops(5);
 
     let parent = Unit::new("1", "Parent");
     let parent_slug = title_to_slug(&parent.title);
@@ -2033,7 +2033,7 @@ fn max_loops_circuit_breaker_does_not_trigger_below_limit() {
 
 #[test]
 fn max_loops_zero_disables_circuit_breaker() {
-    let (_dir, mana_dir) = setup_beans_dir_with_max_loops(0);
+    let (_dir, mana_dir) = setup_mana_dir_with_max_loops(0);
 
     let mut unit = Unit::new("1", "Unlimited retries");
     unit.verify = Some("false".to_string());
@@ -2054,8 +2054,8 @@ fn max_loops_zero_disables_circuit_breaker() {
 }
 
 #[test]
-fn max_loops_per_bean_overrides_config() {
-    let (_dir, mana_dir) = setup_beans_dir_with_max_loops(100);
+fn max_loops_per_unit_overrides_config() {
+    let (_dir, mana_dir) = setup_mana_dir_with_max_loops(100);
 
     let mut parent = Unit::new("1", "Parent with low max_loops");
     parent.max_loops = Some(3);
@@ -2086,7 +2086,7 @@ fn max_loops_per_bean_overrides_config() {
 
 #[test]
 fn max_loops_circuit_breaker_skips_on_fail_retry() {
-    let (_dir, mana_dir) = setup_beans_dir_with_max_loops(2);
+    let (_dir, mana_dir) = setup_mana_dir_with_max_loops(2);
 
     let mut unit = Unit::new("1", "Unit with retry that should be blocked");
     unit.verify = Some("false".to_string());
@@ -2116,7 +2116,7 @@ fn max_loops_circuit_breaker_skips_on_fail_retry() {
 
 #[test]
 fn max_loops_counts_across_siblings() {
-    let (_dir, mana_dir) = setup_beans_dir_with_max_loops(5);
+    let (_dir, mana_dir) = setup_mana_dir_with_max_loops(5);
 
     let parent = Unit::new("1", "Parent");
     let parent_slug = title_to_slug(&parent.title);
@@ -2153,8 +2153,8 @@ fn max_loops_counts_across_siblings() {
 }
 
 #[test]
-fn max_loops_standalone_bean_uses_own_max_loops() {
-    let (_dir, mana_dir) = setup_beans_dir_with_max_loops(100);
+fn max_loops_standalone_unit_uses_own_max_loops() {
+    let (_dir, mana_dir) = setup_mana_dir_with_max_loops(100);
 
     let mut unit = Unit::new("1", "Standalone");
     unit.verify = Some("false".to_string());
@@ -2174,7 +2174,7 @@ fn max_loops_standalone_bean_uses_own_max_loops() {
 
 #[test]
 fn max_loops_no_config_defaults_to_10() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
 
     let mut unit = Unit::new("1", "No config");
     unit.verify = Some("false".to_string());
@@ -2195,7 +2195,7 @@ fn max_loops_no_config_defaults_to_10() {
 
 #[test]
 fn max_loops_no_duplicate_label() {
-    let (_dir, mana_dir) = setup_beans_dir_with_max_loops(1);
+    let (_dir, mana_dir) = setup_mana_dir_with_max_loops(1);
 
     let mut unit = Unit::new("1", "Already has label");
     unit.verify = Some("false".to_string());
@@ -2223,7 +2223,7 @@ fn max_loops_no_duplicate_label() {
 
 #[test]
 fn test_close_failed_marks_attempt_as_failed() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
     let mut unit = Unit::new("1", "Task");
     unit.status = Status::InProgress;
     unit.claimed_by = Some("agent-1".to_string());
@@ -2264,7 +2264,7 @@ fn test_close_failed_marks_attempt_as_failed() {
 
 #[test]
 fn test_close_failed_appends_to_notes() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
     let mut unit = Unit::new("1", "Task");
     unit.status = Status::InProgress;
     unit.attempt_log.push(crate::unit::AttemptRecord {
@@ -2294,7 +2294,7 @@ fn test_close_failed_appends_to_notes() {
 
 #[test]
 fn test_close_failed_without_reason() {
-    let (_dir, mana_dir) = setup_test_beans_dir();
+    let (_dir, mana_dir) = setup_test_mana_dir();
     let mut unit = Unit::new("1", "Task");
     unit.status = Status::InProgress;
     unit.attempt_log.push(crate::unit::AttemptRecord {
@@ -2383,25 +2383,25 @@ mod worktree_merge_tests {
             ],
         );
 
-        let worktree_beans_dir = worktree_dir.join(".mana");
+        let worktree_mana_dir = worktree_dir.join(".mana");
 
-        (dir, main_dir, worktree_beans_dir)
+        (dir, main_dir, worktree_mana_dir)
     }
 
     #[test]
     fn test_close_in_worktree_commits_and_merges() {
-        let (_dir, main_dir, worktree_beans_dir) = setup_git_worktree();
-        let worktree_dir = worktree_beans_dir.parent().unwrap();
+        let (_dir, main_dir, worktree_mana_dir) = setup_git_worktree();
+        let worktree_dir = worktree_mana_dir.parent().unwrap();
 
         let unit = Unit::new("1", "Worktree Task");
         let slug = title_to_slug(&unit.title);
-        unit.to_file(worktree_beans_dir.join(format!("1-{}.md", slug)))
+        unit.to_file(worktree_mana_dir.join(format!("1-{}.md", slug)))
             .unwrap();
 
         fs::write(worktree_dir.join("feature.txt"), "feature content").unwrap();
 
         // No set_current_dir needed — detect_worktree now takes an explicit path
-        cmd_close(&worktree_beans_dir, vec!["1".to_string()], None, false).unwrap();
+        cmd_close(&worktree_mana_dir, vec!["1".to_string()], None, false).unwrap();
 
         assert!(
             main_dir.join("feature.txt").exists(),
@@ -2413,8 +2413,8 @@ mod worktree_merge_tests {
 
     #[test]
     fn test_close_with_merge_conflict_aborts() {
-        let (_dir, main_dir, worktree_beans_dir) = setup_git_worktree();
-        let worktree_dir = worktree_beans_dir.parent().unwrap();
+        let (_dir, main_dir, worktree_mana_dir) = setup_git_worktree();
+        let worktree_dir = worktree_mana_dir.parent().unwrap();
 
         fs::write(main_dir.join("initial.txt"), "main version").unwrap();
         run_git(&main_dir, &["add", "-A"]);
@@ -2424,14 +2424,14 @@ mod worktree_merge_tests {
 
         let unit = Unit::new("1", "Conflict Task");
         let slug = title_to_slug(&unit.title);
-        unit.to_file(worktree_beans_dir.join(format!("1-{}.md", slug)))
+        unit.to_file(worktree_mana_dir.join(format!("1-{}.md", slug)))
             .unwrap();
 
         // No set_current_dir needed
-        cmd_close(&worktree_beans_dir, vec!["1".to_string()], None, false).unwrap();
+        cmd_close(&worktree_mana_dir, vec!["1".to_string()], None, false).unwrap();
 
-        let bean_file = crate::discovery::find_unit_file(&worktree_beans_dir, "1").unwrap();
-        let updated = Unit::from_file(&bean_file).unwrap();
+        let unit_file = crate::discovery::find_unit_file(&worktree_mana_dir, "1").unwrap();
+        let updated = Unit::from_file(&unit_file).unwrap();
         assert_eq!(
             updated.status,
             Status::Open,

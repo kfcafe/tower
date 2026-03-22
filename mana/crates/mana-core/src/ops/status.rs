@@ -102,29 +102,29 @@ mod tests {
         (dir, mana_dir)
     }
 
-    fn write_bean(mana_dir: &Path, unit: &Unit) {
+    fn write_unit(mana_dir: &Path, unit: &Unit) {
         let slug = title_to_slug(&unit.title);
         let path = mana_dir.join(format!("{}-{}.md", unit.id, slug));
         unit.to_file(path).unwrap();
     }
 
     #[test]
-    fn status_categorizes_beans() {
+    fn status_categorizes_units() {
         let (_dir, mana_dir) = setup();
 
         // Open unit with verify -> ready
-        let mut ready_bean = Unit::new("1", "Ready task");
-        ready_bean.verify = Some("cargo test".to_string());
-        write_bean(&mana_dir, &ready_bean);
+        let mut ready_unit = Unit::new("1", "Ready task");
+        ready_unit.verify = Some("cargo test".to_string());
+        write_unit(&mana_dir, &ready_unit);
 
         // Open unit without verify -> goals
-        let goal_bean = Unit::new("2", "Goal task");
-        write_bean(&mana_dir, &goal_bean);
+        let goal_unit = Unit::new("2", "Goal task");
+        write_unit(&mana_dir, &goal_unit);
 
         // In progress -> claimed
-        let mut claimed_bean = Unit::new("3", "Claimed task");
-        claimed_bean.status = Status::InProgress;
-        write_bean(&mana_dir, &claimed_bean);
+        let mut claimed_unit = Unit::new("3", "Claimed task");
+        claimed_unit.status = Status::InProgress;
+        write_unit(&mana_dir, &claimed_unit);
 
         let result = status(&mana_dir).unwrap();
 
@@ -147,13 +147,13 @@ mod tests {
         // Create a dependency that's still open
         let mut dep = Unit::new("1", "Dependency");
         dep.verify = Some("true".to_string());
-        write_bean(&mana_dir, &dep);
+        write_unit(&mana_dir, &dep);
 
         // Create unit depending on the open dep
-        let mut blocked_bean = Unit::new("2", "Blocked task");
-        blocked_bean.verify = Some("true".to_string());
-        blocked_bean.dependencies = vec!["1".to_string()];
-        write_bean(&mana_dir, &blocked_bean);
+        let mut blocked_unit = Unit::new("2", "Blocked task");
+        blocked_unit.verify = Some("true".to_string());
+        blocked_unit.dependencies = vec!["1".to_string()];
+        write_unit(&mana_dir, &blocked_unit);
 
         let result = status(&mana_dir).unwrap();
 
@@ -180,7 +180,7 @@ mod tests {
 
         let mut unit = Unit::new("1", "Closed task");
         unit.status = Status::Closed;
-        write_bean(&mana_dir, &unit);
+        write_unit(&mana_dir, &unit);
 
         let result = status(&mana_dir).unwrap();
 
@@ -197,7 +197,7 @@ mod tests {
         let mut unit = Unit::new("1", "Awaiting verify task");
         unit.verify = Some("cargo test".to_string());
         unit.status = Status::AwaitingVerify;
-        write_bean(&mana_dir, &unit);
+        write_unit(&mana_dir, &unit);
 
         let result = status(&mana_dir).unwrap();
 

@@ -59,7 +59,7 @@ mod tests {
     use crate::util::title_to_slug;
     use tempfile::TempDir;
 
-    fn setup_test_beans_dir() -> (TempDir, std::path::PathBuf) {
+    fn setup_test_mana_dir() -> (TempDir, std::path::PathBuf) {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -68,7 +68,7 @@ mod tests {
 
     #[test]
     fn test_update_title() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
+        let (_dir, mana_dir) = setup_test_mana_dir();
         let unit = Unit::new("1", "Original title");
         let slug = title_to_slug(&unit.title);
         unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
@@ -99,7 +99,7 @@ mod tests {
 
     #[test]
     fn test_update_notes_appends() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
+        let (_dir, mana_dir) = setup_test_mana_dir();
         let mut unit = Unit::new("1", "Test");
         unit.notes = Some("First note".to_string());
         let slug = title_to_slug(&unit.title);
@@ -134,7 +134,7 @@ mod tests {
 
     #[test]
     fn test_update_notes_creates_with_timestamp() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
+        let (_dir, mana_dir) = setup_test_mana_dir();
         let unit = Unit::new("1", "Test");
         let slug = title_to_slug(&unit.title);
         unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
@@ -168,7 +168,7 @@ mod tests {
 
     #[test]
     fn test_update_status() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
+        let (_dir, mana_dir) = setup_test_mana_dir();
         let unit = Unit::new("1", "Test");
         let slug = title_to_slug(&unit.title);
         unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
@@ -199,7 +199,7 @@ mod tests {
 
     #[test]
     fn test_update_priority() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
+        let (_dir, mana_dir) = setup_test_mana_dir();
         let unit = Unit::new("1", "Test");
         let slug = title_to_slug(&unit.title);
         unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
@@ -230,7 +230,7 @@ mod tests {
 
     #[test]
     fn test_update_add_label() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
+        let (_dir, mana_dir) = setup_test_mana_dir();
         let unit = Unit::new("1", "Test");
         let slug = title_to_slug(&unit.title);
         unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
@@ -261,7 +261,7 @@ mod tests {
 
     #[test]
     fn test_update_remove_label() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
+        let (_dir, mana_dir) = setup_test_mana_dir();
         let mut unit = Unit::new("1", "Test");
         unit.labels = vec!["urgent".to_string(), "bug".to_string()];
         let slug = title_to_slug(&unit.title);
@@ -293,8 +293,8 @@ mod tests {
     }
 
     #[test]
-    fn test_update_nonexistent_bean() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
+    fn test_update_nonexistent_unit() {
+        let (_dir, mana_dir) = setup_test_mana_dir();
         let result = cmd_update(
             &mana_dir,
             "99",
@@ -316,7 +316,7 @@ mod tests {
 
     #[test]
     fn test_update_multiple_fields() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
+        let (_dir, mana_dir) = setup_test_mana_dir();
         let unit = Unit::new("1", "Original");
         let slug = title_to_slug(&unit.title);
         unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
@@ -350,7 +350,7 @@ mod tests {
 
     #[test]
     fn test_update_rebuilds_index() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
+        let (_dir, mana_dir) = setup_test_mana_dir();
         let unit = Unit::new("1", "Original");
         let slug = title_to_slug(&unit.title);
         unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
@@ -387,7 +387,7 @@ mod tests {
 
     #[test]
     fn test_update_rejects_priority_too_high() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
+        let (_dir, mana_dir) = setup_test_mana_dir();
         let unit = Unit::new("1", "Test");
         let slug = title_to_slug(&unit.title);
         unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
@@ -420,7 +420,7 @@ mod tests {
     #[test]
     fn test_update_accepts_valid_priorities() {
         for priority in 0..=4 {
-            let (_dir, mana_dir) = setup_test_beans_dir();
+            let (_dir, mana_dir) = setup_test_mana_dir();
             let unit = Unit::new("1", "Test");
             let slug = title_to_slug(&unit.title);
             unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
@@ -456,7 +456,7 @@ mod tests {
 
     #[test]
     fn test_pre_update_hook_skipped_when_not_trusted() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
+        let (_dir, mana_dir) = setup_test_mana_dir();
         let unit = Unit::new("1", "Original");
         let slug = title_to_slug(&unit.title);
         unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
@@ -494,7 +494,7 @@ mod tests {
         use crate::hooks::create_trust;
         use std::os::unix::fs::PermissionsExt;
 
-        let (dir, mana_dir) = setup_test_beans_dir();
+        let (dir, mana_dir) = setup_test_mana_dir();
         let project_root = dir.path();
         let unit = Unit::new("1", "Original");
         let slug = title_to_slug(&unit.title);
@@ -547,7 +547,7 @@ mod tests {
         use crate::hooks::create_trust;
         use std::os::unix::fs::PermissionsExt;
 
-        let (dir, mana_dir) = setup_test_beans_dir();
+        let (dir, mana_dir) = setup_test_mana_dir();
         let project_root = dir.path();
         let unit = Unit::new("1", "Original");
         let slug = title_to_slug(&unit.title);
@@ -599,7 +599,7 @@ mod tests {
         use crate::hooks::create_trust;
         use std::os::unix::fs::PermissionsExt;
 
-        let (dir, mana_dir) = setup_test_beans_dir();
+        let (dir, mana_dir) = setup_test_mana_dir();
         let project_root = dir.path();
         let unit = Unit::new("1", "Original");
         let slug = title_to_slug(&unit.title);
@@ -661,7 +661,7 @@ mod tests {
         use crate::hooks::create_trust;
         use std::os::unix::fs::PermissionsExt;
 
-        let (dir, mana_dir) = setup_test_beans_dir();
+        let (dir, mana_dir) = setup_test_mana_dir();
         let project_root = dir.path();
         let unit = Unit::new("1", "Original");
         let slug = title_to_slug(&unit.title);
@@ -713,7 +713,7 @@ mod tests {
         use crate::hooks::create_trust;
         use std::os::unix::fs::PermissionsExt;
 
-        let (dir, mana_dir) = setup_test_beans_dir();
+        let (dir, mana_dir) = setup_test_mana_dir();
         let project_root = dir.path();
         let unit = Unit::new("1", "Original");
         let slug = title_to_slug(&unit.title);

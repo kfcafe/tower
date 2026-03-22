@@ -3,7 +3,7 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use chrono::Utc;
 
-use crate::discovery::{archive_path_for_bean, find_unit_file};
+use crate::discovery::{archive_path_for_unit, find_unit_file};
 use crate::index::{ArchiveIndex, Index};
 use crate::output::Output;
 use crate::unit::{Status, Unit};
@@ -11,14 +11,14 @@ use crate::util::title_to_slug;
 
 /// A record of one unit that was (or would be) archived during tidy.
 /// We collect these so we can print a summary at the end.
-struct TidiedBean {
+struct TidiedUnit {
     id: String,
     title: String,
     archive_path: String,
 }
 
 /// A record of one unit that was (or would be) released during tidy.
-struct ReleasedBean {
+struct ReleasedUnit {
     id: String,
     title: String,
     reason: String,
@@ -157,20 +157,20 @@ fn cmd_tidy_inner(
         .filter(|entry| entry.status == Status::Closed)
         .collect();
 
-    let mut tidied: Vec<TidiedBean> = Vec::new();
+    let mut tidied: Vec<TidiedUnit> = Vec::new();
     let mut skipped_parent_ids: Vec<String> = Vec::new();
 
     for entry in &closed {
         // Double-check the file actually exists in the main directory.
         // If find_unit_file fails, it's either already archived or
         // something weird — either way, nothing for us to do.
-        let bean_path = match find_unit_file(mana_dir, &entry.id) {
+        let unit_path = match find_unit_file(mana_dir, &entry.id) {
             Ok(path) => path,
             Err(_) => continue,
         };
 
         // Load the full unit so we can read closed_at, slug, etc.
-        let mut unit = Unit::from_file(&bean_path)
+        let mut unit = Unit::from_file(&unit_path)
             .with_context(|| format!("Failed to load unit: {}", entry.id))?;
 
         // Safety check: if this unit is already marked archived, skip it.
@@ -209,16 +209,16 @@ fn cmd_tidy_inner(
             .slug
             .clone()
             .unwrap_or_else(|| title_to_slug(&unit.title));
-        let ext = bean_path
+        let ext = unit_path
             .extension()
             .and_then(|e| e.to_str())
             .unwrap_or("md");
-        let archive_path = archive_path_for_bean(mana_dir, &entry.id, &slug, ext, archive_date);
+        let archive_path = archive_path_for_unit(mana_dir, &entry.id, &slug, ext, archive_date);
 
         // Record what we're about to do (for the summary).
         // We store the archive path relative to .mana/ to keep output tidy.
         let relative = archive_path.strip_prefix(mana_dir).unwrap_or(&archive_path);
-        tidied.push(TidiedBean {
+        tidied.push(TidiedUnit {
             id: entry.id.clone(),
             title: entry.title.clone(),
             archive_path: relative.display().to_string(),
@@ -238,7 +238,7 @@ fn cmd_tidy_inner(
         }
 
         // Move the file from .mana/<id>-<slug>.md → .mana/archive/YYYY/MM/…
-        std::fs::rename(&bean_path, &archive_path)
+        std::fs::rename(&unit_path, &archive_path)
             .with_context(|| format!("Failed to move unit {} to archive", entry.id))?;
 
         // Mark the unit as archived and persist. This sets is_archived = true
@@ -264,7 +264,7 @@ fn cmd_tidy_inner(
         .filter(|entry| entry.status == Status::InProgress)
         .collect();
 
-    let mut released: Vec<ReleasedBean> = Vec::new();
+    let mut released: Vec<ReleasedUnit> = Vec::new();
 
     if !in_progress.is_empty() {
         let agents_running = check_agents();
@@ -280,12 +280,12 @@ fn cmd_tidy_inner(
         } else {
             // No agents running — all in-progress units are stale.
             for entry in &in_progress {
-                let bean_path = match find_unit_file(mana_dir, &entry.id) {
+                let unit_path = match find_unit_file(mana_dir, &entry.id) {
                     Ok(path) => path,
                     Err(_) => continue,
                 };
 
-                let mut unit = match Unit::from_file(&bean_path) {
+                let mut unit = match Unit::from_file(&unit_path) {
                     Ok(b) => b,
                     Err(_) => continue,
                 };
@@ -298,7 +298,7 @@ fn cmd_tidy_inner(
                     "never properly claimed".to_string()
                 };
 
-                released.push(ReleasedBean {
+                released.push(ReleasedUnit {
                     id: entry.id.clone(),
                     title: entry.title.clone(),
                     reason,
@@ -315,7 +315,7 @@ fn cmd_tidy_inner(
                 unit.claimed_at = None;
                 unit.updated_at = now;
 
-                unit.to_file(&bean_path)
+                unit.to_file(&unit_path)
                     .with_context(|| format!("Failed to release stale unit: {}", entry.id))?;
             }
         }
@@ -412,7 +412,7 @@ mod tests {
     }
 
     /// Helper: write a unit to the main .mana/ directory.
-    fn write_bean(mana_dir: &Path, unit: &Unit) {
+    fn write_unit(mana_dir: &Path, unit: &Unit) {
         let slug = title_to_slug(&unit.title);
         let path = mana_dir.join(format!("{}-{}.md", unit.id, slug));
         unit.to_file(path).unwrap();
@@ -421,13 +421,13 @@ mod tests {
     // ── Basic behaviour ────────────────────────────────────────────
 
     #[test]
-    fn tidy_archives_closed_beans() {
+    fn tidy_archives_closed_units() {
         let (_dir, mana_dir) = setup();
 
         let mut unit = Unit::new("1", "Done task");
         unit.status = Status::Closed;
         unit.closed_at = Some(chrono::Utc::now());
-        write_bean(&mana_dir, &unit);
+        write_unit(&mana_dir, &unit);
 
         cmd_tidy_inner(&mana_dir, false, no_agents, &Output::new()).unwrap();
 
@@ -436,16 +436,16 @@ mod tests {
         // Should be in archive
         let archived = crate::discovery::find_archived_unit(&mana_dir, "1");
         assert!(archived.is_ok());
-        let archived_bean = Unit::from_file(archived.unwrap()).unwrap();
-        assert!(archived_bean.is_archived);
+        let archived_unit = Unit::from_file(archived.unwrap()).unwrap();
+        assert!(archived_unit.is_archived);
     }
 
     #[test]
-    fn tidy_leaves_open_beans_alone() {
+    fn tidy_leaves_open_units_alone() {
         let (_dir, mana_dir) = setup();
 
         let unit = Unit::new("1", "Open task");
-        write_bean(&mana_dir, &unit);
+        write_unit(&mana_dir, &unit);
 
         cmd_tidy_inner(&mana_dir, false, no_agents, &Output::new()).unwrap();
 
@@ -460,7 +460,7 @@ mod tests {
         let mut unit = Unit::new("1", "Done task");
         unit.status = Status::Closed;
         unit.closed_at = Some(chrono::Utc::now());
-        write_bean(&mana_dir, &unit);
+        write_unit(&mana_dir, &unit);
 
         // First tidy archives it
         cmd_tidy_inner(&mana_dir, false, no_agents, &Output::new()).unwrap();
@@ -480,7 +480,7 @@ mod tests {
         let mut unit = Unit::new("1", "Done task");
         unit.status = Status::Closed;
         unit.closed_at = Some(chrono::Utc::now());
-        write_bean(&mana_dir, &unit);
+        write_unit(&mana_dir, &unit);
 
         cmd_tidy_inner(&mana_dir, true, no_agents, &Output::new()).unwrap();
 
@@ -498,12 +498,12 @@ mod tests {
         let mut parent = Unit::new("1", "Parent");
         parent.status = Status::Closed;
         parent.closed_at = Some(chrono::Utc::now());
-        write_bean(&mana_dir, &parent);
+        write_unit(&mana_dir, &parent);
 
         // Child is still open
         let mut child = Unit::new("1.1", "Child");
         child.parent = Some("1".to_string());
-        write_bean(&mana_dir, &child);
+        write_unit(&mana_dir, &child);
 
         cmd_tidy_inner(&mana_dir, false, no_agents, &Output::new()).unwrap();
 
@@ -521,14 +521,14 @@ mod tests {
         let mut parent = Unit::new("1", "Parent");
         parent.status = Status::Closed;
         parent.closed_at = Some(chrono::Utc::now());
-        write_bean(&mana_dir, &parent);
+        write_unit(&mana_dir, &parent);
 
         // Child is also closed
         let mut child = Unit::new("1.1", "Child");
         child.parent = Some("1".to_string());
         child.status = Status::Closed;
         child.closed_at = Some(chrono::Utc::now());
-        write_bean(&mana_dir, &child);
+        write_unit(&mana_dir, &child);
 
         cmd_tidy_inner(&mana_dir, false, no_agents, &Output::new()).unwrap();
 
@@ -553,7 +553,7 @@ mod tests {
                 .unwrap()
                 .with_timezone(&chrono::Utc),
         );
-        write_bean(&mana_dir, &unit);
+        write_unit(&mana_dir, &unit);
 
         cmd_tidy_inner(&mana_dir, false, no_agents, &Output::new()).unwrap();
 
@@ -573,17 +573,17 @@ mod tests {
     fn tidy_handles_mix_of_open_closed_and_in_progress() {
         let (_dir, mana_dir) = setup();
 
-        let open_bean = Unit::new("1", "Still open");
-        write_bean(&mana_dir, &open_bean);
+        let open_unit = Unit::new("1", "Still open");
+        write_unit(&mana_dir, &open_unit);
 
-        let mut closed_bean = Unit::new("2", "Already done");
-        closed_bean.status = Status::Closed;
-        closed_bean.closed_at = Some(chrono::Utc::now());
-        write_bean(&mana_dir, &closed_bean);
+        let mut closed_unit = Unit::new("2", "Already done");
+        closed_unit.status = Status::Closed;
+        closed_unit.closed_at = Some(chrono::Utc::now());
+        write_unit(&mana_dir, &closed_unit);
 
         let mut in_progress = Unit::new("3", "Working on it");
         in_progress.status = Status::InProgress;
-        write_bean(&mana_dir, &in_progress);
+        write_unit(&mana_dir, &in_progress);
 
         // With no agents running, in_progress units get released
         cmd_tidy_inner(&mana_dir, false, no_agents, &Output::new()).unwrap();
@@ -608,7 +608,7 @@ mod tests {
         let mut unit = Unit::new("1", "Active WIP");
         unit.status = Status::InProgress;
         unit.claimed_at = Some(chrono::Utc::now());
-        write_bean(&mana_dir, &unit);
+        write_unit(&mana_dir, &unit);
 
         // With agents running, in_progress units are NOT released
         cmd_tidy_inner(&mana_dir, false, agents_running, &Output::new()).unwrap();
@@ -621,7 +621,7 @@ mod tests {
     // ── Stale in-progress units ──────────────────────────────────
 
     #[test]
-    fn tidy_releases_stale_in_progress_beans() {
+    fn tidy_releases_stale_in_progress_units() {
         let (_dir, mana_dir) = setup();
 
         // Create an in-progress unit with a stale claim (old claimed_at, no running agent)
@@ -632,7 +632,7 @@ mod tests {
                 .unwrap()
                 .with_timezone(&chrono::Utc),
         );
-        write_bean(&mana_dir, &unit);
+        write_unit(&mana_dir, &unit);
 
         cmd_tidy_inner(&mana_dir, false, no_agents, &Output::new()).unwrap();
 
@@ -644,14 +644,14 @@ mod tests {
     }
 
     #[test]
-    fn tidy_releases_in_progress_bean_without_claimed_at() {
+    fn tidy_releases_in_progress_unit_without_claimed_at() {
         let (_dir, mana_dir) = setup();
 
         // Create a unit that was manually set to in_progress without proper claiming
         let mut unit = Unit::new("1", "Manually set WIP");
         unit.status = Status::InProgress;
         // No claimed_at, no claimed_by — definitely stale
-        write_bean(&mana_dir, &unit);
+        write_unit(&mana_dir, &unit);
 
         cmd_tidy_inner(&mana_dir, false, no_agents, &Output::new()).unwrap();
 
@@ -660,13 +660,13 @@ mod tests {
     }
 
     #[test]
-    fn tidy_dry_run_does_not_release_stale_beans() {
+    fn tidy_dry_run_does_not_release_stale_units() {
         let (_dir, mana_dir) = setup();
 
         let mut unit = Unit::new("1", "Stale WIP");
         unit.status = Status::InProgress;
         unit.claimed_at = Some(chrono::Utc::now());
-        write_bean(&mana_dir, &unit);
+        write_unit(&mana_dir, &unit);
 
         cmd_tidy_inner(&mana_dir, true, no_agents, &Output::new()).unwrap();
 
@@ -681,20 +681,20 @@ mod tests {
         let (_dir, mana_dir) = setup();
 
         // An open unit — untouched
-        let open_bean = Unit::new("1", "Open");
-        write_bean(&mana_dir, &open_bean);
+        let open_unit = Unit::new("1", "Open");
+        write_unit(&mana_dir, &open_unit);
 
         // A closed unit — archived
-        let mut closed_bean = Unit::new("2", "Closed");
-        closed_bean.status = Status::Closed;
-        closed_bean.closed_at = Some(chrono::Utc::now());
-        write_bean(&mana_dir, &closed_bean);
+        let mut closed_unit = Unit::new("2", "Closed");
+        closed_unit.status = Status::Closed;
+        closed_unit.closed_at = Some(chrono::Utc::now());
+        write_unit(&mana_dir, &closed_unit);
 
         // A stale in-progress unit — released
-        let mut stale_bean = Unit::new("3", "Stale WIP");
-        stale_bean.status = Status::InProgress;
-        stale_bean.claimed_at = Some(chrono::Utc::now());
-        write_bean(&mana_dir, &stale_bean);
+        let mut stale_unit = Unit::new("3", "Stale WIP");
+        stale_unit.status = Status::InProgress;
+        stale_unit.claimed_at = Some(chrono::Utc::now());
+        write_unit(&mana_dir, &stale_unit);
 
         cmd_tidy_inner(&mana_dir, false, no_agents, &Output::new()).unwrap();
 
@@ -722,7 +722,7 @@ mod tests {
         unit.status = Status::InProgress;
         unit.claimed_by = Some("agent-42".to_string());
         unit.claimed_at = Some(chrono::Utc::now());
-        write_bean(&mana_dir, &unit);
+        write_unit(&mana_dir, &unit);
 
         cmd_tidy_inner(&mana_dir, false, no_agents, &Output::new()).unwrap();
 
@@ -747,13 +747,13 @@ mod tests {
     fn tidy_rebuilds_index() {
         let (_dir, mana_dir) = setup();
 
-        let open_bean = Unit::new("1", "Open");
-        write_bean(&mana_dir, &open_bean);
+        let open_unit = Unit::new("1", "Open");
+        write_unit(&mana_dir, &open_unit);
 
-        let mut closed_bean = Unit::new("2", "Closed");
-        closed_bean.status = Status::Closed;
-        closed_bean.closed_at = Some(chrono::Utc::now());
-        write_bean(&mana_dir, &closed_bean);
+        let mut closed_unit = Unit::new("2", "Closed");
+        closed_unit.status = Status::Closed;
+        closed_unit.closed_at = Some(chrono::Utc::now());
+        write_unit(&mana_dir, &closed_unit);
 
         cmd_tidy_inner(&mana_dir, false, no_agents, &Output::new()).unwrap();
 
@@ -768,15 +768,15 @@ mod tests {
         let (_dir, mana_dir) = setup();
 
         // Create two closed units
-        let mut bean1 = Unit::new("1", "Done first");
-        bean1.status = Status::Closed;
-        bean1.closed_at = Some(chrono::Utc::now());
-        write_bean(&mana_dir, &bean1);
+        let mut unit1 = Unit::new("1", "Done first");
+        unit1.status = Status::Closed;
+        unit1.closed_at = Some(chrono::Utc::now());
+        write_unit(&mana_dir, &unit1);
 
-        let mut bean2 = Unit::new("2", "Done second");
-        bean2.status = Status::Closed;
-        bean2.closed_at = Some(chrono::Utc::now());
-        write_bean(&mana_dir, &bean2);
+        let mut unit2 = Unit::new("2", "Done second");
+        unit2.status = Status::Closed;
+        unit2.closed_at = Some(chrono::Utc::now());
+        write_unit(&mana_dir, &unit2);
 
         cmd_tidy_inner(&mana_dir, false, no_agents, &Output::new()).unwrap();
 
@@ -796,7 +796,7 @@ mod tests {
         let mut unit = Unit::new("1", "Done task");
         unit.status = Status::Closed;
         unit.closed_at = Some(chrono::Utc::now());
-        write_bean(&mana_dir, &unit);
+        write_unit(&mana_dir, &unit);
 
         cmd_tidy_inner(&mana_dir, true, no_agents, &Output::new()).unwrap();
 

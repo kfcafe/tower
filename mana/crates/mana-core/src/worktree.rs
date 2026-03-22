@@ -212,14 +212,14 @@ pub fn commit_worktree_changes(cwd: &std::path::Path, message: &str) -> Result<b
 ///
 /// # Arguments
 /// * `info` - Information about the worktree
-/// * `bean_id` - Unit ID to include in the commit message
+/// * `unit_id` - Unit ID to include in the commit message
 ///
 /// Returns:
 /// - `Ok(MergeResult::Success)` if merge completed
 /// - `Ok(MergeResult::Conflict { files })` if there were conflicts
 /// - `Ok(MergeResult::NothingToCommit)` if branch is already merged
 /// - `Err` if git commands fail unexpectedly
-pub fn merge_to_main(info: &WorktreeInfo, bean_id: &str) -> Result<MergeResult> {
+pub fn merge_to_main(info: &WorktreeInfo, unit_id: &str) -> Result<MergeResult> {
     let main_path = &info.main_path;
     let branch = &info.branch;
 
@@ -228,7 +228,7 @@ pub fn merge_to_main(info: &WorktreeInfo, bean_id: &str) -> Result<MergeResult> 
     }
 
     // Perform the merge from the main worktree
-    let merge_message = format!("Merge branch '{}' (unit {})", branch, bean_id);
+    let merge_message = format!("Merge branch '{}' (unit {})", branch, unit_id);
     let merge_output = Command::new("git")
         .args(["-C", main_path.to_str().unwrap_or(".")])
         .args(["merge", branch, "--no-ff", "-m", &merge_message])

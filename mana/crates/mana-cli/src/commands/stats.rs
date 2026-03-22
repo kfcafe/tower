@@ -16,19 +16,19 @@ use crate::unit::{RunResult, Status, Unit};
 pub struct CostStats {
     pub total_tokens: u64,
     pub total_cost: f64,
-    pub avg_tokens_per_bean: f64,
+    pub avg_tokens_per_unit: f64,
     /// Rate at which closed units passed on their first attempt (0.0–1.0).
     pub first_pass_rate: f64,
     /// Rate at which attempted units eventually closed (0.0–1.0).
     pub overall_pass_rate: f64,
-    pub most_expensive_bean: Option<BeanRef>,
-    pub most_retried_bean: Option<BeanRef>,
-    pub beans_with_history: usize,
+    pub most_expensive_unit: Option<UnitRef>,
+    pub most_retried_unit: Option<UnitRef>,
+    pub units_with_history: usize,
 }
 
 /// Lightweight unit reference for reporting.
 #[derive(Debug, Serialize)]
-pub struct BeanRef {
+pub struct UnitRef {
     pub id: String,
     pub title: String,
     pub value: u64,
@@ -53,7 +53,7 @@ pub struct StatsOutput {
 
 /// Returns all units loaded from YAML files in `mana_dir` (non-recursive,
 /// skips files that don't look like unit files or fail to parse).
-fn load_all_beans(mana_dir: &Path) -> Vec<Unit> {
+fn load_all_units(mana_dir: &Path) -> Vec<Unit> {
     let Ok(entries) = fs::read_dir(mana_dir) else {
         return vec![];
     };
@@ -64,7 +64,7 @@ fn load_all_beans(mana_dir: &Path) -> Vec<Unit> {
             .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or_default();
-        if !is_bean_file(filename) {
+        if !is_unit_file(filename) {
             continue;
         }
         if let Ok(unit) = Unit::from_file(&path) {
@@ -75,7 +75,7 @@ fn load_all_beans(mana_dir: &Path) -> Vec<Unit> {
 }
 
 /// Returns true for files that look like unit YAML files.
-fn is_bean_file(filename: &str) -> bool {
+fn is_unit_file(filename: &str) -> bool {
     filename.ends_with(".yaml") || filename.ends_with(".md")
 }
 
@@ -86,7 +86,7 @@ fn is_bean_file(filename: &str) -> bool {
 fn aggregate_cost(units: &[Unit]) -> Option<CostStats> {
     let mut total_tokens: u64 = 0;
     let mut total_cost: f64 = 0.0;
-    let mut beans_with_history: usize = 0;
+    let mut units_with_history: usize = 0;
 
     // For first-pass rate: closed units where first RunRecord result is Pass
     let mut closed_with_history: usize = 0;
@@ -105,7 +105,7 @@ fn aggregate_cost(units: &[Unit]) -> Option<CostStats> {
             continue;
         }
 
-        beans_with_history += 1;
+        units_with_history += 1;
         attempted += 1;
 
         if unit.status == Status::Closed {
@@ -113,11 +113,11 @@ fn aggregate_cost(units: &[Unit]) -> Option<CostStats> {
         }
 
         // Accumulate tokens/cost from all RunRecords
-        let bean_tokens: u64 = unit.history.iter().filter_map(|r| r.tokens).sum();
-        let bean_cost: f64 = unit.history.iter().filter_map(|r| r.cost).sum();
+        let unit_tokens: u64 = unit.history.iter().filter_map(|r| r.tokens).sum();
+        let unit_cost: f64 = unit.history.iter().filter_map(|r| r.cost).sum();
 
-        total_tokens += bean_tokens;
-        total_cost += bean_cost;
+        total_tokens += unit_tokens;
+        total_cost += unit_cost;
 
         // First-pass rate: closed units where first RunRecord is a Pass
         if unit.status == Status::Closed {
@@ -133,8 +133,8 @@ fn aggregate_cost(units: &[Unit]) -> Option<CostStats> {
         }
 
         // Track most expensive (by total tokens across all attempts)
-        if bean_tokens > 0 && most_expensive.is_none_or(|(_, t)| bean_tokens > t) {
-            most_expensive = Some((unit, bean_tokens));
+        if unit_tokens > 0 && most_expensive.is_none_or(|(_, t)| unit_tokens > t) {
+            most_expensive = Some((unit, unit_tokens));
         }
 
         // Track most retried (by number of history entries)
@@ -145,12 +145,12 @@ fn aggregate_cost(units: &[Unit]) -> Option<CostStats> {
     }
 
     // Don't show the section at all when nothing has been tracked
-    if beans_with_history == 0 {
+    if units_with_history == 0 {
         return None;
     }
 
-    let avg_tokens_per_bean = if beans_with_history > 0 {
-        total_tokens as f64 / beans_with_history as f64
+    let avg_tokens_per_unit = if units_with_history > 0 {
+        total_tokens as f64 / units_with_history as f64
     } else {
         0.0
     };
@@ -170,20 +170,20 @@ fn aggregate_cost(units: &[Unit]) -> Option<CostStats> {
     Some(CostStats {
         total_tokens,
         total_cost,
-        avg_tokens_per_bean,
+        avg_tokens_per_unit,
         first_pass_rate,
         overall_pass_rate,
-        most_expensive_bean: most_expensive.map(|(b, tokens)| BeanRef {
+        most_expensive_unit: most_expensive.map(|(b, tokens)| UnitRef {
             id: b.id.clone(),
             title: b.title.clone(),
             value: tokens,
         }),
-        most_retried_bean: most_retried.map(|(b, count)| BeanRef {
+        most_retried_unit: most_retried.map(|(b, count)| UnitRef {
             id: b.id.clone(),
             title: b.title.clone(),
             value: count as u64,
         }),
-        beans_with_history,
+        units_with_history,
     })
 }
 
@@ -251,8 +251,8 @@ pub fn cmd_stats(mana_dir: &Path, json: bool) -> Result<()> {
     };
 
     // Aggregate cost/token data from full unit files
-    let all_beans = load_all_beans(mana_dir);
-    let cost = aggregate_cost(&all_beans);
+    let all_units = load_all_units(mana_dir);
+    let cost = aggregate_cost(&all_units);
 
     if json {
         let output = StatsOutput {
@@ -291,23 +291,23 @@ pub fn cmd_stats(mana_dir: &Path, json: bool) -> Result<()> {
         println!();
         println!("=== Tokens & Cost ===");
         println!();
-        println!("Beans tracked:    {}", c.beans_with_history);
+        println!("Units tracked:    {}", c.units_with_history);
         println!("Total tokens:     {}", c.total_tokens);
         if c.total_cost > 0.0 {
             println!("Total cost:       ${:.4}", c.total_cost);
         }
-        println!("Avg tokens/unit:  {:.0}", c.avg_tokens_per_bean);
+        println!("Avg tokens/unit:  {:.0}", c.avg_tokens_per_unit);
         println!();
         println!("First-pass rate:  {:.1}%", c.first_pass_rate * 100.0);
         println!("Overall pass rate:{:.1}%", c.overall_pass_rate * 100.0);
-        if let Some(ref unit) = c.most_expensive_bean {
+        if let Some(ref unit) = c.most_expensive_unit {
             println!();
             println!(
                 "Most expensive:   {} — {} ({} tokens)",
                 unit.id, unit.title, unit.value
             );
         }
-        if let Some(ref unit) = c.most_retried_bean {
+        if let Some(ref unit) = c.most_retried_unit {
             println!(
                 "Most retried:     {} — {} ({} attempts)",
                 unit.id, unit.title, unit.value
@@ -325,7 +325,7 @@ mod tests {
     use std::fs;
     use tempfile::TempDir;
 
-    fn setup_test_beans() -> (TempDir, std::path::PathBuf) {
+    fn setup_test_units() -> (TempDir, std::path::PathBuf) {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -359,7 +359,7 @@ mod tests {
 
     #[test]
     fn stats_calculates_counts() {
-        let (_dir, mana_dir) = setup_test_beans();
+        let (_dir, mana_dir) = setup_test_units();
         let index = Index::load_or_rebuild(&mana_dir).unwrap();
 
         // Verify counts
@@ -391,14 +391,14 @@ mod tests {
 
     #[test]
     fn stats_command_works() {
-        let (_dir, mana_dir) = setup_test_beans();
+        let (_dir, mana_dir) = setup_test_units();
         let result = cmd_stats(&mana_dir, false);
         assert!(result.is_ok());
     }
 
     #[test]
     fn stats_command_json() {
-        let (_dir, mana_dir) = setup_test_beans();
+        let (_dir, mana_dir) = setup_test_units();
         let result = cmd_stats(&mana_dir, true);
         assert!(result.is_ok());
     }
@@ -446,7 +446,7 @@ mod tests {
         let stats = aggregate_cost(&[unit]).unwrap();
         assert_eq!(stats.total_tokens, 1000);
         assert!((stats.total_cost - 0.05).abs() < 1e-9);
-        assert_eq!(stats.beans_with_history, 1);
+        assert_eq!(stats.units_with_history, 1);
         assert!((stats.first_pass_rate - 1.0).abs() < 1e-9);
         assert!((stats.overall_pass_rate - 1.0).abs() < 1e-9);
     }
@@ -481,11 +481,11 @@ mod tests {
 
         let stats = aggregate_cost(&[cheap, expensive]).unwrap();
         assert_eq!(stats.total_tokens, 8100);
-        let exp = stats.most_expensive_bean.unwrap();
+        let exp = stats.most_expensive_unit.unwrap();
         assert_eq!(exp.id, "2");
         assert_eq!(exp.value, 8000);
 
-        let retried = stats.most_retried_bean.unwrap();
+        let retried = stats.most_retried_unit.unwrap();
         assert_eq!(retried.id, "2");
         assert_eq!(retried.value, 2);
     }

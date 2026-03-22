@@ -44,8 +44,8 @@ pub fn cmd_plan(mana_dir: &Path, args: PlanArgs) -> Result<()> {
 
 /// Plan a specific unit by ID.
 fn plan_specific(mana_dir: &Path, config: &Config, id: &str, args: &PlanArgs) -> Result<()> {
-    let bean_path = find_unit_file(mana_dir, id)?;
-    let unit = Unit::from_file(&bean_path)?;
+    let unit_path = find_unit_file(mana_dir, id)?;
+    let unit = Unit::from_file(&unit_path)?;
 
     if !is_oversized(&unit) && !args.force {
         eprintln!("Unit {} is small enough to run directly.", id);
@@ -223,16 +223,16 @@ fn build_research_template_command(template: &str, parent_id: &str, model: Optio
 }
 
 #[must_use]
-fn build_builtin_plan_command(bean_path: &str, prompt: &str, model: Option<&str>) -> String {
+fn build_builtin_plan_command(unit_path: &str, prompt: &str, model: Option<&str>) -> String {
     let escaped_prompt = shell_escape(prompt);
     match model {
         Some(model) => format!(
             "pi --model {} @{} {}",
             shell_escape(model),
-            bean_path,
+            unit_path,
             escaped_prompt
         ),
-        None => format!("pi @{} {}", bean_path, escaped_prompt),
+        None => format!("pi @{} {}", unit_path, escaped_prompt),
     }
 }
 
@@ -255,10 +255,10 @@ fn spawn_builtin(
 ) -> Result<()> {
     let prompt = build_decomposition_prompt(id, unit, args.strategy.as_deref());
 
-    let bean_path = find_unit_file(mana_dir, id)?;
-    let bean_path_str = bean_path.display().to_string();
+    let unit_path = find_unit_file(mana_dir, id)?;
+    let unit_path_str = unit_path.display().to_string();
 
-    let cmd = build_builtin_plan_command(&bean_path_str, &prompt, model);
+    let cmd = build_builtin_plan_command(&unit_path_str, &prompt, model);
 
     if args.dry_run {
         eprintln!("Would spawn: {}", cmd);
@@ -317,7 +317,7 @@ mod tests {
     use std::fs;
     use tempfile::TempDir;
 
-    fn setup_beans_dir() -> (TempDir, std::path::PathBuf) {
+    fn setup_mana_dir() -> (TempDir, std::path::PathBuf) {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -332,7 +332,7 @@ mod tests {
 
     #[test]
     fn plan_no_template_without_auto_errors() {
-        let (dir, mana_dir) = setup_beans_dir();
+        let (dir, mana_dir) = setup_mana_dir();
 
         let mut unit = Unit::new("1", "Big unit");
         unit.produces = vec!["a".into(), "b".into(), "c".into(), "d".into()];
@@ -357,8 +357,8 @@ mod tests {
     }
 
     #[test]
-    fn plan_small_bean_suggests_run() {
-        let (dir, mana_dir) = setup_beans_dir();
+    fn plan_small_unit_suggests_run() {
+        let (dir, mana_dir) = setup_mana_dir();
 
         let unit = Unit::new("1", "Small unit");
         unit.to_file(mana_dir.join("1-small-unit.md")).unwrap();
@@ -383,7 +383,7 @@ mod tests {
 
     #[test]
     fn plan_force_overrides_size_check() {
-        let (dir, mana_dir) = setup_beans_dir();
+        let (dir, mana_dir) = setup_mana_dir();
 
         fs::write(
             mana_dir.join("config.yaml"),
@@ -414,7 +414,7 @@ mod tests {
 
     #[test]
     fn plan_dry_run_does_not_spawn() {
-        let (dir, mana_dir) = setup_beans_dir();
+        let (dir, mana_dir) = setup_mana_dir();
 
         fs::write(
             mana_dir.join("config.yaml"),
@@ -446,7 +446,7 @@ mod tests {
 
     #[test]
     fn plan_research_dry_run_shows_prompt() {
-        let (dir, mana_dir) = setup_beans_dir();
+        let (dir, mana_dir) = setup_mana_dir();
 
         let _ = Index::build(&mana_dir);
 
@@ -468,7 +468,7 @@ mod tests {
 
     #[test]
     fn plan_research_creates_parent_unit() {
-        let (dir, mana_dir) = setup_beans_dir();
+        let (dir, mana_dir) = setup_mana_dir();
 
         // Use a research template that just succeeds
         fs::write(
@@ -506,7 +506,7 @@ mod tests {
 
     #[test]
     fn plan_research_falls_back_to_plan_template() {
-        let (dir, mana_dir) = setup_beans_dir();
+        let (dir, mana_dir) = setup_mana_dir();
 
         // No research template, but plan template is set
         fs::write(
@@ -663,7 +663,7 @@ mod tests {
 
     #[test]
     fn plan_builtin_dry_run_shows_prompt() {
-        let (dir, mana_dir) = setup_beans_dir();
+        let (dir, mana_dir) = setup_mana_dir();
 
         let mut unit = Unit::new("1", "Big unit");
         unit.description = Some("x".repeat(2000));

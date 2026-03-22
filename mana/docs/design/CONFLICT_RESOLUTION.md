@@ -199,32 +199,32 @@ impl Unit {
 
 ```rust
 pub fn cmd_update_with_merge(
-    beans_dir: &Path,
+    mana_dir: &Path,
     id: &str,
     updates: UpdateRequest,
 ) -> Result<()> {
     // Load original with hash
-    let bean_path = find_bean_file(beans_dir, id)?;
-    let (mut unit, original_hash) = Unit::from_file_with_hash(&bean_path)?;
+    let unit_path = find_unit_file(mana_dir, id)?;
+    let (mut unit, original_hash) = Unit::from_file_with_hash(&unit_path)?;
     let base = unit.clone();  // Save base version
 
     // Apply local modifications
     apply_updates(&mut unit, updates)?;
 
     // Before writing: check for concurrent modifications
-    let (current, current_hash) = Unit::from_file_with_hash(&bean_path)?;
+    let (current, current_hash) = Unit::from_file_with_hash(&unit_path)?;
 
     if current_hash != original_hash {
         // File was modified! Attempt merge
         match unit.merge(&base, &current) {
             Ok(conflicts) if conflicts.is_empty() => {
                 // Merge succeeded, write result
-                unit.to_file(&bean_path)?;
+                unit.to_file(&unit_path)?;
             }
             Ok(conflicts) => {
                 // Record conflicts in unit
                 unit.conflicts.push(/* create conflict records */);
-                unit.to_file(&bean_path)?;
+                unit.to_file(&unit_path)?;
                 return Err(anyhow!("Conflicts: {}", conflicts.join(", ")));
             }
             Err(e) => {
@@ -233,12 +233,12 @@ pub fn cmd_update_with_merge(
         }
     } else {
         // No concurrent modification, write normally
-        unit.to_file(&bean_path)?;
+        unit.to_file(&unit_path)?;
     }
 
     // Rebuild index
-    let index = Index::build(beans_dir)?;
-    index.save(beans_dir)?;
+    let index = Index::build(mana_dir)?;
+    index.save(mana_dir)?;
 
     Ok(())
 }
@@ -250,13 +250,13 @@ Add new command: `mana resolve <unit-id> <field> <choice>`
 
 ```rust
 pub fn cmd_resolve(
-    beans_dir: &Path,
+    mana_dir: &Path,
     id: &str,
     field: &str,
     choice: usize,  // Which version to keep (0, 1, 2... or "ask")
 ) -> Result<()> {
-    let bean_path = find_bean_file(beans_dir, id)?;
-    let mut unit = Unit::from_file(&bean_path)?;
+    let unit_path = find_unit_file(mana_dir, id)?;
+    let mut unit = Unit::from_file(&unit_path)?;
 
     // Find conflict
     let conflict = unit.conflicts.iter_mut()
@@ -279,11 +279,11 @@ pub fn cmd_resolve(
     unit.conflicts.retain(|c| c.resolution == ConflictResolution::Pending);
 
     // Save
-    unit.to_file(&bean_path)?;
+    unit.to_file(&unit_path)?;
 
     // Rebuild index
-    let index = Index::build(beans_dir)?;
-    index.save(beans_dir)?;
+    let index = Index::build(mana_dir)?;
+    index.save(mana_dir)?;
 
     println!("Resolved conflict for unit {} field {}", id, field);
     Ok(())

@@ -42,7 +42,7 @@ Commands:
 
   QUERY
     status       Show project status: claimed, ready, and blocked units
-    next         Recommend the best bean to work on next
+    next         Recommend the best unit to work on next
     tree         Show hierarchical tree of units
     graph        Display dependency graph
     context      Output context for a unit, or memory context (no args)
@@ -57,7 +57,7 @@ Commands:
     run          Dispatch ready units to agents
     plan         Interactively plan a large unit into children
     review       Adversarial post-close review of an implementation
-    diff         Show git diff of what an agent changed for a bean
+    diff         Show git diff of what an agent changed for a unit
     mutate       Mutation-test a unit's verify gate strength
     agents       Show running and recently completed agents
     logs         View agent output from log files
@@ -469,15 +469,15 @@ Examples:
         no_json: bool,
     },
 
-    /// Recommend the single best bean to work on next
+    /// Recommend the single best unit to work on next
     ///
-    /// Scores ready beans by priority, dependency depth (unblocks), age, and attempt
-    /// count. Returns the top-scored bean — the answer to "what should I work on?"
+    /// Scores ready units by priority, dependency depth (unblocks), age, and attempt
+    /// count. Returns the top-scored unit — the answer to "what should I work on?"
     #[command(
         display_order = 21,
         after_help = "\
 Examples:
-  mana next                Show the single best bean to work on
+  mana next                Show the single best unit to work on
   mana next -n 3           Show top 3 recommendations
   mana next --json         Machine-readable JSON output"
     )]
@@ -716,7 +716,7 @@ Examples:
     /// Move units between .mana/ directories
     ///
     /// Use when units were accidentally created in the wrong directory (e.g. ~ instead
-    /// of the project). Beans get new sequential IDs in the destination. Parent/dependency
+    /// of the project). Units get new sequential IDs in the destination. Parent/dependency
     /// references are cleared since they refer to the source project's ID space.
     ///
     /// Use --from to pull units into this project, or --to to push units out.
@@ -1006,20 +1006,20 @@ Examples:
         no_json: bool,
     },
 
-    /// Show git diff of what an agent changed for a bean
+    /// Show git diff of what an agent changed for a unit
     ///
     /// Finds commits associated with a unit and shows their diff. Works with:
-    /// - Auto-commit: finds commits with `bean-{id}` in the message
+    /// - Auto-commit: finds commits with `unit-{id}` in the message
     ///   (plus legacy `Close unit {id}` commits)
     /// - Checkpoint: uses the checkpoint SHA recorded at claim time
     /// - Timestamps: falls back to diffing between claim and close times
     ///
-    /// For open/in-progress beans, diffs to HEAD (shows current working changes).
+    /// For open/in-progress units, diffs to HEAD (shows current working changes).
     #[command(
         display_order = 39,
         after_help = "\
 Examples:
-  mana diff 3             Show what changed for bean 3
+  mana diff 3             Show what changed for unit 3
   mana diff 3 --stat      Summary only (files changed, insertions, deletions)
   mana diff 3 --name-only Just filenames
   mana diff 3 --no-color  Disable color (for piping)

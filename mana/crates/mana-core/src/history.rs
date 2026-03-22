@@ -6,7 +6,7 @@ use serde::Serialize;
 
 #[derive(Debug, Serialize)]
 pub struct AgentHistoryEntry {
-    pub bean_id: String,
+    pub unit_id: String,
     pub title: String,
     pub attempt: u32,
     pub success: bool,
@@ -45,7 +45,7 @@ mod tests {
 
     fn make_entry(success: bool) -> AgentHistoryEntry {
         AgentHistoryEntry {
-            bean_id: "42".to_string(),
+            unit_id: "42".to_string(),
             title: "Test unit".to_string(),
             attempt: 1,
             success,
@@ -73,7 +73,7 @@ mod tests {
         assert_eq!(lines.len(), 1);
 
         let parsed: serde_json::Value = serde_json::from_str(lines[0]).unwrap();
-        assert_eq!(parsed["bean_id"], "42");
+        assert_eq!(parsed["unit_id"], "42");
         assert_eq!(parsed["success"], true);
         assert_eq!(parsed["tokens"], 5000);
         assert_eq!(parsed["cost"], 0.03);

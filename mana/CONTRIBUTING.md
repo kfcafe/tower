@@ -20,9 +20,9 @@ Every command follows a 4-file pattern:
 
 2. **Create `src/commands/yourcommand.rs`** with:
    ```rust
-   pub fn cmd_yourcommand(beans_dir: &Path, ...) -> Result<()>
+   pub fn cmd_yourcommand(mana_dir: &Path, ...) -> Result<()>
    ```
-   The function takes `beans_dir` as its first argument and returns `anyhow::Result<()>`.
+   The function takes `mana_dir` as its first argument and returns `anyhow::Result<()>`.
 
 3. **Register the module** in `src/commands/mod.rs`
    Add `pub mod yourcommand;` and a `pub use yourcommand::cmd_yourcommand;` re-export.
@@ -45,7 +45,7 @@ fs::read_to_string(&path)
 Inline `#[cfg(test)]` modules in the same file as the code under test. No separate test files.
 
 ### Unit IDs
-Always validate user-supplied IDs with `util::validate_bean_id()` before use.
+Always validate user-supplied IDs with `util::validate_unit_id()` before use.
 
 ### Sorting
 Use `util::natural_cmp` when sorting unit IDs so that `2` sorts before `10`.

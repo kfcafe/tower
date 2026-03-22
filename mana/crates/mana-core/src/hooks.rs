@@ -375,7 +375,7 @@ mod tests {
     use std::fs;
     use tempfile::TempDir;
 
-    fn create_test_bean() -> Unit {
+    fn create_test_unit() -> Unit {
         Unit::new("1", "Test Unit")
     }
 
@@ -395,7 +395,7 @@ mod tests {
 
     #[test]
     fn test_hook_payload_serializes_to_json() {
-        let unit = create_test_bean();
+        let unit = create_test_unit();
         let payload = HookPayload::new(HookEvent::PreCreate, unit.clone(), None);
 
         let json = payload.to_json().unwrap();
@@ -407,7 +407,7 @@ mod tests {
 
     #[test]
     fn test_hook_payload_with_reason() {
-        let unit = create_test_bean();
+        let unit = create_test_unit();
         let payload = HookPayload::new(
             HookEvent::PreClose,
             unit,
@@ -430,7 +430,7 @@ mod tests {
     #[test]
     fn test_missing_hook_returns_ok_true() {
         let temp_dir = create_test_dir();
-        let unit = create_test_bean();
+        let unit = create_test_unit();
 
         // No hook exists
         let result = execute_hook(HookEvent::PreCreate, &unit, temp_dir.path(), None);
@@ -452,7 +452,7 @@ mod tests {
         fs::write(&hook_path, "#!/bin/bash\nexit 0").unwrap();
         // File is not executable
 
-        let unit = create_test_bean();
+        let unit = create_test_unit();
         let result = execute_hook(HookEvent::PreCreate, &unit, project_dir, None);
 
         assert!(result.is_err());
@@ -480,7 +480,7 @@ mod tests {
             fs::set_permissions(&hook_path, fs::Permissions::from_mode(0o755)).unwrap();
         }
 
-        let unit = create_test_bean();
+        let unit = create_test_unit();
         let result = execute_hook(HookEvent::PreCreate, &unit, project_dir, None);
 
         assert!(result.is_ok(), "Hook execution failed: {:?}", result.err());
@@ -507,7 +507,7 @@ mod tests {
             fs::set_permissions(&hook_path, fs::Permissions::from_mode(0o755)).unwrap();
         }
 
-        let unit = create_test_bean();
+        let unit = create_test_unit();
         let result = execute_hook(HookEvent::PreCreate, &unit, project_dir, None);
 
         assert!(result.is_ok(), "Hook execution failed: {:?}", result.err());
@@ -517,7 +517,7 @@ mod tests {
     #[test]
     fn test_hook_receives_json_payload_on_stdin() {
         // Test that the payload can be serialized to JSON and would be sent to the hook
-        let unit = create_test_bean();
+        let unit = create_test_unit();
         let payload = HookPayload::new(HookEvent::PreCreate, unit, None);
 
         let json = payload.to_json().unwrap();
@@ -548,7 +548,7 @@ mod tests {
         use std::os::unix::fs::PermissionsExt;
         fs::set_permissions(&hook_path, fs::Permissions::from_mode(0o755)).unwrap();
 
-        let unit = create_test_bean();
+        let unit = create_test_unit();
         let result = execute_hook(HookEvent::PreCreate, &unit, project_dir, None);
 
         assert!(result.is_err());
@@ -590,8 +590,8 @@ mod tests {
     }
 
     #[test]
-    fn test_hook_payload_with_all_bean_fields() {
-        let mut unit = create_test_bean();
+    fn test_hook_payload_with_all_unit_fields() {
+        let mut unit = create_test_unit();
         unit.description = Some("Test description".to_string());
         unit.acceptance = Some("Test acceptance".to_string());
         unit.labels = vec!["test".to_string(), "important".to_string()];
@@ -711,7 +711,7 @@ mod tests {
             fs::set_permissions(&hook_path, fs::Permissions::from_mode(0o755)).unwrap();
         }
 
-        let unit = create_test_bean();
+        let unit = create_test_unit();
 
         // Hook should NOT execute (returns Ok(true) but doesn't run)
         // If trust is disabled, hook should not even check executability
@@ -740,7 +740,7 @@ mod tests {
             fs::set_permissions(&hook_path, fs::Permissions::from_mode(0o755)).unwrap();
         }
 
-        let unit = create_test_bean();
+        let unit = create_test_unit();
 
         // Hook should execute successfully
         let result = execute_hook(HookEvent::PreCreate, &unit, project_dir, None);
@@ -765,7 +765,7 @@ mod tests {
             fs::set_permissions(&hook_path, fs::Permissions::from_mode(0o755)).unwrap();
         }
 
-        let unit = create_test_bean();
+        let unit = create_test_unit();
 
         // Hook should NOT execute (returns Ok(true) silently)
         let result = execute_hook(HookEvent::PreCreate, &unit, project_dir, None);

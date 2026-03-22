@@ -43,7 +43,7 @@ use std::process::Command;
 use anyhow::{anyhow, Context, Result};
 use serde::{Deserialize, Serialize};
 
-pub const DEFAULT_COMMIT_TEMPLATE: &str = "feat(bean-{id}): {title}";
+pub const DEFAULT_COMMIT_TEMPLATE: &str = "feat(unit-{id}): {title}";
 
 /// Configuration for the adversarial review feature (`mana review` / `mana run --review`).
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
@@ -158,7 +158,7 @@ pub struct Config {
     #[serde(default, skip_serializing_if = "is_false_bool")]
     pub auto_commit: bool,
     /// Template for auto-commit messages. Placeholders: {id}, {title}, {parent_id}, {labels}.
-    /// Default: "feat(bean-{id}): {title}"
+    /// Default: "feat(unit-{id}): {title}"
     ///
     /// Keep `{id}` in the template so `mana diff <id>` can find the unit's commit.
     #[serde(default, skip_serializing_if = "Option::is_none")]

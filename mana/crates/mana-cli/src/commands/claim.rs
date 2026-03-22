@@ -47,7 +47,7 @@ mod tests {
     use std::fs;
     use tempfile::TempDir;
 
-    fn setup_test_beans_dir() -> (TempDir, std::path::PathBuf) {
+    fn setup_test_mana_dir() -> (TempDir, std::path::PathBuf) {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -55,8 +55,8 @@ mod tests {
     }
 
     #[test]
-    fn test_claim_open_bean() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
+    fn test_claim_open_unit() {
+        let (_dir, mana_dir) = setup_test_mana_dir();
         let unit = Unit::new("1", "Task");
         unit.to_file(mana_dir.join("1.yaml")).unwrap();
 
@@ -70,7 +70,7 @@ mod tests {
 
     #[test]
     fn test_claim_without_by() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
+        let (_dir, mana_dir) = setup_test_mana_dir();
         let unit = Unit::new("1", "Task");
         unit.to_file(mana_dir.join("1.yaml")).unwrap();
 
@@ -84,8 +84,8 @@ mod tests {
     }
 
     #[test]
-    fn test_claim_non_open_bean_fails() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
+    fn test_claim_non_open_unit_fails() {
+        let (_dir, mana_dir) = setup_test_mana_dir();
         let mut unit = Unit::new("1", "Task");
         unit.status = Status::InProgress;
         unit.to_file(mana_dir.join("1.yaml")).unwrap();
@@ -95,8 +95,8 @@ mod tests {
     }
 
     #[test]
-    fn test_claim_closed_bean_fails() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
+    fn test_claim_closed_unit_fails() {
+        let (_dir, mana_dir) = setup_test_mana_dir();
         let mut unit = Unit::new("1", "Task");
         unit.status = Status::Closed;
         unit.to_file(mana_dir.join("1.yaml")).unwrap();
@@ -106,15 +106,15 @@ mod tests {
     }
 
     #[test]
-    fn test_claim_nonexistent_bean_fails() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
+    fn test_claim_nonexistent_unit_fails() {
+        let (_dir, mana_dir) = setup_test_mana_dir();
         let result = cmd_claim(&mana_dir, "99", Some("alice".to_string()), true);
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_release_claimed_bean() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
+    fn test_release_claimed_unit() {
+        let (_dir, mana_dir) = setup_test_mana_dir();
         let mut unit = Unit::new("1", "Task");
         unit.status = Status::InProgress;
         unit.claimed_by = Some("alice".to_string());
@@ -130,15 +130,15 @@ mod tests {
     }
 
     #[test]
-    fn test_release_nonexistent_bean_fails() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
+    fn test_release_nonexistent_unit_fails() {
+        let (_dir, mana_dir) = setup_test_mana_dir();
         let result = cmd_release(&mana_dir, "99");
         assert!(result.is_err());
     }
 
     #[test]
     fn test_claim_rebuilds_index() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
+        let (_dir, mana_dir) = setup_test_mana_dir();
         let unit = Unit::new("1", "Task");
         unit.to_file(mana_dir.join("1.yaml")).unwrap();
 
@@ -152,7 +152,7 @@ mod tests {
 
     #[test]
     fn test_release_rebuilds_index() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
+        let (_dir, mana_dir) = setup_test_mana_dir();
         let mut unit = Unit::new("1", "Task");
         unit.status = Status::InProgress;
         unit.to_file(mana_dir.join("1.yaml")).unwrap();
@@ -166,8 +166,8 @@ mod tests {
     }
 
     #[test]
-    fn test_claim_bean_without_verify_succeeds_with_warning() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
+    fn test_claim_unit_without_verify_succeeds_with_warning() {
+        let (_dir, mana_dir) = setup_test_mana_dir();
 
         // Create unit without verify (this is a GOAL, not a SPEC)
         let unit = Unit::new("1", "Add authentication");
@@ -184,8 +184,8 @@ mod tests {
     }
 
     #[test]
-    fn test_claim_bean_with_verify_succeeds() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
+    fn test_claim_unit_with_verify_succeeds() {
+        let (_dir, mana_dir) = setup_test_mana_dir();
 
         // Create unit with verify (this is a SPEC)
         let mut unit = Unit::new("1", "Add login endpoint");
@@ -201,8 +201,8 @@ mod tests {
     }
 
     #[test]
-    fn test_claim_bean_with_empty_verify_warns() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
+    fn test_claim_unit_with_empty_verify_warns() {
+        let (_dir, mana_dir) = setup_test_mana_dir();
 
         // Create unit with empty verify string (should be treated as no verify)
         let mut unit = Unit::new("1", "Vague task");
@@ -223,7 +223,7 @@ mod tests {
 
     #[test]
     fn verify_on_claim_passing_verify_rejected() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
+        let (_dir, mana_dir) = setup_test_mana_dir();
 
         // Unit with verify that passes immediately ("true" exits 0)
         let mut unit = Unit::new("1", "Already done");
@@ -245,7 +245,7 @@ mod tests {
 
     #[test]
     fn verify_on_claim_failing_verify_succeeds() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
+        let (_dir, mana_dir) = setup_test_mana_dir();
 
         // Unit with verify that fails ("false" exits 1)
         let mut unit = Unit::new("1", "Real work needed");
@@ -268,7 +268,7 @@ mod tests {
 
     #[test]
     fn verify_on_claim_force_overrides() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
+        let (_dir, mana_dir) = setup_test_mana_dir();
 
         // Unit with verify that passes immediately
         let mut unit = Unit::new("1", "Force claim");
@@ -286,7 +286,7 @@ mod tests {
 
     #[test]
     fn verify_on_claim_checkpoint_sha_stored() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
+        let (_dir, mana_dir) = setup_test_mana_dir();
 
         // Unit with verify that fails
         let mut unit = Unit::new("1", "Checkpoint test");
@@ -334,7 +334,7 @@ mod tests {
 
     #[test]
     fn verify_on_claim_no_verify_skips_check() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
+        let (_dir, mana_dir) = setup_test_mana_dir();
 
         // Unit without verify — should not run verify check
         let unit = Unit::new("1", "No verify");
@@ -358,7 +358,7 @@ mod tests {
 
     #[test]
     fn claim_starts_attempt() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
+        let (_dir, mana_dir) = setup_test_mana_dir();
         let unit = Unit::new("1", "Task");
         unit.to_file(mana_dir.join("1.yaml")).unwrap();
 
@@ -374,7 +374,7 @@ mod tests {
 
     #[test]
     fn release_marks_attempt_abandoned() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
+        let (_dir, mana_dir) = setup_test_mana_dir();
         let mut unit = Unit::new("1", "Task");
         unit.status = Status::InProgress;
         unit.claimed_by = Some("agent-1".to_string());
@@ -398,7 +398,7 @@ mod tests {
 
     #[test]
     fn multiple_claims_accumulate_attempts() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
+        let (_dir, mana_dir) = setup_test_mana_dir();
         let unit = Unit::new("1", "Task");
         unit.to_file(mana_dir.join("1.yaml")).unwrap();
 

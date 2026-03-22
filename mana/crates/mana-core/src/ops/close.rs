@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use chrono::Utc;
 
 use crate::config::{Config, DEFAULT_COMMIT_TEMPLATE};
-use crate::discovery::{archive_path_for_bean, find_archived_unit, find_unit_file};
+use crate::discovery::{archive_path_for_unit, find_archived_unit, find_unit_file};
 use crate::graph;
 use crate::hooks::{
     current_git_branch, execute_config_hook, execute_hook, is_trusted, HookEvent, HookVars,
@@ -200,10 +200,10 @@ pub fn close(mana_dir: &Path, id: &str, opts: CloseOpts) -> Result<CloseOutcome>
 
     let config = Config::load(mana_dir).ok();
 
-    let bean_path =
+    let unit_path =
         find_unit_file(mana_dir, id).with_context(|| format!("Unit not found: {}", id))?;
     let mut unit =
-        Unit::from_file(&bean_path).with_context(|| format!("Failed to load unit: {}", id))?;
+        Unit::from_file(&unit_path).with_context(|| format!("Failed to load unit: {}", id))?;
 
     // 1. Pre-close hook
     let pre_close = run_pre_close_hook(&unit, project_root, opts.reason.as_deref());
@@ -225,7 +225,7 @@ pub fn close(mana_dir: &Path, id: &str, opts: CloseOpts) -> Result<CloseOutcome>
     if opts.defer_verify {
         unit.status = Status::AwaitingVerify;
         unit.updated_at = Utc::now();
-        unit.to_file(&bean_path)
+        unit.to_file(&unit_path)
             .with_context(|| format!("Failed to save unit: {}", id))?;
         rebuild_index(mana_dir)?;
         return Ok(CloseOutcome::DeferredVerify {
@@ -279,12 +279,12 @@ pub fn close(mana_dir: &Path, id: &str, opts: CloseOpts) -> Result<CloseOutcome>
 
                 if max_loops_limit > 0 {
                     // Save unit first so subtree count is accurate
-                    unit.to_file(&bean_path)
+                    unit.to_file(&unit_path)
                         .with_context(|| format!("Failed to save unit: {}", id))?;
 
                     let cb = check_circuit_breaker(mana_dir, &mut unit, &root_id, max_loops_limit)?;
                     if cb.tripped {
-                        unit.to_file(&bean_path)
+                        unit.to_file(&unit_path)
                             .with_context(|| format!("Failed to save unit: {}", id))?;
 
                         // Rebuild index
@@ -302,7 +302,7 @@ pub fn close(mana_dir: &Path, id: &str, opts: CloseOpts) -> Result<CloseOutcome>
                 // Process on_fail action
                 let action_taken = process_on_fail(&mut unit);
 
-                unit.to_file(&bean_path)
+                unit.to_file(&unit_path)
                     .with_context(|| format!("Failed to save unit: {}", id))?;
 
                 // Fire on_fail config hook
@@ -383,15 +383,15 @@ pub fn close(mana_dir: &Path, id: &str, opts: CloseOpts) -> Result<CloseOutcome>
     }
 
     // Update last_verified for facts
-    if unit.bean_type == "fact" {
+    if unit.unit_type == "fact" {
         unit.last_verified = Some(now);
     }
 
-    unit.to_file(&bean_path)
+    unit.to_file(&unit_path)
         .with_context(|| format!("Failed to save unit: {}", id))?;
 
     // 6. Archive
-    let archive_path = archive_unit(mana_dir, &mut unit, &bean_path)?;
+    let archive_path = archive_unit(mana_dir, &mut unit, &unit_path)?;
 
     // 7. Post-close cascade
     let post_close =
@@ -462,10 +462,10 @@ pub fn close(mana_dir: &Path, id: &str, opts: CloseOpts) -> Result<CloseOutcome>
 pub fn close_failed(mana_dir: &Path, id: &str, reason: Option<String>) -> Result<Unit> {
     let now = Utc::now();
 
-    let bean_path =
+    let unit_path =
         find_unit_file(mana_dir, id).with_context(|| format!("Unit not found: {}", id))?;
     let mut unit =
-        Unit::from_file(&bean_path).with_context(|| format!("Failed to load unit: {}", id))?;
+        Unit::from_file(&unit_path).with_context(|| format!("Failed to load unit: {}", id))?;
 
     // Finalize the current attempt as failed
     if let Some(attempt) = unit.attempt_log.last_mut() {
@@ -493,8 +493,8 @@ pub fn close_failed(mana_dir: &Path, id: &str, reason: Option<String>) -> Result
             .unwrap_or(0);
 
         let ctx = crate::failure::FailureContext {
-            bean_id: id.to_string(),
-            bean_title: unit.title.clone(),
+            unit_id: id.to_string(),
+            unit_title: unit.title.clone(),
             attempt: attempt_num.max(1),
             duration_secs,
             tool_count: 0,
@@ -517,7 +517,7 @@ pub fn close_failed(mana_dir: &Path, id: &str, reason: Option<String>) -> Result
         }
     }
 
-    unit.to_file(&bean_path)
+    unit.to_file(&unit_path)
         .with_context(|| format!("Failed to save unit: {}", id))?;
 
     // Rebuild index
@@ -538,10 +538,10 @@ pub fn all_children_closed(mana_dir: &Path, parent_id: &str) -> Result<bool> {
     let index = Index::build(mana_dir)?;
     let archived = Index::collect_archived(mana_dir).unwrap_or_default();
 
-    let mut all_beans = index.units;
-    all_beans.extend(archived);
+    let mut all_units = index.units;
+    all_units.extend(archived);
 
-    let children: Vec<_> = all_beans
+    let children: Vec<_> = all_units
         .iter()
         .filter(|b| b.parent.as_deref() == Some(parent_id))
         .collect();
@@ -579,12 +579,12 @@ fn auto_close_parent_recursive(
         return Ok(());
     }
 
-    let bean_path = match find_unit_file(mana_dir, parent_id) {
+    let unit_path = match find_unit_file(mana_dir, parent_id) {
         Ok(path) => path,
         Err(_) => return Ok(()), // Already archived
     };
 
-    let mut unit = Unit::from_file(&bean_path)
+    let mut unit = Unit::from_file(&unit_path)
         .with_context(|| format!("Failed to load parent unit: {}", parent_id))?;
 
     if unit.status == Status::Closed {
@@ -602,10 +602,10 @@ fn auto_close_parent_recursive(
     unit.close_reason = Some("Auto-closed: all children completed".to_string());
     unit.updated_at = now;
 
-    unit.to_file(&bean_path)
+    unit.to_file(&unit_path)
         .with_context(|| format!("Failed to save parent unit: {}", parent_id))?;
 
-    archive_unit(mana_dir, &mut unit, &bean_path)?;
+    archive_unit(mana_dir, &mut unit, &unit_path)?;
     closed.push(parent_id.to_string());
 
     // Recurse to grandparent
@@ -620,25 +620,25 @@ fn auto_close_parent_recursive(
 ///
 /// Moves the unit file, marks `is_archived = true`, and updates the archive index.
 /// Returns the archive path.
-pub fn archive_unit(mana_dir: &Path, unit: &mut Unit, bean_path: &Path) -> Result<PathBuf> {
+pub fn archive_unit(mana_dir: &Path, unit: &mut Unit, unit_path: &Path) -> Result<PathBuf> {
     let id = &unit.id;
     let slug = unit
         .slug
         .clone()
         .unwrap_or_else(|| title_to_slug(&unit.title));
-    let ext = bean_path
+    let ext = unit_path
         .extension()
         .and_then(|e| e.to_str())
         .unwrap_or("md");
     let today = chrono::Local::now().naive_local().date();
-    let archive_path = archive_path_for_bean(mana_dir, id, &slug, ext, today);
+    let archive_path = archive_path_for_unit(mana_dir, id, &slug, ext, today);
 
     if let Some(parent) = archive_path.parent() {
         std::fs::create_dir_all(parent)
             .with_context(|| format!("Failed to create archive directories for unit {}", id))?;
     }
 
-    std::fs::rename(bean_path, &archive_path)
+    std::fs::rename(unit_path, &archive_path)
         .with_context(|| format!("Failed to move unit {} to archive", id))?;
 
     unit.is_archived = true;
@@ -1619,12 +1619,12 @@ mod tests {
         let mut unit = Unit::new("1", "Task");
         unit.status = Status::Closed;
         let slug = title_to_slug(&unit.title);
-        let bean_path = mana_dir.join(format!("1-{}.md", slug));
-        unit.to_file(&bean_path).unwrap();
+        let unit_path = mana_dir.join(format!("1-{}.md", slug));
+        unit.to_file(&unit_path).unwrap();
 
-        let archive_path = archive_unit(&mana_dir, &mut unit, &bean_path).unwrap();
+        let archive_path = archive_unit(&mana_dir, &mut unit, &unit_path).unwrap();
         assert!(archive_path.exists());
-        assert!(!bean_path.exists());
+        assert!(!unit_path.exists());
         assert!(unit.is_archived);
     }
 
@@ -1754,14 +1754,14 @@ mod tests {
     #[test]
     fn expand_commit_template_substitutes_all_placeholders() {
         let message = expand_commit_template(
-            "feat(bean-{id}): {title} [{parent_id}] {labels}",
+            "feat(unit-{id}): {title} [{parent_id}] {labels}",
             "2.3",
             "Ship it",
             Some("2"),
             &["feature".to_string(), "git".to_string()],
         );
 
-        assert_eq!(message, "feat(bean-2.3): Ship it [2] feature,git");
+        assert_eq!(message, "feat(unit-2.3): Ship it [2] feature,git");
     }
 
     #[test]
@@ -1810,7 +1810,7 @@ mod tests {
         assert_eq!(close_result.auto_closed_parents, vec!["1".to_string()]);
 
         let head_subject = git_stdout(project_root, &["log", "-1", "--pretty=%s"]);
-        assert_eq!(head_subject.trim(), "feat(bean-1.1): Child");
+        assert_eq!(head_subject.trim(), "feat(unit-1.1): Child");
 
         let changed_files = git_stdout(project_root, &["show", "--name-only", "--format=", "HEAD"]);
         assert!(

@@ -20,11 +20,11 @@ pub(crate) fn all_children_closed(mana_dir: &Path, parent_id: &str) -> Result<bo
     let archived = Index::collect_archived(mana_dir).unwrap_or_default();
 
     // Combine active and archived units
-    let mut all_beans = index.units;
-    all_beans.extend(archived);
+    let mut all_units = index.units;
+    all_units.extend(archived);
 
     // Find children of this parent
-    let children: Vec<_> = all_beans
+    let children: Vec<_> = all_units
         .iter()
         .filter(|b| b.parent.as_deref() == Some(parent_id))
         .collect();
@@ -53,7 +53,7 @@ pub(crate) fn all_children_closed(mana_dir: &Path, parent_id: &str) -> Result<bo
 /// - Recursively checks grandparent
 pub(crate) fn auto_close_parent(mana_dir: &Path, parent_id: &str) -> Result<()> {
     // Find the parent unit
-    let bean_path = match find_unit_file(mana_dir, parent_id) {
+    let unit_path = match find_unit_file(mana_dir, parent_id) {
         Ok(path) => path,
         Err(_) => {
             // Parent might already be archived, skip
@@ -61,7 +61,7 @@ pub(crate) fn auto_close_parent(mana_dir: &Path, parent_id: &str) -> Result<()> 
         }
     };
 
-    let mut unit = Unit::from_file(&bean_path)
+    let mut unit = Unit::from_file(&unit_path)
         .with_context(|| format!("Failed to load parent unit: {}", parent_id))?;
 
     // Skip if already closed
@@ -82,11 +82,11 @@ pub(crate) fn auto_close_parent(mana_dir: &Path, parent_id: &str) -> Result<()> 
     unit.close_reason = Some("Auto-closed: all children completed".to_string());
     unit.updated_at = now;
 
-    unit.to_file(&bean_path)
+    unit.to_file(&unit_path)
         .with_context(|| format!("Failed to save parent unit: {}", parent_id))?;
 
     // Archive the closed unit
-    archive::archive_bean(mana_dir, &mut unit, &bean_path)?;
+    archive::archive_unit(mana_dir, &mut unit, &unit_path)?;
 
     println!("Auto-closed parent unit {}: {}", parent_id, unit.title);
 

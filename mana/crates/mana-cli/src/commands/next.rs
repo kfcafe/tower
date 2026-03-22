@@ -9,14 +9,14 @@ use crate::blocking::check_blocked;
 use crate::index::{Index, IndexEntry};
 use crate::unit::Status;
 
-/// A scored bean with metadata for display.
+/// A scored unit with metadata for display.
 #[derive(Debug, Serialize)]
-pub struct ScoredBean {
+pub struct ScoredUnit {
     pub id: String,
     pub title: String,
     pub priority: u8,
     pub score: f64,
-    /// IDs of beans this one unblocks (directly depends-on this bean).
+    /// IDs of units this one unblocks (directly depends-on this unit).
     pub unblocks: Vec<String>,
     /// Age in days since creation.
     pub age_days: u64,
@@ -24,20 +24,20 @@ pub struct ScoredBean {
     pub attempts: u32,
 }
 
-/// Score a ready bean based on the ranking criteria.
+/// Score a ready unit based on the ranking criteria.
 ///
 /// Higher score = should be worked on first.
 ///
 /// Components:
 /// 1. Priority weight (P0 = 50, P1 = 40, P2 = 30, P3 = 20, P4 = 10)
-/// 2. Dependency depth — how many other beans does this unblock (transitive)
+/// 2. Dependency depth — how many other units does this unblock (transitive)
 /// 3. Age in days (capped at 30 to prevent runaway scores)
-/// 4. Fewer attempts = higher score (fresh beans preferred)
-fn score_bean(entry: &IndexEntry, unblock_count: usize) -> f64 {
+/// 4. Fewer attempts = higher score (fresh units preferred)
+fn score_unit(entry: &IndexEntry, unblock_count: usize) -> f64 {
     // Priority: P0=50, P1=40, P2=30, P3=20, P4=10
     let priority_score = (5u8.saturating_sub(entry.priority)) as f64 * 10.0;
 
-    // Dependency depth: each bean unblocked adds 5 points (capped at 50)
+    // Dependency depth: each unit unblocked adds 5 points (capped at 50)
     let unblock_score = (unblock_count as f64 * 5.0).min(50.0);
 
     // Age: 1 point per day, capped at 30
@@ -53,13 +53,13 @@ fn score_bean(entry: &IndexEntry, unblock_count: usize) -> f64 {
     priority_score + unblock_score + age_score - attempt_penalty
 }
 
-/// Count how many beans a given bean transitively unblocks.
+/// Count how many units a given unit transitively unblocks.
 ///
-/// Walks the reverse dependency graph from `bean_id` counting all
-/// beans that are (transitively) waiting on this bean.
-fn count_transitive_unblocks(bean_id: &str, reverse_deps: &HashMap<String, Vec<String>>) -> usize {
+/// Walks the reverse dependency graph from `unit_id` counting all
+/// units that are (transitively) waiting on this unit.
+fn count_transitive_unblocks(unit_id: &str, reverse_deps: &HashMap<String, Vec<String>>) -> usize {
     let mut visited = HashSet::new();
-    let mut stack = vec![bean_id.to_string()];
+    let mut stack = vec![unit_id.to_string()];
 
     while let Some(current) = stack.pop() {
         if let Some(dependents) = reverse_deps.get(&current) {
@@ -74,16 +74,16 @@ fn count_transitive_unblocks(bean_id: &str, reverse_deps: &HashMap<String, Vec<S
     visited.len()
 }
 
-/// Get direct unblock IDs (beans that directly depend on this one).
-fn direct_unblocks(bean_id: &str, reverse_deps: &HashMap<String, Vec<String>>) -> Vec<String> {
-    reverse_deps.get(bean_id).cloned().unwrap_or_default()
+/// Get direct unblock IDs (units that directly depend on this one).
+fn direct_unblocks(unit_id: &str, reverse_deps: &HashMap<String, Vec<String>>) -> Vec<String> {
+    reverse_deps.get(unit_id).cloned().unwrap_or_default()
 }
 
-/// Pick the top N recommended beans to work on next.
+/// Pick the top N recommended units to work on next.
 pub fn cmd_next(n: usize, json: bool, mana_dir: &Path) -> Result<()> {
     let index = Index::load_or_rebuild(mana_dir)?;
 
-    // Find ready beans: open, has verify, not blocked, not a feature
+    // Find ready units: open, has verify, not blocked, not a feature
     let ready: Vec<&IndexEntry> = index
         .units
         .iter()
@@ -99,12 +99,12 @@ pub fn cmd_next(n: usize, json: bool, mana_dir: &Path) -> Result<()> {
         if json {
             println!("[]");
         } else {
-            println!("No ready beans. Create one with: mana create \"task\" --verify \"cmd\"");
+            println!("No ready units. Create one with: mana create \"task\" --verify \"cmd\"");
         }
         return Ok(());
     }
 
-    // Build reverse dependency map: bean_id -> list of beans that depend on it
+    // Build reverse dependency map: unit_id -> list of units that depend on it
     let mut reverse_deps: HashMap<String, Vec<String>> = HashMap::new();
     for entry in &index.units {
         for dep_id in &entry.dependencies {
@@ -116,18 +116,18 @@ pub fn cmd_next(n: usize, json: bool, mana_dir: &Path) -> Result<()> {
     }
 
     // Score and sort
-    let mut scored: Vec<ScoredBean> = ready
+    let mut scored: Vec<ScoredUnit> = ready
         .iter()
         .map(|entry| {
             let transitive_count = count_transitive_unblocks(&entry.id, &reverse_deps);
             let unblocks = direct_unblocks(&entry.id, &reverse_deps);
-            let score = score_bean(entry, transitive_count);
+            let score = score_unit(entry, transitive_count);
             let age_days = Utc::now()
                 .signed_duration_since(entry.created_at)
                 .num_days()
                 .max(0) as u64;
 
-            ScoredBean {
+            ScoredUnit {
                 id: entry.id.clone(),
                 title: entry.title.clone(),
                 priority: entry.priority,
@@ -153,23 +153,23 @@ pub fn cmd_next(n: usize, json: bool, mana_dir: &Path) -> Result<()> {
         let json_str = serde_json::to_string_pretty(&scored)?;
         println!("{}", json_str);
     } else {
-        for bean in &scored {
-            let priority_label = format!("P{}", bean.priority);
-            println!("{}  {:.1}  {}", priority_label, bean.score, bean.title);
+        for unit in &scored {
+            let priority_label = format!("P{}", unit.priority);
+            println!("{}  {:.1}  {}", priority_label, unit.score, unit.title);
 
-            if !bean.unblocks.is_empty() {
-                println!("      Unblocks: {}", bean.unblocks.join(", "));
+            if !unit.unblocks.is_empty() {
+                println!("      Unblocks: {}", unit.unblocks.join(", "));
             }
 
-            let attempts_str = if bean.attempts > 0 {
-                format!(" | Attempts: {}", bean.attempts)
+            let attempts_str = if unit.attempts > 0 {
+                format!(" | Attempts: {}", unit.attempts)
             } else {
                 String::new()
             };
 
             println!(
                 "      ID: {} | Age: {} days{}",
-                bean.id, bean.age_days, attempts_str
+                unit.id, unit.age_days, attempts_str
             );
             println!();
         }
@@ -215,9 +215,9 @@ mod tests {
 
         let reverse_deps = HashMap::new();
 
-        let s0 = score_bean(&p0, count_transitive_unblocks("1", &reverse_deps));
-        let s2 = score_bean(&p2, count_transitive_unblocks("2", &reverse_deps));
-        let s4 = score_bean(&p4, count_transitive_unblocks("3", &reverse_deps));
+        let s0 = score_unit(&p0, count_transitive_unblocks("1", &reverse_deps));
+        let s2 = score_unit(&p2, count_transitive_unblocks("2", &reverse_deps));
+        let s4 = score_unit(&p4, count_transitive_unblocks("3", &reverse_deps));
 
         assert!(s0 > s2, "P0 ({}) should score higher than P2 ({})", s0, s2);
         assert!(s2 > s4, "P2 ({}) should score higher than P4 ({})", s2, s4);
@@ -227,9 +227,9 @@ mod tests {
     fn more_unblocks_scores_higher() {
         let entry = make_entry("1", 2);
 
-        let s_none = score_bean(&entry, 0);
-        let s_some = score_bean(&entry, 3);
-        let s_many = score_bean(&entry, 10);
+        let s_none = score_unit(&entry, 0);
+        let s_some = score_unit(&entry, 3);
+        let s_many = score_unit(&entry, 10);
 
         assert!(
             s_some > s_none,
@@ -246,14 +246,14 @@ mod tests {
     }
 
     #[test]
-    fn older_bean_scores_higher() {
+    fn older_unit_scores_higher() {
         let mut old = make_entry("1", 2);
         old.created_at = Utc::now() - Duration::days(10);
 
         let new = make_entry("2", 2);
 
-        let s_old = score_bean(&old, 0);
-        let s_new = score_bean(&new, 0);
+        let s_old = score_unit(&old, 0);
+        let s_new = score_unit(&new, 0);
 
         assert!(
             s_old > s_new,
@@ -269,8 +269,8 @@ mod tests {
         let mut retried = make_entry("2", 2);
         retried.attempts = 3;
 
-        let s_fresh = score_bean(&fresh, 0);
-        let s_retried = score_bean(&retried, 0);
+        let s_fresh = score_unit(&fresh, 0);
+        let s_retried = score_unit(&retried, 0);
 
         assert!(
             s_fresh > s_retried,

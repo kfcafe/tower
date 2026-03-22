@@ -15,17 +15,17 @@ pub struct ReopenResult {
 
 /// Reopen a closed unit.
 pub fn reopen(mana_dir: &Path, id: &str) -> Result<ReopenResult> {
-    let bean_path =
+    let unit_path =
         find_unit_file(mana_dir, id).with_context(|| format!("Unit not found: {}", id))?;
     let mut unit =
-        Unit::from_file(&bean_path).with_context(|| format!("Failed to load unit: {}", id))?;
+        Unit::from_file(&unit_path).with_context(|| format!("Failed to load unit: {}", id))?;
 
     unit.status = Status::Open;
     unit.closed_at = None;
     unit.close_reason = None;
     unit.updated_at = Utc::now();
 
-    unit.to_file(&bean_path)
+    unit.to_file(&unit_path)
         .with_context(|| format!("Failed to save unit: {}", id))?;
 
     let index = Index::build(mana_dir)?;
@@ -33,7 +33,7 @@ pub fn reopen(mana_dir: &Path, id: &str) -> Result<ReopenResult> {
 
     Ok(ReopenResult {
         unit,
-        path: bean_path,
+        path: unit_path,
     })
 }
 
@@ -83,7 +83,7 @@ mod tests {
     }
 
     #[test]
-    fn reopen_closed_bean() {
+    fn reopen_closed_unit() {
         let (_dir, bd) = setup();
         create::create(&bd, minimal_params("Task")).unwrap();
         let bp = find_unit_file(&bd, "1").unwrap();

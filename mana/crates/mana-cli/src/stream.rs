@@ -7,23 +7,23 @@ use serde::Serialize;
 pub enum StreamEvent {
     RunStart {
         parent_id: String,
-        total_beans: usize,
+        total_units: usize,
         total_rounds: usize,
-        units: Vec<BeanInfo>,
+        units: Vec<UnitInfo>,
     },
     /// Emitted at run start with the full execution plan and detected file overlaps.
     RunPlan {
         parent_id: String,
         waves: Vec<RoundPlan>,
         file_overlaps: Vec<FileOverlapInfo>,
-        total_beans: usize,
+        total_units: usize,
     },
     RoundStart {
         round: usize,
         total_rounds: usize,
-        bean_count: usize,
+        unit_count: usize,
     },
-    BeanStart {
+    UnitStart {
         id: String,
         title: String,
         round: usize,
@@ -35,22 +35,22 @@ pub enum StreamEvent {
         priority: Option<u8>,
     },
     /// Emitted when a unit becomes ready because a dependency just completed.
-    BeanReady {
+    UnitReady {
         id: String,
         title: String,
         unblocked_by: String,
     },
-    BeanThinking {
+    UnitThinking {
         id: String,
         text: String,
     },
-    BeanTool {
+    UnitTool {
         id: String,
         tool_name: String,
         tool_count: usize,
         file_path: Option<String>,
     },
-    BeanTokens {
+    UnitTokens {
         id: String,
         input_tokens: u64,
         output_tokens: u64,
@@ -58,7 +58,7 @@ pub enum StreamEvent {
         cache_write: u64,
         cost: f64,
     },
-    BeanDone {
+    UnitDone {
         id: String,
         success: bool,
         duration_secs: u64,
@@ -101,7 +101,7 @@ pub enum StreamEvent {
 
 /// Metadata about a single unit within a run.
 #[derive(Debug, Clone, Serialize)]
-pub struct BeanInfo {
+pub struct UnitInfo {
     pub id: String,
     pub title: String,
     pub round: usize,
@@ -111,7 +111,7 @@ pub struct BeanInfo {
 #[derive(Debug, Clone, Serialize)]
 pub struct RoundPlan {
     pub round: usize,
-    pub units: Vec<BeanInfo>,
+    pub units: Vec<UnitInfo>,
     /// Maximum number of units that can actually run concurrently (accounting for file conflicts).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub effective_concurrency: Option<usize>,
@@ -123,8 +123,8 @@ pub struct RoundPlan {
 /// Describes a file overlap between two units that may run concurrently.
 #[derive(Debug, Clone, Serialize)]
 pub struct FileOverlapInfo {
-    pub bean_id: String,
-    pub other_bean_id: String,
+    pub unit_id: String,
+    pub other_unit_id: String,
     pub shared_files: Vec<String>,
 }
 
@@ -150,9 +150,9 @@ mod tests {
     fn stream_event_serializes_with_type_tag() {
         let event = StreamEvent::RunStart {
             parent_id: "42".into(),
-            total_beans: 3,
+            total_units: 3,
             total_rounds: 2,
-            units: vec![BeanInfo {
+            units: vec![UnitInfo {
                 id: "42.1".into(),
                 title: "first".into(),
                 round: 1,
@@ -161,13 +161,13 @@ mod tests {
         let json: serde_json::Value = serde_json::to_value(&event).unwrap();
         assert_eq!(json["type"], "run_start");
         assert_eq!(json["parent_id"], "42");
-        assert_eq!(json["total_beans"], 3);
+        assert_eq!(json["total_units"], 3);
         assert_eq!(json["units"][0]["id"], "42.1");
     }
 
     #[test]
-    fn stream_bean_done_serializes_optional_fields() {
-        let event = StreamEvent::BeanDone {
+    fn stream_unit_done_serializes_optional_fields() {
+        let event = StreamEvent::UnitDone {
             id: "1".into(),
             success: true,
             duration_secs: 10,
@@ -179,7 +179,7 @@ mod tests {
             failure_summary: None,
         };
         let json: serde_json::Value = serde_json::to_value(&event).unwrap();
-        assert_eq!(json["type"], "bean_done");
+        assert_eq!(json["type"], "unit_done");
         assert!(json["error"].is_null());
         assert_eq!(json["total_tokens"], 500);
         // New optional fields should be absent when None
@@ -189,8 +189,8 @@ mod tests {
     }
 
     #[test]
-    fn stream_bean_done_with_enriched_fields() {
-        let event = StreamEvent::BeanDone {
+    fn stream_unit_done_with_enriched_fields() {
+        let event = StreamEvent::UnitDone {
             id: "1".into(),
             success: false,
             duration_secs: 30,
@@ -202,7 +202,7 @@ mod tests {
             failure_summary: Some("Failed after 15 tool calls, 3 turns. Exit code 1".into()),
         };
         let json: serde_json::Value = serde_json::to_value(&event).unwrap();
-        assert_eq!(json["type"], "bean_done");
+        assert_eq!(json["type"], "unit_done");
         assert_eq!(json["tool_count"], 15);
         assert_eq!(json["turns"], 3);
         assert_eq!(
@@ -228,7 +228,7 @@ mod tests {
             rounds: vec![
                 RoundPlan {
                     round: 1,
-                    units: vec![BeanInfo {
+                    units: vec![UnitInfo {
                         id: "10.1".into(),
                         title: "a".into(),
                         round: 1,
@@ -238,7 +238,7 @@ mod tests {
                 },
                 RoundPlan {
                     round: 2,
-                    units: vec![BeanInfo {
+                    units: vec![UnitInfo {
                         id: "10.2".into(),
                         title: "b".into(),
                         round: 2,
@@ -277,7 +277,7 @@ mod tests {
             waves: vec![
                 RoundPlan {
                     round: 1,
-                    units: vec![BeanInfo {
+                    units: vec![UnitInfo {
                         id: "5.1".into(),
                         title: "first".into(),
                         round: 1,
@@ -287,7 +287,7 @@ mod tests {
                 },
                 RoundPlan {
                     round: 2,
-                    units: vec![BeanInfo {
+                    units: vec![UnitInfo {
                         id: "5.2".into(),
                         title: "second".into(),
                         round: 2,
@@ -297,58 +297,58 @@ mod tests {
                 },
             ],
             file_overlaps: vec![FileOverlapInfo {
-                bean_id: "5.1".into(),
-                other_bean_id: "5.3".into(),
+                unit_id: "5.1".into(),
+                other_unit_id: "5.3".into(),
                 shared_files: vec!["src/main.rs".into()],
             }],
-            total_beans: 3,
+            total_units: 3,
         };
         let json: serde_json::Value = serde_json::to_value(&event).unwrap();
         assert_eq!(json["type"], "run_plan");
         assert_eq!(json["parent_id"], "5");
-        assert_eq!(json["total_beans"], 3);
+        assert_eq!(json["total_units"], 3);
         assert_eq!(json["waves"].as_array().unwrap().len(), 2);
         assert_eq!(json["file_overlaps"].as_array().unwrap().len(), 1);
         assert_eq!(json["file_overlaps"][0]["shared_files"][0], "src/main.rs");
     }
 
     #[test]
-    fn stream_bean_ready_serializes() {
-        let event = StreamEvent::BeanReady {
+    fn stream_unit_ready_serializes() {
+        let event = StreamEvent::UnitReady {
             id: "3".into(),
             title: "Implement parser".into(),
             unblocked_by: "2".into(),
         };
         let json: serde_json::Value = serde_json::to_value(&event).unwrap();
-        assert_eq!(json["type"], "bean_ready");
+        assert_eq!(json["type"], "unit_ready");
         assert_eq!(json["id"], "3");
         assert_eq!(json["unblocked_by"], "2");
     }
 
     #[test]
-    fn stream_bean_start_with_enriched_fields() {
-        let event = StreamEvent::BeanStart {
+    fn stream_unit_start_with_enriched_fields() {
+        let event = StreamEvent::UnitStart {
             id: "1".into(),
             title: "Test".into(),
             round: 1,
             file_overlaps: Some(vec![FileOverlapInfo {
-                bean_id: "1".into(),
-                other_bean_id: "2".into(),
+                unit_id: "1".into(),
+                other_unit_id: "2".into(),
                 shared_files: vec!["lib.rs".into()],
             }]),
             attempt: Some(2),
             priority: Some(1),
         };
         let json: serde_json::Value = serde_json::to_value(&event).unwrap();
-        assert_eq!(json["type"], "bean_start");
+        assert_eq!(json["type"], "unit_start");
         assert_eq!(json["attempt"], 2);
         assert_eq!(json["priority"], 1);
         assert_eq!(json["file_overlaps"].as_array().unwrap().len(), 1);
     }
 
     #[test]
-    fn stream_bean_start_omits_none_fields() {
-        let event = StreamEvent::BeanStart {
+    fn stream_unit_start_omits_none_fields() {
+        let event = StreamEvent::UnitStart {
             id: "1".into(),
             title: "Test".into(),
             round: 1,
@@ -357,7 +357,7 @@ mod tests {
             priority: None,
         };
         let json: serde_json::Value = serde_json::to_value(&event).unwrap();
-        assert_eq!(json["type"], "bean_start");
+        assert_eq!(json["type"], "unit_start");
         assert_eq!(json["id"], "1");
         // Optional fields should be absent when None
         assert!(json.get("file_overlaps").is_none());
@@ -368,13 +368,13 @@ mod tests {
     #[test]
     fn stream_file_overlap_info_serializes() {
         let info = FileOverlapInfo {
-            bean_id: "A".into(),
-            other_bean_id: "B".into(),
+            unit_id: "A".into(),
+            other_unit_id: "B".into(),
             shared_files: vec!["src/main.rs".into(), "src/lib.rs".into()],
         };
         let json: serde_json::Value = serde_json::to_value(&info).unwrap();
-        assert_eq!(json["bean_id"], "A");
-        assert_eq!(json["other_bean_id"], "B");
+        assert_eq!(json["unit_id"], "A");
+        assert_eq!(json["other_unit_id"], "B");
         assert_eq!(json["shared_files"].as_array().unwrap().len(), 2);
     }
 }

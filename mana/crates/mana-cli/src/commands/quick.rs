@@ -108,7 +108,7 @@ pub fn cmd_quick(mana_dir: &Path, args: QuickArgs) -> Result<()> {
     }
 
     // Load config and assign ID (child ID from parent, or next global ID)
-    let bean_id = if let Some(ref parent_id) = args.parent {
+    let unit_id = if let Some(ref parent_id) = args.parent {
         assign_child_id(mana_dir, parent_id)?
     } else {
         let mut config = Config::load(mana_dir)?;
@@ -125,7 +125,7 @@ pub fn cmd_quick(mana_dir: &Path, args: QuickArgs) -> Result<()> {
 
     // Create the unit with InProgress status (already claimed)
     let now = Utc::now();
-    let mut unit = Unit::new(&bean_id, &args.title);
+    let mut unit = Unit::new(&unit_id, &args.title);
     unit.slug = Some(slug.clone());
     unit.status = Status::InProgress;
     unit.claimed_by = args.by.clone();
@@ -194,8 +194,8 @@ pub fn cmd_quick(mana_dir: &Path, args: QuickArgs) -> Result<()> {
     }
 
     // Write the unit file with naming convention: {id}-{slug}.md
-    let bean_path = mana_dir.join(format!("{}-{}.md", bean_id, slug));
-    unit.to_file(&bean_path)?;
+    let unit_path = mana_dir.join(format!("{}-{}.md", unit_id, slug));
+    unit.to_file(&unit_path)?;
 
     // Update the index by rebuilding from disk
     let index = Index::build(mana_dir)?;
@@ -204,7 +204,7 @@ pub fn cmd_quick(mana_dir: &Path, args: QuickArgs) -> Result<()> {
     let claimer = args.by.as_deref().unwrap_or("anonymous");
     println!(
         "Created and claimed unit {}: {} (by {})",
-        bean_id, args.title, claimer
+        unit_id, args.title, claimer
     );
 
     // Suggest verify command if none was provided
@@ -231,7 +231,7 @@ mod tests {
     use std::fs;
     use tempfile::TempDir;
 
-    fn setup_beans_dir_with_config() -> (TempDir, std::path::PathBuf) {
+    fn setup_mana_dir_with_config() -> (TempDir, std::path::PathBuf) {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -271,8 +271,8 @@ mod tests {
     }
 
     #[test]
-    fn quick_creates_and_claims_bean() {
-        let (_dir, mana_dir) = setup_beans_dir_with_config();
+    fn quick_creates_and_claims_unit() {
+        let (_dir, mana_dir) = setup_mana_dir_with_config();
 
         let args = QuickArgs {
             title: "Quick task".to_string(),
@@ -294,11 +294,11 @@ mod tests {
         cmd_quick(&mana_dir, args).unwrap();
 
         // Check the unit file exists
-        let bean_path = mana_dir.join("1-quick-task.md");
-        assert!(bean_path.exists());
+        let unit_path = mana_dir.join("1-quick-task.md");
+        assert!(unit_path.exists());
 
         // Verify content
-        let unit = Unit::from_file(&bean_path).unwrap();
+        let unit = Unit::from_file(&unit_path).unwrap();
         assert_eq!(unit.id, "1");
         assert_eq!(unit.title, "Quick task");
         assert_eq!(unit.status, Status::InProgress);
@@ -308,7 +308,7 @@ mod tests {
 
     #[test]
     fn quick_works_without_by() {
-        let (_dir, mana_dir) = setup_beans_dir_with_config();
+        let (_dir, mana_dir) = setup_mana_dir_with_config();
 
         let args = QuickArgs {
             title: "Anonymous task".to_string(),
@@ -329,8 +329,8 @@ mod tests {
 
         cmd_quick(&mana_dir, args).unwrap();
 
-        let bean_path = mana_dir.join("1-anonymous-task.md");
-        let unit = Unit::from_file(&bean_path).unwrap();
+        let unit_path = mana_dir.join("1-anonymous-task.md");
+        let unit = Unit::from_file(&unit_path).unwrap();
         assert_eq!(unit.status, Status::InProgress);
         assert_eq!(unit.claimed_by, None);
         assert!(unit.claimed_at.is_some());
@@ -338,7 +338,7 @@ mod tests {
 
     #[test]
     fn quick_rejects_missing_validation_criteria() {
-        let (_dir, mana_dir) = setup_beans_dir_with_config();
+        let (_dir, mana_dir) = setup_mana_dir_with_config();
 
         let args = QuickArgs {
             title: "No criteria".to_string(),
@@ -365,7 +365,7 @@ mod tests {
 
     #[test]
     fn quick_increments_id() {
-        let (_dir, mana_dir) = setup_beans_dir_with_config();
+        let (_dir, mana_dir) = setup_mana_dir_with_config();
 
         // Create first unit
         let args1 = QuickArgs {
@@ -406,15 +406,15 @@ mod tests {
         cmd_quick(&mana_dir, args2).unwrap();
 
         // Verify both exist with correct IDs
-        let bean1 = Unit::from_file(mana_dir.join("1-first.md")).unwrap();
-        let bean2 = Unit::from_file(mana_dir.join("2-second.md")).unwrap();
-        assert_eq!(bean1.id, "1");
-        assert_eq!(bean2.id, "2");
+        let unit1 = Unit::from_file(mana_dir.join("1-first.md")).unwrap();
+        let unit2 = Unit::from_file(mana_dir.join("2-second.md")).unwrap();
+        assert_eq!(unit1.id, "1");
+        assert_eq!(unit2.id, "2");
     }
 
     #[test]
     fn quick_updates_index() {
-        let (_dir, mana_dir) = setup_beans_dir_with_config();
+        let (_dir, mana_dir) = setup_mana_dir_with_config();
 
         let args = QuickArgs {
             title: "Indexed unit".to_string(),
@@ -445,7 +445,7 @@ mod tests {
 
     #[test]
     fn quick_with_all_fields() {
-        let (_dir, mana_dir) = setup_beans_dir_with_config();
+        let (_dir, mana_dir) = setup_mana_dir_with_config();
 
         let args = QuickArgs {
             title: "Full unit".to_string(),
@@ -479,7 +479,7 @@ mod tests {
 
     #[test]
     fn default_rejects_passing_verify() {
-        let (_dir, mana_dir) = setup_beans_dir_with_config();
+        let (_dir, mana_dir) = setup_mana_dir_with_config();
 
         let args = QuickArgs {
             title: "Cheating test".to_string(),
@@ -506,7 +506,7 @@ mod tests {
 
     #[test]
     fn default_accepts_failing_verify() {
-        let (_dir, mana_dir) = setup_beans_dir_with_config();
+        let (_dir, mana_dir) = setup_mana_dir_with_config();
 
         let args = QuickArgs {
             title: "Real test".to_string(),
@@ -529,17 +529,17 @@ mod tests {
         assert!(result.is_ok());
 
         // Unit should be created
-        let bean_path = mana_dir.join("1-real-test.md");
-        assert!(bean_path.exists());
+        let unit_path = mana_dir.join("1-real-test.md");
+        assert!(unit_path.exists());
 
         // Should have fail_first set in the unit
-        let unit = Unit::from_file(&bean_path).unwrap();
+        let unit = Unit::from_file(&unit_path).unwrap();
         assert!(unit.fail_first);
     }
 
     #[test]
     fn pass_ok_skips_fail_first_check() {
-        let (_dir, mana_dir) = setup_beans_dir_with_config();
+        let (_dir, mana_dir) = setup_mana_dir_with_config();
 
         let args = QuickArgs {
             title: "Passing verify ok".to_string(),
@@ -562,17 +562,17 @@ mod tests {
         assert!(result.is_ok());
 
         // Unit should be created
-        let bean_path = mana_dir.join("1-passing-verify-ok.md");
-        assert!(bean_path.exists());
+        let unit_path = mana_dir.join("1-passing-verify-ok.md");
+        assert!(unit_path.exists());
 
         // Should NOT have fail_first set
-        let unit = Unit::from_file(&bean_path).unwrap();
+        let unit = Unit::from_file(&unit_path).unwrap();
         assert!(!unit.fail_first);
     }
 
     #[test]
     fn no_verify_skips_fail_first_check() {
-        let (_dir, mana_dir) = setup_beans_dir_with_config();
+        let (_dir, mana_dir) = setup_mana_dir_with_config();
 
         let args = QuickArgs {
             title: "No verify".to_string(),
@@ -595,8 +595,8 @@ mod tests {
         assert!(result.is_ok());
 
         // Should NOT have fail_first set (no verify)
-        let bean_path = mana_dir.join("1-no-verify.md");
-        let unit = Unit::from_file(&bean_path).unwrap();
+        let unit_path = mana_dir.join("1-no-verify.md");
+        let unit = Unit::from_file(&unit_path).unwrap();
         assert!(!unit.fail_first);
     }
 
@@ -605,7 +605,7 @@ mod tests {
 
         #[test]
         fn quick_verify_lint_rejects_errors_without_force() {
-            let (_dir, mana_dir) = setup_beans_dir_with_config();
+            let (_dir, mana_dir) = setup_mana_dir_with_config();
 
             let args = QuickArgs {
                 title: "Quick lint error".to_string(),
@@ -631,7 +631,7 @@ mod tests {
 
         #[test]
         fn quick_verify_lint_allows_errors_with_force() {
-            let (_dir, mana_dir) = setup_beans_dir_with_config();
+            let (_dir, mana_dir) = setup_mana_dir_with_config();
 
             let args = QuickArgs {
                 title: "Forced quick lint error".to_string(),

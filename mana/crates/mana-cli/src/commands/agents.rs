@@ -24,7 +24,7 @@ pub struct AgentEntry {
 /// JSON output entry for `mana agents --json`.
 #[derive(Debug, Serialize)]
 struct AgentJsonEntry {
-    bean_id: String,
+    unit_id: String,
     title: String,
     action: String,
     pid: u32,
@@ -127,7 +127,7 @@ fn format_elapsed(secs: u64) -> String {
 ///
 /// Reads agent state from the persistence file, checks PIDs, cleans up stale
 /// entries, and displays a table of agents.
-pub fn cmd_agents(_beans_dir: &Path, json: bool) -> Result<()> {
+pub fn cmd_agents(_mana_dir: &Path, json: bool) -> Result<()> {
     let mut agents = load_agents()?;
     let now = chrono::Utc::now().timestamp();
 
@@ -187,7 +187,7 @@ fn print_agents_json(agents: &HashMap<String, AgentEntry>, now: i64) -> Result<(
                 None => "running".to_string(),
             };
             AgentJsonEntry {
-                bean_id: id.clone(),
+                unit_id: id.clone(),
                 title: entry.title.clone(),
                 action: entry.action.clone(),
                 pid: entry.pid,
@@ -220,7 +220,7 @@ fn print_agents_table(agents: &HashMap<String, AgentEntry>, now: i64) {
     if !running.is_empty() {
         println!(
             "{:<6} {:<24} {:<12} {:<8} ELAPSED",
-            "BEAN", "TITLE", "ACTION", "PID"
+            "UNIT", "TITLE", "ACTION", "PID"
         );
         for (id, entry) in &running {
             let elapsed = (now - entry.started_at).unsigned_abs();

@@ -10,8 +10,8 @@ use std::fmt::Write;
 /// Everything needed to produce a failure summary.
 #[derive(Debug)]
 pub struct FailureContext {
-    pub bean_id: String,
-    pub bean_title: String,
+    pub unit_id: String,
+    pub unit_title: String,
     pub attempt: u32,
     pub duration_secs: u64,
     pub tool_count: usize,
@@ -294,8 +294,8 @@ mod tests {
 
     fn sample_ctx() -> FailureContext {
         FailureContext {
-            bean_id: "42".into(),
-            bean_title: "Add widget".into(),
+            unit_id: "42".into(),
+            unit_title: "Add widget".into(),
             attempt: 2,
             duration_secs: 185,
             tool_count: 7,

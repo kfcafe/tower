@@ -38,10 +38,10 @@ pub fn update(mana_dir: &Path, id: &str, params: UpdateParams) -> Result<UpdateR
         validate_priority(p)?;
     }
 
-    let bean_path =
+    let unit_path =
         find_unit_file(mana_dir, id).with_context(|| format!("Unit not found: {}", id))?;
     let mut unit =
-        Unit::from_file(&bean_path).with_context(|| format!("Failed to load unit: {}", id))?;
+        Unit::from_file(&unit_path).with_context(|| format!("Failed to load unit: {}", id))?;
 
     let project_root = mana_dir
         .parent()
@@ -121,7 +121,7 @@ pub fn update(mana_dir: &Path, id: &str, params: UpdateParams) -> Result<UpdateR
     }
 
     unit.updated_at = Utc::now();
-    unit.to_file(&bean_path)
+    unit.to_file(&unit_path)
         .with_context(|| format!("Failed to save unit: {}", id))?;
 
     let index = Index::build(mana_dir)?;
@@ -133,7 +133,7 @@ pub fn update(mana_dir: &Path, id: &str, params: UpdateParams) -> Result<UpdateR
 
     Ok(UpdateResult {
         unit,
-        path: bean_path,
+        path: unit_path,
     })
 }
 

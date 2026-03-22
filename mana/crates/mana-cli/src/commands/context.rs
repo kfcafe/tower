@@ -31,9 +31,9 @@ fn format_attempt_notes_section(notes: &str) -> String {
 }
 
 /// Format the unit's core spec as the first section of the context output.
-fn format_bean_spec_section(unit: &Unit) -> String {
+fn format_unit_spec_section(unit: &Unit) -> String {
     let mut s = String::new();
-    s.push_str("═══ BEAN ════════════════════════════════════════════════════\n");
+    s.push_str("═══ UNIT ════════════════════════════════════════════════════\n");
     s.push_str(&format!("ID: {}\n", unit.id));
     s.push_str(&format!("Title: {}\n", unit.title));
     s.push_str(&format!("Priority: P{}\n", unit.priority));
@@ -89,7 +89,7 @@ fn format_dependency_section(providers: &[DepProvider]) -> Option<String> {
     for p in providers {
         s.push_str(&format!(
             "Unit {} ({}) produces `{}` [{}]\n",
-            p.bean_id, p.bean_title, p.artifact, p.status
+            p.unit_id, p.unit_title, p.artifact, p.status
         ));
         if let Some(ref desc) = p.description {
             let preview: String = desc.chars().take(500).collect();
@@ -138,11 +138,11 @@ pub fn cmd_context(
 ) -> Result<()> {
     // --agent-prompt: output the full structured prompt that an agent sees during mana run
     if agent_prompt {
-        let bean_path =
+        let unit_path =
             find_unit_file(mana_dir, id).context(format!("Could not find unit with ID: {}", id))?;
-        let unit = Unit::from_file(&bean_path).context(format!(
+        let unit = Unit::from_file(&unit_path).context(format!(
             "Failed to parse unit from: {}",
-            bean_path.display()
+            unit_path.display()
         ))?;
 
         // Parse --overlaps JSON into FileOverlap structs
@@ -153,7 +153,7 @@ pub fn cmd_context(
                 let overlaps: Vec<FileOverlap> = raw
                     .into_iter()
                     .map(|v| FileOverlap {
-                        bean_id: v["unit_id"].as_str().unwrap_or("").to_string(),
+                        unit_id: v["unit_id"].as_str().unwrap_or("").to_string(),
                         title: v["title"].as_str().unwrap_or("").to_string(),
                         shared_files: v["shared_files"]
                             .as_array()
@@ -238,8 +238,8 @@ fn output_json(ctx: &AgentContext, structure_only: bool) -> Result<()> {
         .map(|p| {
             serde_json::json!({
                 "artifact": p.artifact,
-                "bean_id": p.bean_id,
-                "title": p.bean_title,
+                "unit_id": p.unit_id,
+                "title": p.unit_title,
                 "status": p.status,
                 "description": p.description,
             })
@@ -277,7 +277,7 @@ fn output_text(ctx: &AgentContext, project_dir: &Path, structure_only: bool) -> 
     let mut output = String::new();
 
     // 1. Unit spec
-    output.push_str(&format_bean_spec_section(&ctx.unit));
+    output.push_str(&format_unit_spec_section(&ctx.unit));
 
     // 2. Previous attempts
     if let Some(ref notes) = ctx.attempt_notes {
@@ -342,8 +342,8 @@ mod tests {
         let mut unit = crate::unit::Unit::new("1", "Test unit");
         unit.description = Some("A description with no file paths".to_string());
         let slug = crate::util::title_to_slug(&unit.title);
-        let bean_path = mana_dir.join(format!("1-{}.md", slug));
-        unit.to_file(&bean_path).unwrap();
+        let unit_path = mana_dir.join(format!("1-{}.md", slug));
+        unit.to_file(&unit_path).unwrap();
 
         let result = cmd_context(&mana_dir, "1", false, false, false, None, None);
         assert!(result.is_ok());
@@ -361,15 +361,15 @@ mod tests {
         let mut unit = crate::unit::Unit::new("1", "Test unit");
         unit.description = Some("Check src/foo.rs for implementation".to_string());
         let slug = crate::util::title_to_slug(&unit.title);
-        let bean_path = mana_dir.join(format!("1-{}.md", slug));
-        unit.to_file(&bean_path).unwrap();
+        let unit_path = mana_dir.join(format!("1-{}.md", slug));
+        unit.to_file(&unit_path).unwrap();
 
         let result = cmd_context(&mana_dir, "1", false, false, false, None, None);
         assert!(result.is_ok());
     }
 
     #[test]
-    fn context_bean_not_found() {
+    fn context_unit_not_found() {
         let (_dir, mana_dir) = setup_test_env();
 
         let result = cmd_context(&mana_dir, "999", false, false, false, None, None);
@@ -433,7 +433,7 @@ mod tests {
 
     // --- attempt notes tests (delegated to core) ---
 
-    fn make_bean_with_attempts() -> crate::unit::Unit {
+    fn make_unit_with_attempts() -> crate::unit::Unit {
         use crate::unit::{AttemptOutcome, AttemptRecord};
         let mut unit = crate::unit::Unit::new("1", "Test unit");
         unit.attempt_log = vec![
@@ -482,7 +482,7 @@ mod tests {
 
     #[test]
     fn format_attempt_notes_includes_attempt_log_notes() {
-        let unit = make_bean_with_attempts();
+        let unit = make_unit_with_attempts();
         let result = core_format_attempt_notes(&unit).expect("should produce output");
         assert!(result.contains("Attempt #1"), "should include attempt 1");
         assert!(result.contains("pi-agent"), "should include agent name");
@@ -499,7 +499,7 @@ mod tests {
     }
 
     #[test]
-    fn format_attempt_notes_includes_bean_notes() {
+    fn format_attempt_notes_includes_unit_notes() {
         let mut unit = crate::unit::Unit::new("1", "Test unit");
         unit.notes = Some("Watch out for edge cases".to_string());
         let result = core_format_attempt_notes(&unit).expect("should produce output");
@@ -536,12 +536,12 @@ mod tests {
         fs::create_dir(&src_dir).unwrap();
         fs::write(src_dir.join("foo.rs"), "fn main() {}").unwrap();
 
-        let mut unit = make_bean_with_attempts();
+        let mut unit = make_unit_with_attempts();
         unit.id = "1".to_string();
         unit.description = Some("Check src/foo.rs for implementation".to_string());
         let slug = crate::util::title_to_slug(&unit.title);
-        let bean_path = mana_dir.join(format!("1-{}.md", slug));
-        unit.to_file(&bean_path).unwrap();
+        let unit_path = mana_dir.join(format!("1-{}.md", slug));
+        unit.to_file(&unit_path).unwrap();
 
         let result = cmd_context(&mana_dir, "1", false, false, false, None, None);
         assert!(result.is_ok());
@@ -556,12 +556,12 @@ mod tests {
         fs::create_dir(&src_dir).unwrap();
         fs::write(src_dir.join("foo.rs"), "fn main() {}").unwrap();
 
-        let mut unit = make_bean_with_attempts();
+        let mut unit = make_unit_with_attempts();
         unit.id = "1".to_string();
         unit.description = Some("Check src/foo.rs for implementation".to_string());
         let slug = crate::util::title_to_slug(&unit.title);
-        let bean_path = mana_dir.join(format!("1-{}.md", slug));
-        unit.to_file(&bean_path).unwrap();
+        let unit_path = mana_dir.join(format!("1-{}.md", slug));
+        unit.to_file(&unit_path).unwrap();
 
         let result = cmd_context(&mana_dir, "1", true, false, false, None, None);
         assert!(result.is_ok());

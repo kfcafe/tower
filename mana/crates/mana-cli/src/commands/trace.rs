@@ -14,18 +14,18 @@ use crate::unit::{AttemptOutcome, Status, Unit};
 
 #[derive(Debug, Serialize)]
 pub struct TraceOutput {
-    pub unit: BeanSummary,
-    pub parent_chain: Vec<BeanSummary>,
-    pub children: Vec<BeanSummary>,
-    pub dependencies: Vec<BeanSummary>,
-    pub dependents: Vec<BeanSummary>,
+    pub unit: UnitSummary,
+    pub parent_chain: Vec<UnitSummary>,
+    pub children: Vec<UnitSummary>,
+    pub dependencies: Vec<UnitSummary>,
+    pub dependents: Vec<UnitSummary>,
     pub produces: Vec<String>,
     pub requires: Vec<String>,
     pub attempts: AttemptSummary,
 }
 
 #[derive(Debug, Serialize)]
-pub struct BeanSummary {
+pub struct UnitSummary {
     pub id: String,
     pub title: String,
     pub status: String,
@@ -58,8 +58,8 @@ pub fn cmd_trace(id: &str, json: bool, mana_dir: &Path) -> Result<()> {
         .ok_or_else(|| anyhow!("Unit {} not found", id))?;
 
     // Load full unit for attempt log and tokens
-    let bean_path = find_unit_file(mana_dir, id)?;
-    let unit = Unit::from_file(&bean_path)?;
+    let unit_path = find_unit_file(mana_dir, id)?;
+    let unit = Unit::from_file(&unit_path)?;
 
     // Build reverse graph: dep_id -> list of unit IDs that depend on it
     let mut dependents_map: std::collections::HashMap<String, Vec<String>> =
@@ -77,15 +77,15 @@ pub fn cmd_trace(id: &str, json: bool, mana_dir: &Path) -> Result<()> {
     let parent_chain = collect_parent_chain(&index, &entry.parent, &mut HashSet::new());
 
     // --- Direct children ---
-    let children: Vec<BeanSummary> = index
+    let children: Vec<UnitSummary> = index
         .units
         .iter()
         .filter(|e| e.parent.as_deref() == Some(id))
-        .map(|e| bean_summary(e.id.clone(), e.title.clone(), &e.status))
+        .map(|e| unit_summary(e.id.clone(), e.title.clone(), &e.status))
         .collect();
 
     // --- Dependencies (what this unit waits on) ---
-    let dependencies: Vec<BeanSummary> = entry
+    let dependencies: Vec<UnitSummary> = entry
         .dependencies
         .iter()
         .filter_map(|dep_id| {
@@ -93,12 +93,12 @@ pub fn cmd_trace(id: &str, json: bool, mana_dir: &Path) -> Result<()> {
                 .units
                 .iter()
                 .find(|e| &e.id == dep_id)
-                .map(|e| bean_summary(e.id.clone(), e.title.clone(), &e.status))
+                .map(|e| unit_summary(e.id.clone(), e.title.clone(), &e.status))
         })
         .collect();
 
     // --- Dependents (what waits on this unit) ---
-    let dependents: Vec<BeanSummary> = dependents_map
+    let dependents: Vec<UnitSummary> = dependents_map
         .get(id)
         .map(|ids| {
             ids.iter()
@@ -107,7 +107,7 @@ pub fn cmd_trace(id: &str, json: bool, mana_dir: &Path) -> Result<()> {
                         .units
                         .iter()
                         .find(|e| &e.id == dep_id)
-                        .map(|e| bean_summary(e.id.clone(), e.title.clone(), &e.status))
+                        .map(|e| unit_summary(e.id.clone(), e.title.clone(), &e.status))
                 })
                 .collect()
         })
@@ -117,7 +117,7 @@ pub fn cmd_trace(id: &str, json: bool, mana_dir: &Path) -> Result<()> {
     let attempts = build_attempt_summary(&unit);
 
     // --- Build output ---
-    let this_summary = bean_summary(entry.id.clone(), entry.title.clone(), &entry.status);
+    let this_summary = unit_summary(entry.id.clone(), entry.title.clone(), &entry.status);
 
     let output = TraceOutput {
         unit: this_summary,
@@ -147,7 +147,7 @@ fn collect_parent_chain(
     index: &Index,
     parent_id: &Option<String>,
     visited: &mut HashSet<String>,
-) -> Vec<BeanSummary> {
+) -> Vec<UnitSummary> {
     let Some(pid) = parent_id else {
         return vec![];
     };
@@ -159,7 +159,7 @@ fn collect_parent_chain(
     visited.insert(pid.clone());
 
     if let Some(entry) = index.units.iter().find(|e| &e.id == pid) {
-        let mut chain = vec![bean_summary(
+        let mut chain = vec![unit_summary(
             entry.id.clone(),
             entry.title.clone(),
             &entry.status,
@@ -171,8 +171,8 @@ fn collect_parent_chain(
     }
 }
 
-fn bean_summary(id: String, title: String, status: &Status) -> BeanSummary {
-    BeanSummary {
+fn unit_summary(id: String, title: String, status: &Status) -> UnitSummary {
+    UnitSummary {
         id,
         title,
         status: status.to_string(),
@@ -318,7 +318,7 @@ mod tests {
     use tempfile::TempDir;
 
     /// Write a unit as a legacy `.yaml` file so `find_unit_file` can locate it.
-    fn write_bean(mana_dir: &Path, unit: &Unit) {
+    fn write_unit(mana_dir: &Path, unit: &Unit) {
         let path = mana_dir.join(format!("{}.yaml", unit.id));
         unit.to_file(&path).expect("write unit file");
     }
@@ -338,7 +338,7 @@ mod tests {
             started_at: None,
             finished_at: None,
         }];
-        write_bean(mana_dir, &unit);
+        write_unit(mana_dir, &unit);
 
         // Index is rebuilt from unit files
         let result = cmd_trace("42", false, mana_dir);
@@ -351,7 +351,7 @@ mod tests {
         let mana_dir = tmp.path();
 
         let unit = Unit::new("1", "root unit");
-        write_bean(mana_dir, &unit);
+        write_unit(mana_dir, &unit);
 
         let result = cmd_trace("1", true, mana_dir);
         assert!(result.is_ok(), "cmd_trace --json failed: {:?}", result);
@@ -363,21 +363,21 @@ mod tests {
         let mana_dir = tmp.path();
 
         // Parent unit
-        let parent_bean = Unit::new("10", "parent task");
-        write_bean(mana_dir, &parent_bean);
+        let parent_unit = Unit::new("10", "parent task");
+        write_unit(mana_dir, &parent_unit);
 
         // Dependency unit
-        let mut dep_bean = Unit::new("11", "dep task");
-        dep_bean.status = Status::Closed;
-        write_bean(mana_dir, &dep_bean);
+        let mut dep_unit = Unit::new("11", "dep task");
+        dep_unit.status = Status::Closed;
+        write_unit(mana_dir, &dep_unit);
 
         // Main unit with parent, deps, produces, requires, attempts
-        let mut main_bean = Unit::new("12", "main task");
-        main_bean.parent = Some("10".to_string());
-        main_bean.dependencies = vec!["11".to_string()];
-        main_bean.produces = vec!["api.rs".to_string()];
-        main_bean.requires = vec!["Config".to_string()];
-        main_bean.attempt_log = vec![
+        let mut main_unit = Unit::new("12", "main task");
+        main_unit.parent = Some("10".to_string());
+        main_unit.dependencies = vec!["11".to_string()];
+        main_unit.produces = vec!["api.rs".to_string()];
+        main_unit.requires = vec!["Config".to_string()];
+        main_unit.attempt_log = vec![
             AttemptRecord {
                 num: 1,
                 outcome: AttemptOutcome::Failed,
@@ -395,7 +395,7 @@ mod tests {
                 finished_at: None,
             },
         ];
-        write_bean(mana_dir, &main_bean);
+        write_unit(mana_dir, &main_unit);
 
         let result = cmd_trace("12", false, mana_dir);
         assert!(

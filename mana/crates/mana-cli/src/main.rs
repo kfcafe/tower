@@ -37,10 +37,10 @@ use mana::commands::{
 };
 use mana::discovery::find_mana_dir;
 use mana::index::Index;
-use mana::util::validate_bean_id;
+use mana::util::validate_unit_id;
 
 // Helper to resolve a single unit ID (handles @latest selector or plain IDs)
-fn resolve_bean_id(id: &str, mana_dir: &std::path::Path) -> Result<String> {
+fn resolve_unit_id(id: &str, mana_dir: &std::path::Path) -> Result<String> {
     if id == "@latest" {
         let index = Index::load(mana_dir)?;
         index
@@ -57,9 +57,9 @@ fn resolve_bean_id(id: &str, mana_dir: &std::path::Path) -> Result<String> {
 }
 
 // Helper to resolve multiple unit IDs
-fn resolve_bean_ids(ids: Vec<String>, mana_dir: &std::path::Path) -> Result<Vec<String>> {
+fn resolve_unit_ids(ids: Vec<String>, mana_dir: &std::path::Path) -> Result<Vec<String>> {
     ids.into_iter()
-        .map(|id| resolve_bean_id(&id, mana_dir))
+        .map(|id| resolve_unit_id(&id, mana_dir))
         .collect()
 }
 
@@ -171,7 +171,7 @@ fn main() -> Result<()> {
             }) = subcommand
             {
                 // Resolve @latest to get the most recently created/updated unit
-                let latest_id = resolve_bean_id("@latest", &mana_dir).map_err(|_| {
+                let latest_id = resolve_unit_id("@latest", &mana_dir).map_err(|_| {
                     anyhow::anyhow!(
                         "No previous unit found. 'mana create next' requires at least one existing unit.\n\
                          Use 'mana create' for the first unit in a chain."
@@ -204,7 +204,7 @@ fn main() -> Result<()> {
                     .map(|s| mana::commands::create::parse_on_fail(&s))
                     .transpose()?;
 
-                let bean_id = cmd_create(
+                let unit_id = cmd_create(
                     &mana_dir,
                     CreateArgs {
                         title,
@@ -235,8 +235,8 @@ fn main() -> Result<()> {
                 eprintln!("⛓ Chained after unit {} (@latest)", latest_id);
 
                 if json {
-                    let bean_path = mana::discovery::find_unit_file(&mana_dir, &bean_id)?;
-                    let unit = mana::unit::Unit::from_file(&bean_path)?;
+                    let unit_path = mana::discovery::find_unit_file(&mana_dir, &unit_id)?;
+                    let unit = mana::unit::Unit::from_file(&unit_path)?;
                     println!("{}", serde_json::to_string(&unit)?);
                 }
 
@@ -247,7 +247,7 @@ fn main() -> Result<()> {
                         Some(template) => {
                             let cmd = mana::spawner::substitute_template_with_model(
                                 template,
-                                &bean_id,
+                                &unit_id,
                                 config.run_model.as_deref(),
                             );
                             eprintln!("Spawning: {}", cmd);
@@ -288,7 +288,7 @@ fn main() -> Result<()> {
             let use_interactive = interactive
                 || (resolved_title.is_none() && !run && std::io::stderr().is_terminal());
 
-            let (bean_id, run_after) = if use_interactive {
+            let (unit_id, run_after) = if use_interactive {
                 use mana::commands::interactive::{interactive_create, Prefill};
 
                 // Pass any CLI flags as prefill — they skip prompts
@@ -363,8 +363,8 @@ fn main() -> Result<()> {
 
             // JSON output for piping (human messages go to stderr)
             if json {
-                let bean_path = mana::discovery::find_unit_file(&mana_dir, &bean_id)?;
-                let unit = mana::unit::Unit::from_file(&bean_path)?;
+                let unit_path = mana::discovery::find_unit_file(&mana_dir, &unit_id)?;
+                let unit = mana::unit::Unit::from_file(&unit_path)?;
                 println!("{}", serde_json::to_string(&unit)?);
             }
 
@@ -376,7 +376,7 @@ fn main() -> Result<()> {
                     Some(template) => {
                         let cmd = mana::spawner::substitute_template_with_model(
                             template,
-                            &bean_id,
+                            &unit_id,
                             config.run_model.as_deref(),
                         );
                         eprintln!("Spawning: {}", cmd);
@@ -415,9 +415,9 @@ fn main() -> Result<()> {
         } => {
             // Skip validation for selectors (start with @)
             if !id.starts_with('@') {
-                validate_bean_id(&id)?;
+                validate_unit_id(&id)?;
             }
-            let resolved_id = resolve_bean_id(&id, &mana_dir)?;
+            let resolved_id = resolve_unit_id(&id, &mana_dir)?;
             cmd_show(
                 &resolved_id,
                 auto_json(json, no_json),
@@ -428,8 +428,8 @@ fn main() -> Result<()> {
         }
 
         Command::Edit { id } => {
-            validate_bean_id(&id)?;
-            let resolved_id = resolve_bean_id(&id, &mana_dir)?;
+            validate_unit_id(&id)?;
+            let resolved_id = resolve_unit_id(&id, &mana_dir)?;
             cmd_edit(&mana_dir, &resolved_id)
         }
 
@@ -484,8 +484,8 @@ fn main() -> Result<()> {
             resolve_decisions,
         } => {
             use mana::commands::stdin::resolve_stdin_opt;
-            validate_bean_id(&id)?;
-            let resolved_id = resolve_bean_id(&id, &mana_dir)?;
+            validate_unit_id(&id)?;
+            let resolved_id = resolve_unit_id(&id, &mana_dir)?;
 
             // Resolve "-" values from stdin
             let description = resolve_stdin_opt(description)?;
@@ -524,9 +524,9 @@ fn main() -> Result<()> {
                 ids
             };
             for id in &ids {
-                validate_bean_id(id)?;
+                validate_unit_id(id)?;
             }
-            let resolved_ids = resolve_bean_ids(ids, &mana_dir)?;
+            let resolved_ids = resolve_unit_ids(ids, &mana_dir)?;
             // MANA_BATCH_VERIFY=1 auto-defers verify, same as --defer-verify
             let defer = defer_verify || std::env::var("MANA_BATCH_VERIFY").as_deref() == Ok("1");
             if failed {
@@ -539,8 +539,8 @@ fn main() -> Result<()> {
         Command::Verify {
             id, json, no_json, ..
         } => {
-            validate_bean_id(&id)?;
-            let resolved_id = resolve_bean_id(&id, &mana_dir)?;
+            validate_unit_id(&id)?;
+            let resolved_id = resolve_unit_id(&id, &mana_dir)?;
             let out = mana::output::Output::new();
             let passed = cmd_verify(&mana_dir, &resolved_id, &out)?;
             if auto_json(json, no_json) {
@@ -561,8 +561,8 @@ fn main() -> Result<()> {
             by,
             force,
         } => {
-            validate_bean_id(&id)?;
-            let resolved_id = resolve_bean_id(&id, &mana_dir)?;
+            validate_unit_id(&id)?;
+            let resolved_id = resolve_unit_id(&id, &mana_dir)?;
             if release {
                 cmd_release(&mana_dir, &resolved_id)
             } else {
@@ -571,35 +571,35 @@ fn main() -> Result<()> {
         }
 
         Command::Reopen { id } => {
-            validate_bean_id(&id)?;
-            let resolved_id = resolve_bean_id(&id, &mana_dir)?;
+            validate_unit_id(&id)?;
+            let resolved_id = resolve_unit_id(&id, &mana_dir)?;
             cmd_reopen(&mana_dir, &resolved_id)
         }
 
         Command::Delete { id } => {
-            validate_bean_id(&id)?;
-            let resolved_id = resolve_bean_id(&id, &mana_dir)?;
+            validate_unit_id(&id)?;
+            let resolved_id = resolve_unit_id(&id, &mana_dir)?;
             cmd_delete(&mana_dir, &resolved_id)
         }
 
         Command::Dep { command } => match command {
             DepCommand::Add { id, depends_on } => {
-                validate_bean_id(&id)?;
-                validate_bean_id(&depends_on)?;
-                let resolved_id = resolve_bean_id(&id, &mana_dir)?;
-                let resolved_depends_on = resolve_bean_id(&depends_on, &mana_dir)?;
+                validate_unit_id(&id)?;
+                validate_unit_id(&depends_on)?;
+                let resolved_id = resolve_unit_id(&id, &mana_dir)?;
+                let resolved_depends_on = resolve_unit_id(&depends_on, &mana_dir)?;
                 cmd_dep_add(&mana_dir, &resolved_id, &resolved_depends_on)
             }
             DepCommand::Remove { id, depends_on } => {
-                validate_bean_id(&id)?;
-                validate_bean_id(&depends_on)?;
-                let resolved_id = resolve_bean_id(&id, &mana_dir)?;
-                let resolved_depends_on = resolve_bean_id(&depends_on, &mana_dir)?;
+                validate_unit_id(&id)?;
+                validate_unit_id(&depends_on)?;
+                let resolved_id = resolve_unit_id(&id, &mana_dir)?;
+                let resolved_depends_on = resolve_unit_id(&depends_on, &mana_dir)?;
                 cmd_dep_remove(&mana_dir, &resolved_id, &resolved_depends_on)
             }
             DepCommand::List { id } => {
-                validate_bean_id(&id)?;
-                let resolved_id = resolve_bean_id(&id, &mana_dir)?;
+                validate_unit_id(&id)?;
+                let resolved_id = resolve_unit_id(&id, &mana_dir)?;
                 cmd_dep_list(&mana_dir, &resolved_id)
             }
         },
@@ -623,8 +623,8 @@ fn main() -> Result<()> {
         } => {
             match id {
                 Some(ref id_str) => {
-                    validate_bean_id(id_str)?;
-                    let resolved_id = resolve_bean_id(id_str, &mana_dir)?;
+                    validate_unit_id(id_str)?;
+                    let resolved_id = resolve_unit_id(id_str, &mana_dir)?;
                     cmd_context(
                         &mana_dir,
                         &resolved_id,
@@ -644,7 +644,7 @@ fn main() -> Result<()> {
 
         Command::Tree { id } => {
             if let Some(ref id_val) = id {
-                validate_bean_id(id_val)?;
+                validate_unit_id(id_val)?;
             }
             cmd_tree(&mana_dir, id.as_deref())
         }
@@ -659,8 +659,8 @@ fn main() -> Result<()> {
         Command::Trust { revoke, check } => cmd_trust(&mana_dir, revoke, check),
 
         Command::Unarchive { id } => {
-            validate_bean_id(&id)?;
-            let resolved_id = resolve_bean_id(&id, &mana_dir)?;
+            validate_unit_id(&id)?;
+            let resolved_id = resolve_unit_id(&id, &mana_dir)?;
             cmd_unarchive(&mana_dir, &resolved_id)
         }
 
@@ -689,7 +689,7 @@ fn main() -> Result<()> {
             force,
         } => {
             if let Some(ref p) = parent {
-                validate_bean_id(p)?;
+                validate_unit_id(p)?;
             }
 
             // Parse --on-fail flag
@@ -720,7 +720,7 @@ fn main() -> Result<()> {
 
         Command::Move { from, to, ids } => {
             for id in &ids {
-                validate_bean_id(id)?;
+                validate_unit_id(id)?;
             }
             match (from, to) {
                 (Some(src), None) => cmd_move_from(&mana_dir, &src, &ids).map(|_| ()),
@@ -730,12 +730,12 @@ fn main() -> Result<()> {
         }
 
         Command::Adopt { parent, children } => {
-            validate_bean_id(&parent)?;
+            validate_unit_id(&parent)?;
             for child in &children {
-                validate_bean_id(child)?;
+                validate_unit_id(child)?;
             }
-            let resolved_parent = resolve_bean_id(&parent, &mana_dir)?;
-            let resolved_children = resolve_bean_ids(children, &mana_dir)?;
+            let resolved_parent = resolve_unit_id(&parent, &mana_dir)?;
+            let resolved_children = resolve_unit_ids(children, &mana_dir)?;
             cmd_adopt(&mana_dir, &resolved_parent, &resolved_children).map(|_| ())
         }
 
@@ -774,10 +774,10 @@ fn main() -> Result<()> {
             dry_run,
         } => {
             if let Some(ref id_val) = id {
-                validate_bean_id(id_val)?;
+                validate_unit_id(id_val)?;
             }
             let resolved_id = match id {
-                Some(ref id_val) => Some(resolve_bean_id(id_val, &mana_dir)?),
+                Some(ref id_val) => Some(resolve_unit_id(id_val, &mana_dir)?),
                 None => None,
             };
             cmd_plan(
@@ -795,8 +795,8 @@ fn main() -> Result<()> {
         Command::Agents { json, no_json } => cmd_agents(&mana_dir, auto_json(json, no_json)),
 
         Command::Logs { id, follow, all } => {
-            validate_bean_id(&id)?;
-            let resolved_id = resolve_bean_id(&id, &mana_dir)?;
+            validate_unit_id(&id)?;
+            let resolved_id = resolve_unit_id(&id, &mana_dir)?;
             cmd_logs(&mana_dir, &resolved_id, follow, all)
         }
 
@@ -831,8 +831,8 @@ fn main() -> Result<()> {
         },
 
         Command::Trace { id, json, no_json } => {
-            validate_bean_id(&id)?;
-            let resolved_id = resolve_bean_id(&id, &mana_dir)?;
+            validate_unit_id(&id)?;
+            let resolved_id = resolve_unit_id(&id, &mana_dir)?;
             cmd_trace(&resolved_id, auto_json(json, no_json), &mana_dir)
         }
 
@@ -842,8 +842,8 @@ fn main() -> Result<()> {
             name_only,
             no_color,
         } => {
-            validate_bean_id(&id)?;
-            let resolved_id = resolve_bean_id(&id, &mana_dir)?;
+            validate_unit_id(&id)?;
+            let resolved_id = resolve_unit_id(&id, &mana_dir)?;
             let output = if stat {
                 mana::commands::diff::DiffOutput::Stat
             } else if name_only {
@@ -862,8 +862,8 @@ fn main() -> Result<()> {
             json,
             no_json,
         } => {
-            validate_bean_id(&id)?;
-            let resolved_id = resolve_bean_id(&id, &mana_dir)?;
+            validate_unit_id(&id)?;
+            let resolved_id = resolve_unit_id(&id, &mana_dir)?;
             cmd_mutate(
                 &mana_dir,
                 mana::commands::mutate::MutateArgs {
@@ -877,8 +877,8 @@ fn main() -> Result<()> {
         }
 
         Command::Review { id, diff, model } => {
-            validate_bean_id(&id)?;
-            let resolved_id = resolve_bean_id(&id, &mana_dir)?;
+            validate_unit_id(&id)?;
+            let resolved_id = resolve_unit_id(&id, &mana_dir)?;
             cmd_review(
                 &mana_dir,
                 ReviewArgs {

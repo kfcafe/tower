@@ -42,7 +42,7 @@ pub fn handle_resource_read(uri: &str, mana_dir: &Path) -> Result<Vec<ResourceCo
 
     // units://unit/{id}
     if let Some(id) = uri.strip_prefix("units://unit/") {
-        return read_bean_resource(id, mana_dir);
+        return read_unit_resource(id, mana_dir);
     }
 
     anyhow::bail!("Unknown resource URI: {}", uri)
@@ -122,10 +122,10 @@ fn read_rules_resource(mana_dir: &Path) -> Result<Vec<ResourceContent>> {
     }])
 }
 
-fn read_bean_resource(id: &str, mana_dir: &Path) -> Result<Vec<ResourceContent>> {
-    crate::util::validate_bean_id(id)?;
-    let bean_path = find_unit_file(mana_dir, id)?;
-    let unit = Unit::from_file(&bean_path)?;
+fn read_unit_resource(id: &str, mana_dir: &Path) -> Result<Vec<ResourceContent>> {
+    crate::util::validate_unit_id(id)?;
+    let unit_path = find_unit_file(mana_dir, id)?;
+    let unit = Unit::from_file(&unit_path)?;
 
     let text = serde_json::to_string_pretty(&unit).context("Failed to serialize unit")?;
 

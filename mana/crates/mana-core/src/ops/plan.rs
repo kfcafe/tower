@@ -35,11 +35,11 @@ pub fn find_plan_candidates(mana_dir: &Path) -> Result<Vec<PlanCandidate>> {
             continue;
         }
 
-        let bean_path = match find_unit_file(mana_dir, &entry.id) {
+        let unit_path = match find_unit_file(mana_dir, &entry.id) {
             Ok(p) => p,
             Err(_) => continue,
         };
-        let unit = match Unit::from_file(&bean_path) {
+        let unit = match Unit::from_file(&unit_path) {
             Ok(b) => b,
             Err(_) => continue,
         };
@@ -341,7 +341,7 @@ mod tests {
     use std::fs;
     use tempfile::TempDir;
 
-    fn setup_beans_dir() -> (TempDir, std::path::PathBuf) {
+    fn setup_mana_dir() -> (TempDir, std::path::PathBuf) {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -364,7 +364,7 @@ mod tests {
 
     #[test]
     fn find_candidates_returns_oversized() {
-        let (_dir, mana_dir) = setup_beans_dir();
+        let (_dir, mana_dir) = setup_mana_dir();
 
         let mut big = Unit::new("1", "Big unit");
         big.produces = vec!["a".into(), "b".into(), "c".into(), "d".into()];
@@ -382,7 +382,7 @@ mod tests {
 
     #[test]
     fn find_candidates_empty_when_all_small() {
-        let (_dir, mana_dir) = setup_beans_dir();
+        let (_dir, mana_dir) = setup_mana_dir();
 
         let unit = Unit::new("1", "Small");
         unit.to_file(mana_dir.join("1-small.md")).unwrap();

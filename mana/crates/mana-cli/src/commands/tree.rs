@@ -12,9 +12,9 @@ use crate::util::natural_cmp;
 pub fn cmd_tree(mana_dir: &Path, id: Option<&str>) -> Result<()> {
     let index = Index::load_or_rebuild(mana_dir)?;
 
-    if let Some(bean_id) = id {
-        // Show subtree rooted at bean_id
-        print_subtree(&index, bean_id)?;
+    if let Some(unit_id) = id {
+        // Show subtree rooted at unit_id
+        print_subtree(&index, unit_id)?;
     } else {
         // Show full project tree
         print_full_tree(&index);
@@ -25,45 +25,45 @@ pub fn cmd_tree(mana_dir: &Path, id: Option<&str>) -> Result<()> {
 
 fn print_full_tree(index: &Index) {
     // Find root units (those with no parent)
-    let root_beans: Vec<_> = index.units.iter().filter(|e| e.parent.is_none()).collect();
+    let root_units: Vec<_> = index.units.iter().filter(|e| e.parent.is_none()).collect();
 
-    if root_beans.is_empty() {
+    if root_units.is_empty() {
         println!("No units found.");
         return;
     }
 
     let mut visited = std::collections::HashSet::new();
-    for root in root_beans {
+    for root in root_units {
         print_tree_node(index, &root.id, "", &mut visited);
     }
 }
 
-fn print_subtree(index: &Index, bean_id: &str) -> Result<()> {
+fn print_subtree(index: &Index, unit_id: &str) -> Result<()> {
     let _entry = index
         .units
         .iter()
-        .find(|e| e.id == bean_id)
-        .ok_or_else(|| anyhow::anyhow!("Unit {} not found", bean_id))?;
+        .find(|e| e.id == unit_id)
+        .ok_or_else(|| anyhow::anyhow!("Unit {} not found", unit_id))?;
 
     let mut visited = std::collections::HashSet::new();
-    print_tree_node(index, bean_id, "", &mut visited);
+    print_tree_node(index, unit_id, "", &mut visited);
 
     Ok(())
 }
 
 fn print_tree_node(
     index: &Index,
-    bean_id: &str,
+    unit_id: &str,
     prefix: &str,
     visited: &mut std::collections::HashSet<String>,
 ) {
-    if visited.contains(bean_id) {
+    if visited.contains(unit_id) {
         return;
     }
-    visited.insert(bean_id.to_string());
+    visited.insert(unit_id.to_string());
 
     // Find the unit
-    if let Some(entry) = index.units.iter().find(|e| e.id == bean_id) {
+    if let Some(entry) = index.units.iter().find(|e| e.id == unit_id) {
         let status_indicator = match entry.status {
             Status::Open => "[ ]",
             Status::InProgress | Status::AwaitingVerify => "[-]",
@@ -75,7 +75,7 @@ fn print_tree_node(
             prefix, status_indicator, entry.id, entry.title
         );
     } else {
-        println!("{}[!] {}", prefix, bean_id);
+        println!("{}[!] {}", prefix, unit_id);
         return;
     }
 
@@ -83,14 +83,14 @@ fn print_tree_node(
     let children: Vec<_> = index
         .units
         .iter()
-        .filter(|e| e.parent.as_ref() == Some(&bean_id.to_string()))
+        .filter(|e| e.parent.as_ref() == Some(&unit_id.to_string()))
         .collect();
 
     // Also find dependents (units that depend on this one)
     let dependents: Vec<_> = index
         .units
         .iter()
-        .filter(|e| e.dependencies.contains(&bean_id.to_string()))
+        .filter(|e| e.dependencies.contains(&unit_id.to_string()))
         .collect();
 
     // Combine and deduplicate
@@ -129,7 +129,7 @@ mod tests {
     use std::fs;
     use tempfile::TempDir;
 
-    fn setup_test_beans() -> (TempDir, std::path::PathBuf) {
+    fn setup_test_units() -> (TempDir, std::path::PathBuf) {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -141,27 +141,27 @@ mod tests {
         // 2 (root)
         // 3 (depends on 1)
 
-        let bean1 = Unit::new("1", "Root task");
-        let mut bean1_1 = Unit::new("1.1", "Subtask");
-        bean1_1.parent = Some("1".to_string());
-        let mut bean1_2 = Unit::new("1.2", "Another subtask");
-        bean1_2.parent = Some("1".to_string());
-        let bean2 = Unit::new("2", "Another root");
-        let mut bean3 = Unit::new("3", "Depends on 1");
-        bean3.dependencies = vec!["1".to_string()];
+        let unit1 = Unit::new("1", "Root task");
+        let mut unit1_1 = Unit::new("1.1", "Subtask");
+        unit1_1.parent = Some("1".to_string());
+        let mut unit1_2 = Unit::new("1.2", "Another subtask");
+        unit1_2.parent = Some("1".to_string());
+        let unit2 = Unit::new("2", "Another root");
+        let mut unit3 = Unit::new("3", "Depends on 1");
+        unit3.dependencies = vec!["1".to_string()];
 
-        bean1.to_file(mana_dir.join("1.yaml")).unwrap();
-        bean1_1.to_file(mana_dir.join("1.1.yaml")).unwrap();
-        bean1_2.to_file(mana_dir.join("1.2.yaml")).unwrap();
-        bean2.to_file(mana_dir.join("2.yaml")).unwrap();
-        bean3.to_file(mana_dir.join("3.yaml")).unwrap();
+        unit1.to_file(mana_dir.join("1.yaml")).unwrap();
+        unit1_1.to_file(mana_dir.join("1.1.yaml")).unwrap();
+        unit1_2.to_file(mana_dir.join("1.2.yaml")).unwrap();
+        unit2.to_file(mana_dir.join("2.yaml")).unwrap();
+        unit3.to_file(mana_dir.join("3.yaml")).unwrap();
 
         (dir, mana_dir)
     }
 
     #[test]
     fn full_tree_displays() {
-        let (_dir, mana_dir) = setup_test_beans();
+        let (_dir, mana_dir) = setup_test_units();
         let index = Index::load_or_rebuild(&mana_dir).unwrap();
 
         // Just verify no panic
@@ -170,7 +170,7 @@ mod tests {
 
     #[test]
     fn subtree_works() {
-        let (_dir, mana_dir) = setup_test_beans();
+        let (_dir, mana_dir) = setup_test_units();
         let index = Index::load_or_rebuild(&mana_dir).unwrap();
 
         // Just verify no panic
@@ -179,7 +179,7 @@ mod tests {
 
     #[test]
     fn subtree_not_found() {
-        let (_dir, mana_dir) = setup_test_beans();
+        let (_dir, mana_dir) = setup_test_units();
         let index = Index::load_or_rebuild(&mana_dir).unwrap();
 
         let result = print_subtree(&index, "nonexistent");

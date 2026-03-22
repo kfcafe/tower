@@ -13,14 +13,14 @@ use super::wave::{
     compute_critical_path, compute_downstream_weights, compute_effective_parallelism,
     compute_file_conflicts, compute_waves, Wave,
 };
-use super::BeanAction;
+use super::UnitAction;
 
 /// A unit ready for dispatch.
 #[derive(Debug, Clone)]
-pub struct SizedBean {
+pub struct SizedUnit {
     pub id: String,
     pub title: String,
-    pub action: BeanAction,
+    pub action: UnitAction,
     pub priority: u8,
     pub dependencies: Vec<String>,
     pub parent: Option<String>,
@@ -33,7 +33,7 @@ pub struct SizedBean {
 
 /// A unit that was excluded from dispatch due to scope issues.
 #[derive(Debug, Clone)]
-pub struct BlockedBean {
+pub struct BlockedUnit {
     pub id: String,
     pub title: String,
     pub reason: BlockReason,
@@ -42,11 +42,11 @@ pub struct BlockedBean {
 /// Result from planning dispatch.
 pub struct DispatchPlan {
     pub waves: Vec<Wave>,
-    pub skipped: Vec<BlockedBean>,
+    pub skipped: Vec<BlockedUnit>,
     /// Scope warnings for units that will dispatch but have large scope.
     pub warnings: Vec<(String, ScopeWarning)>,
     /// Flat list of all units to dispatch (for ready-queue mode).
-    pub all_beans: Vec<SizedBean>,
+    pub all_units: Vec<SizedUnit>,
     /// The index snapshot used for planning.
     pub index: Index,
 }
@@ -96,14 +96,14 @@ pub(super) fn plan_dispatch(
     // In normal mode, dependency blocking is already handled by all_deps_closed above,
     // but check_blocked catches edge cases (e.g., missing deps not in index).
     // Scope warnings (oversized) are non-blocking — units dispatch with a warning.
-    let mut dispatch_beans: Vec<SizedBean> = Vec::new();
-    let mut skipped: Vec<BlockedBean> = Vec::new();
+    let mut dispatch_units: Vec<SizedUnit> = Vec::new();
+    let mut skipped: Vec<BlockedUnit> = Vec::new();
     let mut warnings: Vec<(String, ScopeWarning)> = Vec::new();
 
     for entry in &candidate_entries {
         if !simulate {
             if let Some(reason) = check_blocked_with_archive(entry, &index, Some(&archive)) {
-                skipped.push(BlockedBean {
+                skipped.push(BlockedUnit {
                     id: entry.id.clone(),
                     title: entry.title.clone(),
                     reason,
@@ -118,10 +118,10 @@ pub(super) fn plan_dispatch(
         let unit_path = crate::discovery::find_unit_file(mana_dir, &entry.id)?;
         let unit = crate::unit::Unit::from_file(&unit_path)?;
 
-        dispatch_beans.push(SizedBean {
+        dispatch_units.push(SizedUnit {
             id: entry.id.clone(),
             title: entry.title.clone(),
-            action: BeanAction::Implement,
+            action: UnitAction::Implement,
             priority: entry.priority,
             dependencies: entry.dependencies.clone(),
             parent: entry.parent.clone(),
@@ -132,21 +132,21 @@ pub(super) fn plan_dispatch(
         });
     }
 
-    let waves = compute_waves(&dispatch_beans, &index);
+    let waves = compute_waves(&dispatch_units, &index);
 
     Ok(DispatchPlan {
         waves,
         skipped,
         warnings,
-        all_beans: dispatch_beans,
+        all_units: dispatch_units,
         index,
     })
 }
 
 /// Print the dispatch plan without executing.
 pub(super) fn print_plan(plan: &DispatchPlan) {
-    let weights = compute_downstream_weights(&plan.all_beans);
-    let critical_path = compute_critical_path(&plan.all_beans);
+    let weights = compute_downstream_weights(&plan.all_units);
+    let critical_path = compute_critical_path(&plan.all_units);
     let critical_set: std::collections::HashSet<&str> =
         critical_path.iter().map(|s| s.as_str()).collect();
 
@@ -174,7 +174,7 @@ pub(super) fn print_plan(plan: &DispatchPlan) {
             par_note
         );
 
-        // Precompute file conflicts for this wave so we can annotate per-bean
+        // Precompute file conflicts for this wave so we can annotate per-unit
         let wave_conflicts = compute_file_conflicts(&wave.units);
 
         for sb in &wave.units {
@@ -190,7 +190,7 @@ pub(super) fn print_plan(plan: &DispatchPlan) {
             } else {
                 ""
             };
-            // Collect conflicts for this bean: other units sharing a file in this wave
+            // Collect conflicts for this unit: other units sharing a file in this wave
             let mut conflict_parts: Vec<String> = Vec::new();
             for (file, ids) in &wave_conflicts {
                 if ids.contains(&sb.id) {
@@ -231,7 +231,7 @@ pub(super) fn print_plan(plan: &DispatchPlan) {
 /// Print the dispatch plan as JSON stream events.
 pub(super) fn print_plan_json(plan: &DispatchPlan, parent_id: Option<&str>) {
     let parent_id = parent_id.unwrap_or("all").to_string();
-    let critical_path = compute_critical_path(&plan.all_beans);
+    let critical_path = compute_critical_path(&plan.all_units);
     let rounds: Vec<stream::RoundPlan> = plan
         .waves
         .iter()
@@ -249,7 +249,7 @@ pub(super) fn print_plan_json(plan: &DispatchPlan, parent_id: Option<&str>) {
                 units: wave
                     .units
                     .iter()
-                    .map(|b| stream::BeanInfo {
+                    .map(|b| stream::UnitInfo {
                         id: b.id.clone(),
                         title: b.title.clone(),
                         round: i + 1,
@@ -276,7 +276,7 @@ mod tests {
     use std::path::Path;
     use tempfile::TempDir;
 
-    fn make_beans_dir() -> (TempDir, std::path::PathBuf) {
+    fn make_mana_dir() -> (TempDir, std::path::PathBuf) {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -296,8 +296,8 @@ mod tests {
     }
 
     #[test]
-    fn plan_dispatch_no_ready_beans() {
-        let (_dir, mana_dir) = make_beans_dir();
+    fn plan_dispatch_no_ready_units() {
+        let (_dir, mana_dir) = make_mana_dir();
         write_config(&mana_dir, Some("echo {id}"));
 
         let config = Config::load_with_extends(&mana_dir).unwrap();
@@ -308,8 +308,8 @@ mod tests {
     }
 
     #[test]
-    fn plan_dispatch_returns_ready_beans() {
-        let (_dir, mana_dir) = make_beans_dir();
+    fn plan_dispatch_returns_ready_units() {
+        let (_dir, mana_dir) = make_mana_dir();
         write_config(&mana_dir, Some("echo {id}"));
 
         let mut unit = crate::unit::Unit::new("1", "Task one");
@@ -318,11 +318,11 @@ mod tests {
         unit.paths = vec!["src/x.rs".to_string()];
         unit.to_file(mana_dir.join("1-task-one.md")).unwrap();
 
-        let mut bean2 = crate::unit::Unit::new("2", "Task two");
-        bean2.verify = Some("echo ok".to_string());
-        bean2.produces = vec!["Y".to_string()];
-        bean2.paths = vec!["src/y.rs".to_string()];
-        bean2.to_file(mana_dir.join("2-task-two.md")).unwrap();
+        let mut unit2 = crate::unit::Unit::new("2", "Task two");
+        unit2.verify = Some("echo ok".to_string());
+        unit2.produces = vec!["Y".to_string()];
+        unit2.paths = vec!["src/y.rs".to_string()];
+        unit2.to_file(mana_dir.join("2-task-two.md")).unwrap();
 
         let config = Config::load_with_extends(&mana_dir).unwrap();
         let plan = plan_dispatch(&mana_dir, &config, None, false, false).unwrap();
@@ -333,7 +333,7 @@ mod tests {
 
     #[test]
     fn plan_dispatch_filters_by_id() {
-        let (_dir, mana_dir) = make_beans_dir();
+        let (_dir, mana_dir) = make_mana_dir();
         write_config(&mana_dir, Some("echo {id}"));
 
         let mut unit = crate::unit::Unit::new("1", "Task one");
@@ -342,11 +342,11 @@ mod tests {
         unit.paths = vec!["src/x.rs".to_string()];
         unit.to_file(mana_dir.join("1-task-one.md")).unwrap();
 
-        let mut bean2 = crate::unit::Unit::new("2", "Task two");
-        bean2.verify = Some("echo ok".to_string());
-        bean2.produces = vec!["Y".to_string()];
-        bean2.paths = vec!["src/y.rs".to_string()];
-        bean2.to_file(mana_dir.join("2-task-two.md")).unwrap();
+        let mut unit2 = crate::unit::Unit::new("2", "Task two");
+        unit2.verify = Some("echo ok".to_string());
+        unit2.produces = vec!["Y".to_string()];
+        unit2.paths = vec!["src/y.rs".to_string()];
+        unit2.to_file(mana_dir.join("2-task-two.md")).unwrap();
 
         let config = Config::load_with_extends(&mana_dir).unwrap();
         let plan = plan_dispatch(&mana_dir, &config, Some("1"), false, false).unwrap();
@@ -358,7 +358,7 @@ mod tests {
 
     #[test]
     fn plan_dispatch_includes_unit_model_override() {
-        let (_dir, mana_dir) = make_beans_dir();
+        let (_dir, mana_dir) = make_mana_dir();
         write_config(&mana_dir, Some("echo {id}"));
 
         let mut unit = crate::unit::Unit::new("1", "Task one");
@@ -375,7 +375,7 @@ mod tests {
 
     #[test]
     fn plan_dispatch_parent_id_gets_children() {
-        let (_dir, mana_dir) = make_beans_dir();
+        let (_dir, mana_dir) = make_mana_dir();
         write_config(&mana_dir, Some("echo {id}"));
 
         let parent = crate::unit::Unit::new("1", "Parent");
@@ -403,8 +403,8 @@ mod tests {
     }
 
     #[test]
-    fn oversized_bean_dispatched_with_warning() {
-        let (_dir, mana_dir) = make_beans_dir();
+    fn oversized_unit_dispatched_with_warning() {
+        let (_dir, mana_dir) = make_mana_dir();
         write_config(&mana_dir, Some("echo {id}"));
 
         let mut unit = crate::unit::Unit::new("1", "Oversized unit");
@@ -430,8 +430,8 @@ mod tests {
     }
 
     #[test]
-    fn unscoped_bean_dispatched_normally() {
-        let (_dir, mana_dir) = make_beans_dir();
+    fn unscoped_unit_dispatched_normally() {
+        let (_dir, mana_dir) = make_mana_dir();
         write_config(&mana_dir, Some("echo {id}"));
 
         let mut unit = crate::unit::Unit::new("1", "Unscoped unit");
@@ -449,8 +449,8 @@ mod tests {
     }
 
     #[test]
-    fn well_scoped_bean_dispatched() {
-        let (_dir, mana_dir) = make_beans_dir();
+    fn well_scoped_unit_dispatched() {
+        let (_dir, mana_dir) = make_mana_dir();
         write_config(&mana_dir, Some("echo {id}"));
 
         let mut unit = crate::unit::Unit::new("1", "Well scoped");
@@ -469,7 +469,7 @@ mod tests {
 
     #[test]
     fn dry_run_simulate_shows_all_waves() {
-        let (_dir, mana_dir) = make_beans_dir();
+        let (_dir, mana_dir) = make_mana_dir();
         write_config(&mana_dir, Some("echo {id}"));
 
         // Create a chain: 1.1 → 1.2 → 1.3 (parent=1)
@@ -516,7 +516,7 @@ mod tests {
 
     #[test]
     fn dry_run_simulate_respects_produces_requires() {
-        let (_dir, mana_dir) = make_beans_dir();
+        let (_dir, mana_dir) = make_mana_dir();
         write_config(&mana_dir, Some("echo {id}"));
 
         let parent = crate::unit::Unit::new("1", "Parent");
@@ -552,7 +552,7 @@ mod tests {
 
     #[test]
     fn plan_dispatch_sorts_wave_by_downstream_weight() {
-        let (_dir, mana_dir) = make_beans_dir();
+        let (_dir, mana_dir) = make_mana_dir();
         write_config(&mana_dir, Some("echo {id}"));
 
         let parent = crate::unit::Unit::new("1", "Parent");
@@ -616,7 +616,7 @@ mod tests {
 
     #[test]
     fn plan_dispatch_file_conflict_in_wave() {
-        let (_dir, mana_dir) = make_beans_dir();
+        let (_dir, mana_dir) = make_mana_dir();
         write_config(&mana_dir, Some("echo {id}"));
 
         // Two units in the same wave that share a file
@@ -654,7 +654,7 @@ mod tests {
 
     #[test]
     fn print_plan_shows_critical_path() {
-        let (_dir, mana_dir) = make_beans_dir();
+        let (_dir, mana_dir) = make_mana_dir();
         write_config(&mana_dir, Some("echo {id}"));
 
         let parent = crate::unit::Unit::new("1", "Parent");
@@ -678,7 +678,7 @@ mod tests {
         let plan = plan_dispatch(&mana_dir, &config, Some("1"), false, true).unwrap();
 
         // The critical path computed from the plan must include both 1.1 and 1.2
-        let critical_path = compute_critical_path(&plan.all_beans);
+        let critical_path = compute_critical_path(&plan.all_units);
         assert!(
             critical_path.len() >= 2,
             "expected critical path of length >= 2, got {:?}",
@@ -696,7 +696,7 @@ mod tests {
 
     #[test]
     fn print_plan_shows_file_conflicts() {
-        let (_dir, mana_dir) = make_beans_dir();
+        let (_dir, mana_dir) = make_mana_dir();
         write_config(&mana_dir, Some("echo {id}"));
 
         // Two units sharing src/lib.rs
@@ -724,7 +724,7 @@ mod tests {
 
     #[test]
     fn print_plan_shows_effective_concurrency() {
-        let (_dir, mana_dir) = make_beans_dir();
+        let (_dir, mana_dir) = make_mana_dir();
         write_config(&mana_dir, Some("echo {id}"));
 
         // Three units: 1 and 2 share a file, 3 is independent
@@ -757,7 +757,7 @@ mod tests {
 
     #[test]
     fn print_plan_no_conflicts_shows_full_concurrency() {
-        let (_dir, mana_dir) = make_beans_dir();
+        let (_dir, mana_dir) = make_mana_dir();
         write_config(&mana_dir, Some("echo {id}"));
 
         // Three units with no shared files — full concurrency

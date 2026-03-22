@@ -6,7 +6,7 @@ use crate::index::Index;
 use crate::unit::{OnFailAction, Status, Unit};
 use tempfile::TempDir;
 
-fn setup_beans_dir_with_config() -> (TempDir, std::path::PathBuf) {
+fn setup_mana_dir_with_config() -> (TempDir, std::path::PathBuf) {
     let dir = TempDir::new().unwrap();
     let mana_dir = dir.path().join(".mana");
     fs::create_dir(&mana_dir).unwrap();
@@ -46,8 +46,8 @@ fn setup_beans_dir_with_config() -> (TempDir, std::path::PathBuf) {
 }
 
 #[test]
-fn create_minimal_bean() {
-    let (_dir, mana_dir) = setup_beans_dir_with_config();
+fn create_minimal_unit() {
+    let (_dir, mana_dir) = setup_mana_dir_with_config();
 
     let args = CreateArgs {
         title: "First task".to_string(),
@@ -77,19 +77,19 @@ fn create_minimal_bean() {
     cmd_create(&mana_dir, args).unwrap();
 
     // Check the unit file exists with new naming convention
-    let bean_path = mana_dir.join("1-first-task.md");
-    assert!(bean_path.exists());
+    let unit_path = mana_dir.join("1-first-task.md");
+    assert!(unit_path.exists());
 
     // Verify content
-    let unit = Unit::from_file(&bean_path).unwrap();
+    let unit = Unit::from_file(&unit_path).unwrap();
     assert_eq!(unit.id, "1");
     assert_eq!(unit.title, "First task");
     assert_eq!(unit.slug, Some("first-task".to_string()));
 }
 
 #[test]
-fn create_allows_bean_without_verify_or_acceptance() {
-    let (_dir, mana_dir) = setup_beans_dir_with_config();
+fn create_allows_unit_without_verify_or_acceptance() {
+    let (_dir, mana_dir) = setup_mana_dir_with_config();
 
     let args = CreateArgs {
         title: "Goal unit".to_string(),
@@ -122,9 +122,9 @@ fn create_allows_bean_without_verify_or_acceptance() {
         "Should allow unit without verify or acceptance"
     );
 
-    let bean_path = mana_dir.join("1-goal-unit.md");
-    assert!(bean_path.exists());
-    let unit = Unit::from_file(&bean_path).unwrap();
+    let unit_path = mana_dir.join("1-goal-unit.md");
+    assert!(unit_path.exists());
+    let unit = Unit::from_file(&unit_path).unwrap();
     assert_eq!(unit.title, "Goal unit");
     assert!(unit.verify.is_none());
     assert!(unit.acceptance.is_none());
@@ -132,7 +132,7 @@ fn create_allows_bean_without_verify_or_acceptance() {
 
 #[test]
 fn create_increments_id() {
-    let (_dir, mana_dir) = setup_beans_dir_with_config();
+    let (_dir, mana_dir) = setup_mana_dir_with_config();
 
     // Create first unit
     let args1 = CreateArgs {
@@ -189,15 +189,15 @@ fn create_increments_id() {
     cmd_create(&mana_dir, args2).unwrap();
 
     // Verify both exist with correct IDs and new filenames
-    let bean1 = Unit::from_file(mana_dir.join("1-first.md")).unwrap();
-    let bean2 = Unit::from_file(mana_dir.join("2-second.md")).unwrap();
-    assert_eq!(bean1.id, "1");
-    assert_eq!(bean2.id, "2");
+    let unit1 = Unit::from_file(mana_dir.join("1-first.md")).unwrap();
+    let unit2 = Unit::from_file(mana_dir.join("2-second.md")).unwrap();
+    assert_eq!(unit1.id, "1");
+    assert_eq!(unit2.id, "2");
 }
 
 #[test]
 fn create_with_parent_assigns_child_id() {
-    let (_dir, mana_dir) = setup_beans_dir_with_config();
+    let (_dir, mana_dir) = setup_mana_dir_with_config();
 
     // Create parent unit
     let parent_args = CreateArgs {
@@ -261,7 +261,7 @@ fn create_with_parent_assigns_child_id() {
 
 #[test]
 fn create_multiple_children() {
-    let (_dir, mana_dir) = setup_beans_dir_with_config();
+    let (_dir, mana_dir) = setup_mana_dir_with_config();
 
     // Create parent
     let parent_args = CreateArgs {
@@ -333,7 +333,7 @@ fn create_multiple_children() {
 
 #[test]
 fn create_with_all_fields() {
-    let (_dir, mana_dir) = setup_beans_dir_with_config();
+    let (_dir, mana_dir) = setup_mana_dir_with_config();
 
     let args = CreateArgs {
         title: "Complex unit".to_string(),
@@ -376,7 +376,7 @@ fn create_with_all_fields() {
 
 #[test]
 fn create_updates_index() {
-    let (_dir, mana_dir) = setup_beans_dir_with_config();
+    let (_dir, mana_dir) = setup_mana_dir_with_config();
 
     let args = CreateArgs {
         title: "Indexed unit".to_string(),
@@ -429,13 +429,13 @@ fn assign_child_id_finds_existing_children() {
     fs::create_dir(&mana_dir).unwrap();
 
     // Create some child files with new naming convention
-    let bean1 = Unit::new("parent.1", "Child 1");
-    let bean2 = Unit::new("parent.2", "Child 2");
-    let bean5 = Unit::new("parent.5", "Child 5");
+    let unit1 = Unit::new("parent.1", "Child 1");
+    let unit2 = Unit::new("parent.2", "Child 2");
+    let unit5 = Unit::new("parent.5", "Child 5");
 
-    bean1.to_file(mana_dir.join("parent.1-child-1.md")).unwrap();
-    bean2.to_file(mana_dir.join("parent.2-child-2.md")).unwrap();
-    bean5.to_file(mana_dir.join("parent.5-child-5.md")).unwrap();
+    unit1.to_file(mana_dir.join("parent.1-child-1.md")).unwrap();
+    unit2.to_file(mana_dir.join("parent.2-child-2.md")).unwrap();
+    unit5.to_file(mana_dir.join("parent.5-child-5.md")).unwrap();
 
     let id = assign_child_id(&mana_dir, "parent").unwrap();
     assert_eq!(id, "parent.6");
@@ -443,7 +443,7 @@ fn assign_child_id_finds_existing_children() {
 
 #[test]
 fn create_rejects_priority_too_high() {
-    let (_dir, mana_dir) = setup_beans_dir_with_config();
+    let (_dir, mana_dir) = setup_mana_dir_with_config();
 
     let args = CreateArgs {
         title: "Invalid priority unit".to_string(),
@@ -482,7 +482,7 @@ fn create_rejects_priority_too_high() {
 #[test]
 fn create_accepts_valid_priorities() {
     for priority in 0..=4 {
-        let (_dir, mana_dir) = setup_beans_dir_with_config();
+        let (_dir, mana_dir) = setup_mana_dir_with_config();
 
         let args = CreateArgs {
             title: format!("Unit with priority {}", priority),
@@ -519,9 +519,9 @@ fn create_accepts_valid_priorities() {
 // =========================================================================
 
 #[test]
-fn pre_create_hook_accepts_bean_creation() {
+fn pre_create_hook_accepts_unit_creation() {
     use std::os::unix::fs::PermissionsExt;
-    let (dir, mana_dir) = setup_beans_dir_with_config();
+    let (dir, mana_dir) = setup_mana_dir_with_config();
     let project_dir = dir.path();
     let hooks_dir = mana_dir.join("hooks");
     fs::create_dir_all(&hooks_dir).unwrap();
@@ -568,14 +568,14 @@ fn pre_create_hook_accepts_bean_creation() {
     );
 
     // Verify unit was created
-    let bean_path = mana_dir.join("1-unit-with-accepting-hook.md");
-    assert!(bean_path.exists(), "Unit file should exist");
+    let unit_path = mana_dir.join("1-unit-with-accepting-hook.md");
+    assert!(unit_path.exists(), "Unit file should exist");
 }
 
 #[test]
-fn pre_create_hook_rejects_bean_creation() {
+fn pre_create_hook_rejects_unit_creation() {
     use std::os::unix::fs::PermissionsExt;
-    let (dir, mana_dir) = setup_beans_dir_with_config();
+    let (dir, mana_dir) = setup_mana_dir_with_config();
     let project_dir = dir.path();
     let hooks_dir = mana_dir.join("hooks");
     fs::create_dir_all(&hooks_dir).unwrap();
@@ -628,9 +628,9 @@ fn pre_create_hook_rejects_bean_creation() {
     );
 
     // Verify unit was NOT created
-    let bean_path = mana_dir.join("1-unit-with-rejecting-hook.md");
+    let unit_path = mana_dir.join("1-unit-with-rejecting-hook.md");
     assert!(
-        !bean_path.exists(),
+        !unit_path.exists(),
         "Unit file should NOT exist when pre-create hook rejects"
     );
 }
@@ -639,7 +639,7 @@ fn pre_create_hook_rejects_bean_creation() {
 fn post_create_hook_runs_after_creation() {
     use std::os::unix::fs::PermissionsExt;
 
-    let (dir, mana_dir) = setup_beans_dir_with_config();
+    let (dir, mana_dir) = setup_mana_dir_with_config();
     let project_dir = dir.path();
     let hooks_dir = mana_dir.join("hooks");
     fs::create_dir_all(&hooks_dir).unwrap();
@@ -691,8 +691,8 @@ fn post_create_hook_runs_after_creation() {
     assert!(result.is_ok(), "Creation should succeed");
 
     // Verify unit was created
-    let bean_path = mana_dir.join("1-unit-with-post-create-hook.md");
-    assert!(bean_path.exists(), "Unit file should exist");
+    let unit_path = mana_dir.join("1-unit-with-post-create-hook.md");
+    assert!(unit_path.exists(), "Unit file should exist");
 
     // Verify post-create hook ran (marker file exists)
     assert!(
@@ -704,7 +704,7 @@ fn post_create_hook_runs_after_creation() {
 #[test]
 fn post_create_hook_failure_does_not_break_creation() {
     use std::os::unix::fs::PermissionsExt;
-    let (dir, mana_dir) = setup_beans_dir_with_config();
+    let (dir, mana_dir) = setup_mana_dir_with_config();
     let project_dir = dir.path();
     let hooks_dir = mana_dir.join("hooks");
     fs::create_dir_all(&hooks_dir).unwrap();
@@ -751,9 +751,9 @@ fn post_create_hook_failure_does_not_break_creation() {
     );
 
     // Verify unit WAS created
-    let bean_path = mana_dir.join("1-unit-with-failing-post-create-hook.md");
+    let unit_path = mana_dir.join("1-unit-with-failing-post-create-hook.md");
     assert!(
-        bean_path.exists(),
+        unit_path.exists(),
         "Unit file should exist even when post-create hook fails"
     );
 }
@@ -761,7 +761,7 @@ fn post_create_hook_failure_does_not_break_creation() {
 #[test]
 fn untrusted_hooks_are_silently_skipped() {
     use std::os::unix::fs::PermissionsExt;
-    let (_dir, mana_dir) = setup_beans_dir_with_config();
+    let (_dir, mana_dir) = setup_mana_dir_with_config();
     let hooks_dir = mana_dir.join("hooks");
     fs::create_dir_all(&hooks_dir).unwrap();
 
@@ -806,16 +806,16 @@ fn untrusted_hooks_are_silently_skipped() {
     );
 
     // Verify unit WAS created
-    let bean_path = mana_dir.join("1-unit-with-untrusted-hook.md");
+    let unit_path = mana_dir.join("1-unit-with-untrusted-hook.md");
     assert!(
-        bean_path.exists(),
+        unit_path.exists(),
         "Unit file should exist when hooks are untrusted"
     );
 }
 
 #[test]
 fn default_rejects_passing_verify() {
-    let (_dir, mana_dir) = setup_beans_dir_with_config();
+    let (_dir, mana_dir) = setup_mana_dir_with_config();
 
     let args = CreateArgs {
         title: "Cheating test".to_string(),
@@ -850,7 +850,7 @@ fn default_rejects_passing_verify() {
 
 #[test]
 fn default_accepts_failing_verify() {
-    let (_dir, mana_dir) = setup_beans_dir_with_config();
+    let (_dir, mana_dir) = setup_mana_dir_with_config();
 
     let args = CreateArgs {
         title: "Real test".to_string(),
@@ -881,17 +881,17 @@ fn default_accepts_failing_verify() {
     assert!(result.is_ok());
 
     // Unit should be created
-    let bean_path = mana_dir.join("1-real-test.md");
-    assert!(bean_path.exists());
+    let unit_path = mana_dir.join("1-real-test.md");
+    assert!(unit_path.exists());
 
     // Should have fail_first set in the unit
-    let unit = Unit::from_file(&bean_path).unwrap();
+    let unit = Unit::from_file(&unit_path).unwrap();
     assert!(unit.fail_first);
 }
 
 #[test]
 fn pass_ok_skips_fail_first_check() {
-    let (_dir, mana_dir) = setup_beans_dir_with_config();
+    let (_dir, mana_dir) = setup_mana_dir_with_config();
 
     let args = CreateArgs {
         title: "Passing verify ok".to_string(),
@@ -922,17 +922,17 @@ fn pass_ok_skips_fail_first_check() {
     assert!(result.is_ok());
 
     // Unit should be created
-    let bean_path = mana_dir.join("1-passing-verify-ok.md");
-    assert!(bean_path.exists());
+    let unit_path = mana_dir.join("1-passing-verify-ok.md");
+    assert!(unit_path.exists());
 
     // Should NOT have fail_first set
-    let unit = Unit::from_file(&bean_path).unwrap();
+    let unit = Unit::from_file(&unit_path).unwrap();
     assert!(!unit.fail_first);
 }
 
 #[test]
 fn no_verify_skips_fail_first_check() {
-    let (_dir, mana_dir) = setup_beans_dir_with_config();
+    let (_dir, mana_dir) = setup_mana_dir_with_config();
 
     let args = CreateArgs {
         title: "No verify".to_string(),
@@ -963,8 +963,8 @@ fn no_verify_skips_fail_first_check() {
     assert!(result.is_ok());
 
     // Should NOT have fail_first set (no verify)
-    let bean_path = mana_dir.join("1-no-verify.md");
-    let unit = Unit::from_file(&bean_path).unwrap();
+    let unit_path = mana_dir.join("1-no-verify.md");
+    let unit = Unit::from_file(&unit_path).unwrap();
     assert!(!unit.fail_first);
 }
 
@@ -973,7 +973,7 @@ mod lint {
 
     #[test]
     fn create_rejects_verify_lint_errors_without_force() {
-        let (_dir, mana_dir) = setup_beans_dir_with_config();
+        let (_dir, mana_dir) = setup_mana_dir_with_config();
 
         let args = CreateArgs {
             title: "Linted error".to_string(),
@@ -1007,7 +1007,7 @@ mod lint {
 
     #[test]
     fn create_allows_verify_lint_errors_with_force() {
-        let (_dir, mana_dir) = setup_beans_dir_with_config();
+        let (_dir, mana_dir) = setup_mana_dir_with_config();
 
         let args = CreateArgs {
             title: "Forced linted error".to_string(),
@@ -1040,7 +1040,7 @@ mod lint {
 
     #[test]
     fn create_allows_verify_lint_warnings() {
-        let (_dir, mana_dir) = setup_beans_dir_with_config();
+        let (_dir, mana_dir) = setup_mana_dir_with_config();
 
         let args = CreateArgs {
             title: "Linted warning".to_string(),
@@ -1078,7 +1078,7 @@ mod lint {
 
 #[test]
 fn create_with_claim_sets_in_progress() {
-    let (_dir, mana_dir) = setup_beans_dir_with_config();
+    let (_dir, mana_dir) = setup_mana_dir_with_config();
 
     let args = CreateArgs {
         title: "Claimed task".to_string(),
@@ -1107,10 +1107,10 @@ fn create_with_claim_sets_in_progress() {
 
     cmd_create(&mana_dir, args).unwrap();
 
-    let bean_path = mana_dir.join("1-claimed-task.md");
-    assert!(bean_path.exists());
+    let unit_path = mana_dir.join("1-claimed-task.md");
+    assert!(unit_path.exists());
 
-    let unit = Unit::from_file(&bean_path).unwrap();
+    let unit = Unit::from_file(&unit_path).unwrap();
     assert_eq!(unit.id, "1");
     assert_eq!(unit.title, "Claimed task");
     assert_eq!(unit.status, Status::InProgress);
@@ -1120,7 +1120,7 @@ fn create_with_claim_sets_in_progress() {
 
 #[test]
 fn create_with_claim_without_by() {
-    let (_dir, mana_dir) = setup_beans_dir_with_config();
+    let (_dir, mana_dir) = setup_mana_dir_with_config();
 
     let args = CreateArgs {
         title: "Anon claimed".to_string(),
@@ -1149,8 +1149,8 @@ fn create_with_claim_without_by() {
 
     cmd_create(&mana_dir, args).unwrap();
 
-    let bean_path = mana_dir.join("1-anon-claimed.md");
-    let unit = Unit::from_file(&bean_path).unwrap();
+    let unit_path = mana_dir.join("1-anon-claimed.md");
+    let unit = Unit::from_file(&unit_path).unwrap();
     assert_eq!(unit.status, Status::InProgress);
     // When no --by is given, identity is auto-resolved from config/git.
     // claimed_by may be Some(...) or None depending on environment.
@@ -1159,7 +1159,7 @@ fn create_with_claim_without_by() {
 
 #[test]
 fn create_without_claim_stays_open() {
-    let (_dir, mana_dir) = setup_beans_dir_with_config();
+    let (_dir, mana_dir) = setup_mana_dir_with_config();
 
     let args = CreateArgs {
         title: "Unclaimed task".to_string(),
@@ -1188,8 +1188,8 @@ fn create_without_claim_stays_open() {
 
     cmd_create(&mana_dir, args).unwrap();
 
-    let bean_path = mana_dir.join("1-unclaimed-task.md");
-    let unit = Unit::from_file(&bean_path).unwrap();
+    let unit_path = mana_dir.join("1-unclaimed-task.md");
+    let unit = Unit::from_file(&unit_path).unwrap();
     assert_eq!(unit.status, Status::Open);
     assert_eq!(unit.claimed_by, None);
     assert_eq!(unit.claimed_at, None);
@@ -1197,7 +1197,7 @@ fn create_without_claim_stays_open() {
 
 #[test]
 fn create_with_claim_and_parent() {
-    let (_dir, mana_dir) = setup_beans_dir_with_config();
+    let (_dir, mana_dir) = setup_mana_dir_with_config();
 
     // Create parent first
     let parent_args = CreateArgs {
@@ -1253,8 +1253,8 @@ fn create_with_claim_and_parent() {
     };
     cmd_create(&mana_dir, child_args).unwrap();
 
-    let bean_path = mana_dir.join("1.1-child-claimed.md");
-    let unit = Unit::from_file(&bean_path).unwrap();
+    let unit_path = mana_dir.join("1.1-child-claimed.md");
+    let unit = Unit::from_file(&unit_path).unwrap();
     assert_eq!(unit.id, "1.1");
     assert_eq!(unit.parent, Some("1".to_string()));
     assert_eq!(unit.status, Status::InProgress);
@@ -1267,7 +1267,7 @@ fn create_with_claim_and_parent() {
 
 #[test]
 fn create_claim_rejects_missing_validation_criteria() {
-    let (_dir, mana_dir) = setup_beans_dir_with_config();
+    let (_dir, mana_dir) = setup_mana_dir_with_config();
 
     let args = CreateArgs {
         title: "No criteria claimed".to_string(),
@@ -1309,7 +1309,7 @@ fn create_claim_rejects_missing_validation_criteria() {
 
 #[test]
 fn create_claim_accepts_with_acceptance() {
-    let (_dir, mana_dir) = setup_beans_dir_with_config();
+    let (_dir, mana_dir) = setup_mana_dir_with_config();
 
     let args = CreateArgs {
         title: "Claimed with acceptance".to_string(),
@@ -1342,7 +1342,7 @@ fn create_claim_accepts_with_acceptance() {
 
 #[test]
 fn create_claim_accepts_with_verify() {
-    let (_dir, mana_dir) = setup_beans_dir_with_config();
+    let (_dir, mana_dir) = setup_mana_dir_with_config();
 
     let args = CreateArgs {
         title: "Claimed with verify".to_string(),
@@ -1375,7 +1375,7 @@ fn create_claim_accepts_with_verify() {
 
 #[test]
 fn create_claim_with_parent_exempt_from_validation() {
-    let (_dir, mana_dir) = setup_beans_dir_with_config();
+    let (_dir, mana_dir) = setup_mana_dir_with_config();
 
     // Create parent first
     let parent_args = CreateArgs {
@@ -1440,7 +1440,7 @@ fn create_claim_with_parent_exempt_from_validation() {
 
 #[test]
 fn create_without_claim_exempt_from_validation() {
-    let (_dir, mana_dir) = setup_beans_dir_with_config();
+    let (_dir, mana_dir) = setup_mana_dir_with_config();
 
     // Parent/goal units without --claim don't need acceptance or verify
     let args = CreateArgs {
@@ -1577,7 +1577,7 @@ fn parse_on_fail_rejects_priority_out_of_range() {
 
 #[test]
 fn create_next_depends_on_latest() {
-    let (_dir, mana_dir) = setup_beans_dir_with_config();
+    let (_dir, mana_dir) = setup_mana_dir_with_config();
 
     // Create the first unit
     let args1 = CreateArgs {
@@ -1634,19 +1634,19 @@ fn create_next_depends_on_latest() {
     let id2 = cmd_create_next(&mana_dir, args2).unwrap();
 
     // Verify the second unit depends on the first
-    let bean2_path = mana_dir.join(format!("{}-second-step.md", id2));
-    let bean2 = Unit::from_file(&bean2_path).unwrap();
+    let unit2_path = mana_dir.join(format!("{}-second-step.md", id2));
+    let unit2 = Unit::from_file(&unit2_path).unwrap();
     assert!(
-        bean2.dependencies.contains(&id1),
+        unit2.dependencies.contains(&id1),
         "Second unit should depend on first unit ({}), got deps: {:?}",
         id1,
-        bean2.dependencies
+        unit2.dependencies
     );
 }
 
 #[test]
-fn create_next_chain_three_beans() {
-    let (_dir, mana_dir) = setup_beans_dir_with_config();
+fn create_next_chain_three_units() {
+    let (_dir, mana_dir) = setup_mana_dir_with_config();
 
     // Create first unit normally
     let args1 = CreateArgs {
@@ -1730,25 +1730,25 @@ fn create_next_chain_three_beans() {
     let id3 = cmd_create_next(&mana_dir, args3).unwrap();
 
     // Verify chain: 1 <- 2 <- 3
-    let bean2_path = mana_dir.join(format!("{}-step-two.md", id2));
-    let bean2 = Unit::from_file(&bean2_path).unwrap();
+    let unit2_path = mana_dir.join(format!("{}-step-two.md", id2));
+    let unit2 = Unit::from_file(&unit2_path).unwrap();
     assert!(
-        bean2.dependencies.contains(&id1),
+        unit2.dependencies.contains(&id1),
         "Unit 2 should depend on unit 1"
     );
 
-    let bean3_path = mana_dir.join(format!("{}-step-three.md", id3));
-    let bean3 = Unit::from_file(&bean3_path).unwrap();
+    let unit3_path = mana_dir.join(format!("{}-step-three.md", id3));
+    let unit3 = Unit::from_file(&unit3_path).unwrap();
     assert!(
-        bean3.dependencies.contains(&id2),
+        unit3.dependencies.contains(&id2),
         "Unit 3 should depend on unit 2, got deps: {:?}",
-        bean3.dependencies
+        unit3.dependencies
     );
 }
 
 #[test]
 fn create_next_merges_explicit_deps() {
-    let (_dir, mana_dir) = setup_beans_dir_with_config();
+    let (_dir, mana_dir) = setup_mana_dir_with_config();
 
     // Create two units normally
     let args1 = CreateArgs {
@@ -1830,21 +1830,21 @@ fn create_next_merges_explicit_deps() {
     };
     let id3 = cmd_create_next(&mana_dir, args3).unwrap();
 
-    let bean3_path = mana_dir.join(format!("{}-third.md", id3));
-    let bean3 = Unit::from_file(&bean3_path).unwrap();
+    let unit3_path = mana_dir.join(format!("{}-third.md", id3));
+    let unit3 = Unit::from_file(&unit3_path).unwrap();
     assert!(
-        bean3.dependencies.contains(&"1".to_string()),
+        unit3.dependencies.contains(&"1".to_string()),
         "Should have explicit dep on 1"
     );
     assert!(
-        bean3.dependencies.contains(&"2".to_string()),
+        unit3.dependencies.contains(&"2".to_string()),
         "Should have auto dep on @latest (2)"
     );
 }
 
 #[test]
-fn create_next_fails_with_no_beans() {
-    let (_dir, mana_dir) = setup_beans_dir_with_config();
+fn create_next_fails_with_no_units() {
+    let (_dir, mana_dir) = setup_mana_dir_with_config();
 
     // Try create next with no existing units — should fail
     let args = CreateArgs {
@@ -1887,7 +1887,7 @@ fn create_next_fails_with_no_beans() {
 
 #[test]
 fn create_feature_sets_feature_flag() {
-    let (_dir, mana_dir) = setup_beans_dir_with_config();
+    let (_dir, mana_dir) = setup_mana_dir_with_config();
 
     let args = CreateArgs {
         title: "User onboarding flow".to_string(),
@@ -1915,17 +1915,17 @@ fn create_feature_sets_feature_flag() {
     };
 
     let id = cmd_create(&mana_dir, args).unwrap();
-    let bean_path = mana_dir.join(format!("{}-user-onboarding-flow.md", id));
-    assert!(bean_path.exists());
+    let unit_path = mana_dir.join(format!("{}-user-onboarding-flow.md", id));
+    assert!(unit_path.exists());
 
-    let unit = Unit::from_file(&bean_path).unwrap();
+    let unit = Unit::from_file(&unit_path).unwrap();
     assert!(unit.feature, "Unit should have feature flag set");
     assert_eq!(unit.title, "User onboarding flow");
 }
 
 #[test]
 fn create_feature_works_without_verify() {
-    let (_dir, mana_dir) = setup_beans_dir_with_config();
+    let (_dir, mana_dir) = setup_mana_dir_with_config();
 
     // --feature should work without --verify (features have no verify gate)
     let args = CreateArgs {
@@ -1959,15 +1959,15 @@ fn create_feature_works_without_verify() {
         "Feature should be creatable without --verify"
     );
 
-    let bean_path = mana_dir.join("1-dashboard-redesign.md");
-    let unit = Unit::from_file(&bean_path).unwrap();
+    let unit_path = mana_dir.join("1-dashboard-redesign.md");
+    let unit = Unit::from_file(&unit_path).unwrap();
     assert!(unit.feature);
     assert!(unit.verify.is_none());
 }
 
 #[test]
 fn create_without_feature_preserves_existing_behavior() {
-    let (_dir, mana_dir) = setup_beans_dir_with_config();
+    let (_dir, mana_dir) = setup_mana_dir_with_config();
 
     // Without --feature, existing behavior unchanged: non-claimed units
     // can still be created without verify (goal/parent units)
@@ -1999,7 +1999,7 @@ fn create_without_feature_preserves_existing_behavior() {
     let result = cmd_create(&mana_dir, args);
     assert!(result.is_ok(), "Non-feature unit should work as before");
 
-    let bean_path = mana_dir.join("1-regular-unit.md");
-    let unit = Unit::from_file(&bean_path).unwrap();
+    let unit_path = mana_dir.join("1-regular-unit.md");
+    let unit = Unit::from_file(&unit_path).unwrap();
     assert!(!unit.feature, "Non-feature unit should have feature=false");
 }

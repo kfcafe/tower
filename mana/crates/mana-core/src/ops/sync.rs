@@ -2,11 +2,11 @@ use std::path::Path;
 
 use anyhow::Result;
 
-use crate::index::{count_bean_formats, ArchiveIndex, Index};
+use crate::index::{count_unit_formats, ArchiveIndex, Index};
 
 /// Result of a sync (index rebuild) operation.
 pub struct SyncResult {
-    pub bean_count: usize,
+    pub unit_count: usize,
     pub archive_count: usize,
     pub md_count: usize,
     pub yaml_count: usize,
@@ -18,10 +18,10 @@ pub struct SyncResult {
 /// Force rebuilds both the main index and archive index unconditionally.
 /// Returns structured counts so callers can format output.
 pub fn sync(mana_dir: &Path) -> Result<SyncResult> {
-    let (md_count, yaml_count) = count_bean_formats(mana_dir)?;
+    let (md_count, yaml_count) = count_unit_formats(mana_dir)?;
 
     let index = Index::build(mana_dir)?;
-    let bean_count = index.units.len();
+    let unit_count = index.units.len();
     index.save(mana_dir)?;
 
     let archive_index = ArchiveIndex::build(mana_dir)?;
@@ -31,7 +31,7 @@ pub fn sync(mana_dir: &Path) -> Result<SyncResult> {
     }
 
     Ok(SyncResult {
-        bean_count,
+        unit_count,
         archive_count,
         md_count,
         yaml_count,
@@ -53,20 +53,20 @@ mod tests {
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
 
-        let bean1 = Unit::new("1", "Task one");
-        let bean2 = Unit::new("2", "Task two");
-        let slug1 = title_to_slug(&bean1.title);
-        let slug2 = title_to_slug(&bean2.title);
-        bean1
+        let unit1 = Unit::new("1", "Task one");
+        let unit2 = Unit::new("2", "Task two");
+        let slug1 = title_to_slug(&unit1.title);
+        let slug2 = title_to_slug(&unit2.title);
+        unit1
             .to_file(mana_dir.join(format!("1-{}.md", slug1)))
             .unwrap();
-        bean2
+        unit2
             .to_file(mana_dir.join(format!("2-{}.md", slug2)))
             .unwrap();
 
         let result = sync(&mana_dir).unwrap();
 
-        assert_eq!(result.bean_count, 2);
+        assert_eq!(result.unit_count, 2);
         assert!(!result.mixed_formats);
     }
 
@@ -78,7 +78,7 @@ mod tests {
 
         let result = sync(&mana_dir).unwrap();
 
-        assert_eq!(result.bean_count, 0);
+        assert_eq!(result.unit_count, 0);
         assert_eq!(result.archive_count, 0);
     }
 

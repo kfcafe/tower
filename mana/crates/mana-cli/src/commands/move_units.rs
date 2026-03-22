@@ -15,7 +15,7 @@ use crate::unit::Unit;
 /// Accepts either:
 /// - A path ending in `.mana/` directly
 /// - A project directory containing `.mana/`
-fn resolve_beans_dir(path: &Path) -> Result<PathBuf> {
+fn resolve_mana_dir(path: &Path) -> Result<PathBuf> {
     if path.is_dir() && path.file_name().is_some_and(|n| n == ".mana") {
         return Ok(path.to_path_buf());
     }
@@ -42,7 +42,7 @@ fn resolve_beans_dir(path: &Path) -> Result<PathBuf> {
 /// 5. Updates both source and destination indices
 ///
 /// Returns a map of old_id → new_id.
-fn move_beans(
+fn move_units(
     source_dir: &Path,
     dest_dir: &Path,
     ids: &[String],
@@ -130,10 +130,10 @@ pub fn cmd_move_from(
     ids: &[String],
 ) -> Result<HashMap<String, String>> {
     let from_path = PathBuf::from(from);
-    let source_dir = resolve_beans_dir(&from_path)
+    let source_dir = resolve_mana_dir(&from_path)
         .with_context(|| format!("Failed to resolve --from: {}", from))?;
 
-    let result = move_beans(&source_dir, mana_dir, ids)?;
+    let result = move_units(&source_dir, mana_dir, ids)?;
 
     eprintln!(
         "\nMoved {} unit{} from {} → {}",
@@ -152,9 +152,9 @@ pub fn cmd_move_from(
 pub fn cmd_move_to(mana_dir: &Path, to: &str, ids: &[String]) -> Result<HashMap<String, String>> {
     let to_path = PathBuf::from(to);
     let dest_dir =
-        resolve_beans_dir(&to_path).with_context(|| format!("Failed to resolve --to: {}", to))?;
+        resolve_mana_dir(&to_path).with_context(|| format!("Failed to resolve --to: {}", to))?;
 
-    let result = move_beans(mana_dir, &dest_dir, ids)?;
+    let result = move_units(mana_dir, &dest_dir, ids)?;
 
     eprintln!(
         "\nMoved {} unit{} from {} → {}",
@@ -172,7 +172,7 @@ mod tests {
     use super::*;
     use tempfile::TempDir;
 
-    fn setup_beans_dir(name: &str) -> (TempDir, PathBuf) {
+    fn setup_mana_dir(name: &str) -> (TempDir, PathBuf) {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -211,7 +211,7 @@ mod tests {
         (dir, mana_dir)
     }
 
-    fn create_test_bean(mana_dir: &Path, id: &str, title: &str) {
+    fn create_test_unit(mana_dir: &Path, id: &str, title: &str) {
         let mut unit = Unit::new(id, title);
         unit.slug = Some(crate::util::title_to_slug(title));
         unit.verify = Some("true".to_string());
@@ -221,23 +221,23 @@ mod tests {
     }
 
     // =====================================================================
-    // move_beans (core)
+    // move_units (core)
     // =====================================================================
 
     #[test]
-    fn move_single_bean() {
-        let (_src_dir, src_beans) = setup_beans_dir("source");
-        let (_dst_dir, dst_beans) = setup_beans_dir("dest");
+    fn move_single_unit() {
+        let (_src_dir, src_units) = setup_mana_dir("source");
+        let (_dst_dir, dst_units) = setup_mana_dir("dest");
 
-        create_test_bean(&src_beans, "1", "Fix login bug");
+        create_test_unit(&src_units, "1", "Fix login bug");
 
-        let result = move_beans(&src_beans, &dst_beans, &["1".to_string()]).unwrap();
+        let result = move_units(&src_units, &dst_units, &["1".to_string()]).unwrap();
 
         assert_eq!(result.get("1"), Some(&"1".to_string()));
-        assert!(!src_beans.join("1-fix-login-bug.md").exists());
-        assert!(dst_beans.join("1-fix-login-bug.md").exists());
+        assert!(!src_units.join("1-fix-login-bug.md").exists());
+        assert!(dst_units.join("1-fix-login-bug.md").exists());
 
-        let moved = Unit::from_file(dst_beans.join("1-fix-login-bug.md")).unwrap();
+        let moved = Unit::from_file(dst_units.join("1-fix-login-bug.md")).unwrap();
         assert_eq!(moved.id, "1");
         assert_eq!(moved.title, "Fix login bug");
         assert!(moved.parent.is_none());
@@ -245,21 +245,21 @@ mod tests {
     }
 
     #[test]
-    fn move_multiple_beans() {
-        let (_src_dir, src_beans) = setup_beans_dir("source");
-        let (_dst_dir, dst_beans) = setup_beans_dir("dest");
+    fn move_multiple_units() {
+        let (_src_dir, src_units) = setup_mana_dir("source");
+        let (_dst_dir, dst_units) = setup_mana_dir("dest");
 
-        let mut config = Config::load(&dst_beans).unwrap();
+        let mut config = Config::load(&dst_units).unwrap();
         config.next_id = 10;
-        config.save(&dst_beans).unwrap();
+        config.save(&dst_units).unwrap();
 
-        create_test_bean(&src_beans, "1", "Task one");
-        create_test_bean(&src_beans, "2", "Task two");
-        create_test_bean(&src_beans, "3", "Task three");
+        create_test_unit(&src_units, "1", "Task one");
+        create_test_unit(&src_units, "2", "Task two");
+        create_test_unit(&src_units, "3", "Task three");
 
-        let result = move_beans(
-            &src_beans,
-            &dst_beans,
+        let result = move_units(
+            &src_units,
+            &dst_units,
             &["1".to_string(), "2".to_string(), "3".to_string()],
         )
         .unwrap();
@@ -268,16 +268,16 @@ mod tests {
         assert_eq!(result.get("2"), Some(&"11".to_string()));
         assert_eq!(result.get("3"), Some(&"12".to_string()));
 
-        assert!(!src_beans.join("1-task-one.md").exists());
-        assert!(dst_beans.join("10-task-one.md").exists());
-        assert!(dst_beans.join("11-task-two.md").exists());
-        assert!(dst_beans.join("12-task-three.md").exists());
+        assert!(!src_units.join("1-task-one.md").exists());
+        assert!(dst_units.join("10-task-one.md").exists());
+        assert!(dst_units.join("11-task-two.md").exists());
+        assert!(dst_units.join("12-task-three.md").exists());
     }
 
     #[test]
     fn move_clears_parent_and_deps() {
-        let (_src_dir, src_beans) = setup_beans_dir("source");
-        let (_dst_dir, dst_beans) = setup_beans_dir("dest");
+        let (_src_dir, src_units) = setup_mana_dir("source");
+        let (_dst_dir, dst_units) = setup_mana_dir("dest");
 
         let mut unit = Unit::new("1.1", "Child task");
         unit.slug = Some("child-task".to_string());
@@ -285,12 +285,12 @@ mod tests {
         unit.parent = Some("1".to_string());
         unit.dependencies = vec!["5".to_string(), "6".to_string()];
         unit.claimed_by = Some("agent-1".to_string());
-        unit.to_file(src_beans.join("1.1-child-task.md")).unwrap();
+        unit.to_file(src_units.join("1.1-child-task.md")).unwrap();
 
-        let result = move_beans(&src_beans, &dst_beans, &["1.1".to_string()]).unwrap();
+        let result = move_units(&src_units, &dst_units, &["1.1".to_string()]).unwrap();
 
         let new_id = result.get("1.1").unwrap();
-        let moved = Unit::from_file(dst_beans.join(format!("{}-child-task.md", new_id))).unwrap();
+        let moved = Unit::from_file(dst_units.join(format!("{}-child-task.md", new_id))).unwrap();
 
         assert!(moved.parent.is_none());
         assert!(moved.dependencies.is_empty());
@@ -301,9 +301,9 @@ mod tests {
     }
 
     #[test]
-    fn move_preserves_bean_content() {
-        let (_src_dir, src_beans) = setup_beans_dir("source");
-        let (_dst_dir, dst_beans) = setup_beans_dir("dest");
+    fn move_preserves_unit_content() {
+        let (_src_dir, src_units) = setup_mana_dir("source");
+        let (_dst_dir, dst_units) = setup_mana_dir("dest");
 
         let mut unit = Unit::new("1", "Complex task");
         unit.slug = Some("complex-task".to_string());
@@ -313,12 +313,12 @@ mod tests {
         unit.notes = Some("Tried X, failed. Avoid Y.".to_string());
         unit.labels = vec!["bug".to_string(), "auth".to_string()];
         unit.priority = 0;
-        unit.to_file(src_beans.join("1-complex-task.md")).unwrap();
+        unit.to_file(src_units.join("1-complex-task.md")).unwrap();
 
-        let result = move_beans(&src_beans, &dst_beans, &["1".to_string()]).unwrap();
+        let result = move_units(&src_units, &dst_units, &["1".to_string()]).unwrap();
 
         let new_id = result.get("1").unwrap();
-        let moved = Unit::from_file(dst_beans.join(format!("{}-complex-task.md", new_id))).unwrap();
+        let moved = Unit::from_file(dst_units.join(format!("{}-complex-task.md", new_id))).unwrap();
 
         assert_eq!(moved.verify, Some("cargo test auth".to_string()));
         assert_eq!(
@@ -332,11 +332,11 @@ mod tests {
     }
 
     #[test]
-    fn move_fails_for_missing_bean() {
-        let (_src_dir, src_beans) = setup_beans_dir("source");
-        let (_dst_dir, dst_beans) = setup_beans_dir("dest");
+    fn move_fails_for_missing_unit() {
+        let (_src_dir, src_units) = setup_mana_dir("source");
+        let (_dst_dir, dst_units) = setup_mana_dir("dest");
 
-        let result = move_beans(&src_beans, &dst_beans, &["999".to_string()]);
+        let result = move_units(&src_units, &dst_units, &["999".to_string()]);
 
         assert!(result.is_err());
         assert!(result
@@ -347,10 +347,10 @@ mod tests {
 
     #[test]
     fn move_fails_for_same_directory() {
-        let (_dir, mana_dir) = setup_beans_dir("same");
-        create_test_bean(&mana_dir, "1", "Task");
+        let (_dir, mana_dir) = setup_mana_dir("same");
+        create_test_unit(&mana_dir, "1", "Task");
 
-        let result = move_beans(&mana_dir, &mana_dir, &["1".to_string()]);
+        let result = move_units(&mana_dir, &mana_dir, &["1".to_string()]);
 
         assert!(result.is_err());
         assert!(result
@@ -361,33 +361,33 @@ mod tests {
 
     #[test]
     fn move_updates_destination_config_next_id() {
-        let (_src_dir, src_beans) = setup_beans_dir("source");
-        let (_dst_dir, dst_beans) = setup_beans_dir("dest");
+        let (_src_dir, src_units) = setup_mana_dir("source");
+        let (_dst_dir, dst_units) = setup_mana_dir("dest");
 
-        create_test_bean(&src_beans, "1", "Task one");
-        create_test_bean(&src_beans, "2", "Task two");
+        create_test_unit(&src_units, "1", "Task one");
+        create_test_unit(&src_units, "2", "Task two");
 
-        move_beans(&src_beans, &dst_beans, &["1".to_string(), "2".to_string()]).unwrap();
+        move_units(&src_units, &dst_units, &["1".to_string(), "2".to_string()]).unwrap();
 
-        let config = Config::load(&dst_beans).unwrap();
+        let config = Config::load(&dst_units).unwrap();
         assert_eq!(config.next_id, 3);
     }
 
     #[test]
     fn move_rebuilds_both_indices() {
-        let (_src_dir, src_beans) = setup_beans_dir("source");
-        let (_dst_dir, dst_beans) = setup_beans_dir("dest");
+        let (_src_dir, src_units) = setup_mana_dir("source");
+        let (_dst_dir, dst_units) = setup_mana_dir("dest");
 
-        create_test_bean(&src_beans, "1", "Task one");
-        create_test_bean(&src_beans, "2", "Task two");
+        create_test_unit(&src_units, "1", "Task one");
+        create_test_unit(&src_units, "2", "Task two");
 
-        move_beans(&src_beans, &dst_beans, &["1".to_string()]).unwrap();
+        move_units(&src_units, &dst_units, &["1".to_string()]).unwrap();
 
-        let src_index = Index::load(&src_beans).unwrap();
+        let src_index = Index::load(&src_units).unwrap();
         assert_eq!(src_index.units.len(), 1);
         assert_eq!(src_index.units[0].id, "2");
 
-        let dst_index = Index::load(&dst_beans).unwrap();
+        let dst_index = Index::load(&dst_units).unwrap();
         assert_eq!(dst_index.units.len(), 1);
         assert_eq!(dst_index.units[0].title, "Task one");
     }
@@ -397,27 +397,27 @@ mod tests {
     // =====================================================================
 
     #[test]
-    fn move_from_with_beans_dir_path() {
-        let (_src_dir, src_beans) = setup_beans_dir("source");
-        let (_dst_dir, dst_beans) = setup_beans_dir("dest");
+    fn move_from_with_mana_dir_path() {
+        let (_src_dir, src_units) = setup_mana_dir("source");
+        let (_dst_dir, dst_units) = setup_mana_dir("dest");
 
-        create_test_bean(&src_beans, "1", "Some task");
+        create_test_unit(&src_units, "1", "Some task");
 
         let result =
-            cmd_move_from(&dst_beans, src_beans.to_str().unwrap(), &["1".to_string()]).unwrap();
+            cmd_move_from(&dst_units, src_units.to_str().unwrap(), &["1".to_string()]).unwrap();
 
         assert_eq!(result.len(), 1);
     }
 
     #[test]
     fn move_from_with_project_dir_path() {
-        let (src_dir, src_beans) = setup_beans_dir("source");
-        let (_dst_dir, dst_beans) = setup_beans_dir("dest");
+        let (src_dir, src_units) = setup_mana_dir("source");
+        let (_dst_dir, dst_units) = setup_mana_dir("dest");
 
-        create_test_bean(&src_beans, "1", "Some task");
+        create_test_unit(&src_units, "1", "Some task");
 
         let result = cmd_move_from(
-            &dst_beans,
+            &dst_units,
             src_dir.path().to_str().unwrap(),
             &["1".to_string()],
         )
@@ -431,53 +431,53 @@ mod tests {
     // =====================================================================
 
     #[test]
-    fn move_to_pushes_beans() {
-        let (_src_dir, src_beans) = setup_beans_dir("source");
-        let (_dst_dir, dst_beans) = setup_beans_dir("dest");
+    fn move_to_pushes_units() {
+        let (_src_dir, src_units) = setup_mana_dir("source");
+        let (_dst_dir, dst_units) = setup_mana_dir("dest");
 
-        let mut config = Config::load(&dst_beans).unwrap();
+        let mut config = Config::load(&dst_units).unwrap();
         config.next_id = 50;
-        config.save(&dst_beans).unwrap();
+        config.save(&dst_units).unwrap();
 
-        create_test_bean(&src_beans, "1", "Push me");
+        create_test_unit(&src_units, "1", "Push me");
 
         let result =
-            cmd_move_to(&src_beans, dst_beans.to_str().unwrap(), &["1".to_string()]).unwrap();
+            cmd_move_to(&src_units, dst_units.to_str().unwrap(), &["1".to_string()]).unwrap();
 
         assert_eq!(result.get("1"), Some(&"50".to_string()));
-        assert!(!src_beans.join("1-push-me.md").exists());
-        assert!(dst_beans.join("50-push-me.md").exists());
+        assert!(!src_units.join("1-push-me.md").exists());
+        assert!(dst_units.join("50-push-me.md").exists());
     }
 
     #[test]
     fn move_to_with_project_dir_path() {
-        let (_src_dir, src_beans) = setup_beans_dir("source");
-        let (dst_dir, dst_beans) = setup_beans_dir("dest");
+        let (_src_dir, src_units) = setup_mana_dir("source");
+        let (dst_dir, dst_units) = setup_mana_dir("dest");
 
-        create_test_bean(&src_beans, "1", "Push task");
+        create_test_unit(&src_units, "1", "Push task");
 
         let result = cmd_move_to(
-            &src_beans,
+            &src_units,
             dst_dir.path().to_str().unwrap(),
             &["1".to_string()],
         )
         .unwrap();
 
         assert_eq!(result.len(), 1);
-        assert!(dst_beans.join("1-push-task.md").exists());
+        assert!(dst_units.join("1-push-task.md").exists());
     }
 
     // =====================================================================
-    // resolve_beans_dir
+    // resolve_mana_dir
     // =====================================================================
 
     #[test]
-    fn resolve_with_beans_dir() {
+    fn resolve_with_mana_dir() {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
 
-        let result = resolve_beans_dir(&mana_dir).unwrap();
+        let result = resolve_mana_dir(&mana_dir).unwrap();
         assert_eq!(result, mana_dir);
     }
 
@@ -487,23 +487,23 @@ mod tests {
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
 
-        let result = resolve_beans_dir(dir.path()).unwrap();
+        let result = resolve_mana_dir(dir.path()).unwrap();
         assert_eq!(result, mana_dir);
     }
 
     #[test]
-    fn resolve_fails_for_no_beans() {
+    fn resolve_fails_for_no_units() {
         let dir = TempDir::new().unwrap();
-        let result = resolve_beans_dir(dir.path());
+        let result = resolve_mana_dir(dir.path());
         assert!(result.is_err());
     }
 
     #[test]
     fn move_to_fails_for_invalid_dest() {
-        let (_dir, src_beans) = setup_beans_dir("source");
-        create_test_bean(&src_beans, "1", "Task");
+        let (_dir, src_units) = setup_mana_dir("source");
+        create_test_unit(&src_units, "1", "Task");
 
-        let result = cmd_move_to(&src_beans, "/nonexistent/path", &["1".to_string()]);
+        let result = cmd_move_to(&src_units, "/nonexistent/path", &["1".to_string()]);
         assert!(result.is_err());
     }
 }

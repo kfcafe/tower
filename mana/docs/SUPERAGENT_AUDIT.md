@@ -126,7 +126,7 @@ parent descriptions as context sections:
 [this unit's description]
 ```
 
-The parser already has `BeanEntry.parent` — just need `readBean(beansDir, parent)`
+The parser already has `UnitEntry.parent` — just need `readUnit(unitsDir, parent)`
 and include the body.
 
 **Token budget:** Cap parent context at ~2K tokens. If parent description is longer,
@@ -187,10 +187,10 @@ but get zero guidance on which tools are best for which situations.
 ### Implementation
 
 All of the above changes are in `prompt.ts` → `buildAgentPrompt()`. The function
-currently takes `BeanFull` and `PromptOptions`. Changes needed:
+currently takes `UnitFull` and `PromptOptions`. Changes needed:
 
-1. Read parent unit (requires `readBean` from `parser.ts` — already available)
-2. Extract verify command from YAML frontmatter (need to parse frontmatter from `BeanFull`)
+1. Read parent unit (requires `readUnit` from `parser.ts` — already available)
+2. Extract verify command from YAML frontmatter (need to parse frontmatter from `UnitFull`)
 3. Extract acceptance criteria (same — parse from frontmatter)
 4. Check `unit.meta.attempts` and include notes if > 0
 5. Build structured prompt with all sections
@@ -205,8 +205,8 @@ currently takes `BeanFull` and `PromptOptions`. Changes needed:
 
 ```typescript
 // spawner.ts line ~230
-await releaseBean(exec, unit.meta.id);
-await updateBeanNote(exec, unit.meta.id, `Agent failed: ${agent.error}`);
+await releaseUnit(exec, unit.meta.id);
+await updateUnitNote(exec, unit.meta.id, `Agent failed: ${agent.error}`);
 ```
 
 The note is just the error string (e.g., "Exit code 1", "Idle timeout (5m)").
@@ -229,7 +229,7 @@ then generate a structured failure summary:
 ```typescript
 // In spawner.ts, on failure:
 const failureSummary = buildFailureSummary(agent, logs);
-await updateBeanNote(exec, unit.meta.id, failureSummary);
+await updateUnitNote(exec, unit.meta.id, failureSummary);
 ```
 
 Where `buildFailureSummary` produces:
@@ -341,12 +341,12 @@ spawner.ts and prompt.ts.
    via regex from description, reads files, wraps in code blocks. Passed via
    `--append-system-prompt`.
 
-2. **TypeScript (`prompt.ts`):** Used by pi's `bean_run` tool. Passes unit file as
+2. **TypeScript (`prompt.ts`):** Used by pi's `unit_run` tool. Passes unit file as
    `@{path}` reference. Loads RULES.md. Does NOT load referenced files from description
    (that's left to the Rust side or the agent to discover).
 
 The pi extension's prompt.ts does NOT do file context assembly — it relies on the
-`@{bean_path}` file reference to give pi the unit description, and the agent discovers
+`@{unit_path}` file reference to give pi the unit description, and the agent discovers
 files by reading them.
 
 **What research says:** Anthropic's context engineering paper advocates a hybrid approach:
@@ -358,9 +358,9 @@ essential to avoid wasted exploration.
 
 #### 3a. No file content pre-loading in pi extension
 
-When `bean_run` spawns an agent, the agent gets:
+When `unit_run` spawns an agent, the agent gets:
 - System prompt: RULES.md + unit assignment instructions
-- User message: `@{bean_file}` + "implement and mana close"
+- User message: `@{unit_file}` + "implement and mana close"
 
 The agent must then discover and read all referenced files itself. This wastes
 tokens and introduces exploration risk (wrong files, missed context).
@@ -372,7 +372,7 @@ the most critical files in the system prompt:
 ```typescript
 // In buildAgentPrompt:
 const paths = extractPaths(unit.body);
-const workspace = path.resolve(options.beansDir, '..');
+const workspace = path.resolve(options.unitsDir, '..');
 const fileContext = assembleFileContext(paths, workspace, TOKEN_BUDGET);
 if (fileContext) {
   systemParts.push(`# Referenced Files\n\n${fileContext}`);
@@ -530,8 +530,8 @@ then store the diff summary as metadata. When building prompts for units that
 
 **Current state:**
 - `progress.ts` shows live per-agent status (tools, tokens, cost) — good
-- `bean_logs` captures tool activity — good
-- `bean_status` shows aggregate run stats — good
+- `unit_logs` captures tool activity — good
+- `unit_status` shows aggregate run stats — good
 - No persistent evaluation data
 - No success rate tracking
 - No cost-per-unit analytics
@@ -547,7 +547,7 @@ or "Which types of units fail most often?"
 persistent log file (e.g., `.mana/agent_history.jsonl`):
 
 ```json
-{"bean_id":"3.2","attempt":1,"success":true,"duration_secs":47,"tokens":23400,"cost":0.12,"model":"sonnet-4","timestamp":"2026-02-25T00:30:00Z"}
+{"unit_id":"3.2","attempt":1,"success":true,"duration_secs":47,"tokens":23400,"cost":0.12,"model":"sonnet-4","timestamp":"2026-02-25T00:30:00Z"}
 ```
 
 Add a `mana stats agents` command to analyze this data:
@@ -564,7 +564,7 @@ The progress widget shows per-agent costs, but there's no aggregate view across
 all runs in a session or project.
 
 **Recommended:** Track cumulative cost in the run state and surface it in
-`bean_status`:
+`unit_status`:
 
 ```
 Total session cost: $2.47 (18 agents, 412k tokens)
@@ -586,7 +586,7 @@ This is the "continuous evaluation" pattern from production orchestration resear
 ### Implementation
 
 - 5a: Add JSONL logging in `spawner.ts` on completion
-- 5b: Aggregate in `bean_status` tool response
+- 5b: Aggregate in `unit_status` tool response
 - 5c: Future work — needs golden set creation tooling
 
 **Estimated effort:** 5a+5b is 3 hours. 5c is a larger project.

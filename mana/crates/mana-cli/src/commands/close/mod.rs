@@ -124,7 +124,7 @@ pub fn cmd_close(
     }
 
     let mut any_closed = false;
-    let mut rejected_beans = Vec::new();
+    let mut rejected_units = Vec::new();
 
     for id in &ids {
         let outcome = ops_close::close(
@@ -224,7 +224,7 @@ pub fn cmd_close(
             }
             CloseOutcome::RejectedByHook { unit_id } => {
                 eprintln!("Unit {} rejected by pre-close hook", unit_id);
-                rejected_beans.push(unit_id);
+                rejected_units.push(unit_id);
             }
             CloseOutcome::FeatureRequiresHuman {
                 unit_id,
@@ -306,11 +306,11 @@ pub fn cmd_close(
     }
 
     // Report rejected units
-    if !rejected_beans.is_empty() {
+    if !rejected_units.is_empty() {
         eprintln!(
             "Failed to close {} unit(s) due to pre-close hook rejection: {}",
-            rejected_beans.len(),
-            rejected_beans.join(", ")
+            rejected_units.len(),
+            rejected_units.join(", ")
         );
     }
 

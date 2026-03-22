@@ -14,37 +14,37 @@ pub fn log_dir() -> Result<PathBuf> {
 
 /// Find the most recent log file for a unit.
 ///
-/// Log files follow the pattern `{bean_id}-{timestamp}.log` in the log directory.
-/// The bean_id in filenames has dots replaced with underscores for filesystem safety.
-pub fn find_latest_log(bean_id: &str) -> Result<Option<PathBuf>> {
+/// Log files follow the pattern `{unit_id}-{timestamp}.log` in the log directory.
+/// The unit_id in filenames has dots replaced with underscores for filesystem safety.
+pub fn find_latest_log(unit_id: &str) -> Result<Option<PathBuf>> {
     let dir = log_dir()?;
-    let logs = find_all_logs_in(bean_id, &dir)?;
+    let logs = find_all_logs_in(unit_id, &dir)?;
     Ok(logs.into_iter().last())
 }
 
 /// Find all log files for a unit, sorted oldest to newest.
-pub fn find_all_logs(bean_id: &str) -> Result<Vec<PathBuf>> {
+pub fn find_all_logs(unit_id: &str) -> Result<Vec<PathBuf>> {
     let dir = log_dir()?;
-    find_all_logs_in(bean_id, &dir)
+    find_all_logs_in(unit_id, &dir)
 }
 
 /// Find all logs for a unit in a specific directory.
-fn find_all_logs_in(bean_id: &str, dir: &Path) -> Result<Vec<PathBuf>> {
+fn find_all_logs_in(unit_id: &str, dir: &Path) -> Result<Vec<PathBuf>> {
     if !dir.exists() {
         return Ok(Vec::new());
     }
 
     // Unit IDs may contain dots (e.g. "5.1"), which get encoded as underscores
     // in filenames. Match both the raw id and underscore-encoded form.
-    let safe_id = bean_id.replace('.', "_");
+    let safe_id = unit_id.replace('.', "_");
 
     let mut logs: Vec<PathBuf> = std::fs::read_dir(dir)?
         .filter_map(|entry| entry.ok())
         .map(|entry| entry.path())
         .filter(|path| {
             let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-            // Match patterns: {bean_id}-*.log or {safe_id}-*.log
-            (name.starts_with(&format!("{}-", bean_id))
+            // Match patterns: {unit_id}-*.log or {safe_id}-*.log
+            (name.starts_with(&format!("{}-", unit_id))
                 || name.starts_with(&format!("{}-", safe_id)))
                 && name.ends_with(".log")
         })
@@ -88,10 +88,10 @@ pub fn cmd_logs(mana_dir: &Path, id: &str, follow: bool, all: bool) -> Result<()
 }
 
 /// Try to find a log path — first from agents.json, then from filesystem search.
-fn find_log_path(bean_id: &str) -> Result<Option<PathBuf>> {
+fn find_log_path(unit_id: &str) -> Result<Option<PathBuf>> {
     // Check agents.json for a log_path hint
     if let Ok(agents) = super::agents::load_agents() {
-        if let Some(entry) = agents.get(bean_id) {
+        if let Some(entry) = agents.get(unit_id) {
             if let Some(ref log_path) = entry.log_path {
                 let path = PathBuf::from(log_path);
                 if path.exists() {
@@ -102,7 +102,7 @@ fn find_log_path(bean_id: &str) -> Result<Option<PathBuf>> {
     }
 
     // Fall back to filesystem search
-    find_latest_log(bean_id)
+    find_latest_log(unit_id)
 }
 
 /// Print a log file to stdout.
@@ -127,13 +127,13 @@ fn follow_log(path: &Path) -> Result<()> {
 }
 
 /// Show all log files for a unit with headers.
-fn show_all_logs(bean_id: &str) -> Result<()> {
-    let logs = find_all_logs(bean_id)?;
+fn show_all_logs(unit_id: &str) -> Result<()> {
+    let logs = find_all_logs(unit_id)?;
 
     if logs.is_empty() {
         anyhow::bail!(
             "No logs for unit {}. Has it been dispatched with mana run?",
-            bean_id
+            unit_id
         );
     }
 
@@ -156,7 +156,7 @@ fn show_all_logs(bean_id: &str) -> Result<()> {
     }
 
     println!();
-    println!("{} log file(s) for unit {}", logs.len(), bean_id);
+    println!("{} log file(s) for unit {}", logs.len(), unit_id);
 
     Ok(())
 }
@@ -174,7 +174,7 @@ mod tests {
     #[test]
     fn find_latest_log_returns_none_for_unknown() {
         // For a unit ID that's very unlikely to have logs
-        let result = find_latest_log("nonexistent_bean_99999").unwrap();
+        let result = find_latest_log("nonexistent_unit_99999").unwrap();
         assert!(result.is_none());
     }
 
@@ -186,7 +186,7 @@ mod tests {
     }
 
     #[test]
-    fn find_all_logs_in_matches_bean_id() {
+    fn find_all_logs_in_matches_unit_id() {
         let dir = tempfile::tempdir().unwrap();
 
         // Create some log files
@@ -243,7 +243,7 @@ mod tests {
 
     #[test]
     fn find_all_logs_nonexistent_dir() {
-        let path = Path::new("/tmp/definitely_not_a_real_beans_dir_xyz");
+        let path = Path::new("/tmp/definitely_not_a_real_mana_dir_xyz");
         let logs = find_all_logs_in("1", path).unwrap();
         assert!(logs.is_empty());
     }

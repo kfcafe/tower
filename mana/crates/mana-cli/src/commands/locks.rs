@@ -28,7 +28,7 @@ pub fn cmd_locks(mana_dir: &Path) -> Result<()> {
 
         eprintln!(
             "  {} — unit {} (pid {}, {})",
-            lock.info.file_path, lock.info.bean_id, lock.info.pid, age_str
+            lock.info.file_path, lock.info.unit_id, lock.info.pid, age_str
         );
     }
 

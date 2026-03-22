@@ -2,12 +2,12 @@ use std::path::Path;
 
 use anyhow::Result;
 
-use crate::index::{count_bean_formats, ArchiveIndex, Index};
+use crate::index::{count_unit_formats, ArchiveIndex, Index};
 
 /// Force rebuild index unconditionally from YAML files
 pub fn cmd_sync(mana_dir: &Path) -> Result<()> {
     // Check for mixed formats before building
-    let (md_count, yaml_count) = count_bean_formats(mana_dir)?;
+    let (md_count, yaml_count) = count_unit_formats(mana_dir)?;
 
     let index = Index::build(mana_dir)?;
     let count = index.units.len();
@@ -57,16 +57,16 @@ mod tests {
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
 
-        let bean1 = Unit::new("1", "Task one");
-        let bean2 = Unit::new("2", "Task two");
+        let unit1 = Unit::new("1", "Task one");
+        let unit2 = Unit::new("2", "Task two");
 
-        let slug1 = title_to_slug(&bean1.title);
-        let slug2 = title_to_slug(&bean2.title);
+        let slug1 = title_to_slug(&unit1.title);
+        let slug2 = title_to_slug(&unit2.title);
 
-        bean1
+        unit1
             .to_file(mana_dir.join(format!("1-{}.md", slug1)))
             .unwrap();
-        bean2
+        unit2
             .to_file(mana_dir.join(format!("2-{}.md", slug2)))
             .unwrap();
 
@@ -83,7 +83,7 @@ mod tests {
     }
 
     #[test]
-    fn sync_counts_beans() {
+    fn sync_counts_units() {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -126,19 +126,19 @@ mod tests {
         let archive_dir = mana_dir.join("archive").join("2026").join("03");
         fs::create_dir_all(&archive_dir).unwrap();
 
-        let mut bean1 = Unit::new("10", "Archived ten");
-        bean1.status = crate::unit::Status::Closed;
-        bean1.is_archived = true;
-        let slug1 = title_to_slug(&bean1.title);
-        bean1
+        let mut unit1 = Unit::new("10", "Archived ten");
+        unit1.status = crate::unit::Status::Closed;
+        unit1.is_archived = true;
+        let slug1 = title_to_slug(&unit1.title);
+        unit1
             .to_file(archive_dir.join(format!("10-{}.md", slug1)))
             .unwrap();
 
-        let mut bean2 = Unit::new("20", "Archived twenty");
-        bean2.status = crate::unit::Status::Closed;
-        bean2.is_archived = true;
-        let slug2 = title_to_slug(&bean2.title);
-        bean2
+        let mut unit2 = Unit::new("20", "Archived twenty");
+        unit2.status = crate::unit::Status::Closed;
+        unit2.is_archived = true;
+        let slug2 = title_to_slug(&unit2.title);
+        unit2
             .to_file(archive_dir.join(format!("20-{}.md", slug2)))
             .unwrap();
 

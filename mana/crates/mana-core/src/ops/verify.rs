@@ -34,9 +34,9 @@ pub struct VerifyResult {
 ///
 /// If the unit has no verify command, returns `Ok(None)`.
 pub fn run_verify(mana_dir: &Path, id: &str) -> Result<Option<VerifyResult>> {
-    let bean_path = find_unit_file(mana_dir, id).map_err(|_| anyhow!("Unit not found: {}", id))?;
+    let unit_path = find_unit_file(mana_dir, id).map_err(|_| anyhow!("Unit not found: {}", id))?;
     let unit =
-        Unit::from_file(&bean_path).with_context(|| format!("Failed to load unit: {}", id))?;
+        Unit::from_file(&unit_path).with_context(|| format!("Failed to load unit: {}", id))?;
 
     let verify_cmd = match &unit.verify {
         Some(cmd) if !cmd.trim().is_empty() => cmd.clone(),
@@ -215,7 +215,7 @@ mod tests {
     }
 
     #[test]
-    fn verify_nonexistent_bean() {
+    fn verify_nonexistent_unit() {
         let (_dir, bd) = setup();
         assert!(run_verify(&bd, "99").is_err());
     }

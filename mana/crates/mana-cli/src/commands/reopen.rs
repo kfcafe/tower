@@ -12,18 +12,18 @@ use crate::unit::Unit;
 /// Sets status=open, clears closed_at and close_reason.
 /// Updates updated_at and rebuilds index.
 pub fn cmd_reopen(mana_dir: &Path, id: &str) -> Result<()> {
-    let bean_path =
+    let unit_path =
         find_unit_file(mana_dir, id).with_context(|| format!("Unit not found: {}", id))?;
 
     let mut unit =
-        Unit::from_file(&bean_path).with_context(|| format!("Failed to load unit: {}", id))?;
+        Unit::from_file(&unit_path).with_context(|| format!("Failed to load unit: {}", id))?;
 
     unit.status = crate::unit::Status::Open;
     unit.closed_at = None;
     unit.close_reason = None;
     unit.updated_at = Utc::now();
 
-    unit.to_file(&bean_path)
+    unit.to_file(&unit_path)
         .with_context(|| format!("Failed to save unit: {}", id))?;
 
     // Rebuild index
@@ -44,7 +44,7 @@ mod tests {
     use std::fs;
     use tempfile::TempDir;
 
-    fn setup_test_beans_dir() -> (TempDir, std::path::PathBuf) {
+    fn setup_test_mana_dir() -> (TempDir, std::path::PathBuf) {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -52,8 +52,8 @@ mod tests {
     }
 
     #[test]
-    fn test_reopen_closed_bean() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
+    fn test_reopen_closed_unit() {
+        let (_dir, mana_dir) = setup_test_mana_dir();
         let mut unit = Unit::new("1", "Task");
         unit.status = Status::Closed;
         unit.closed_at = Some(Utc::now());
@@ -72,15 +72,15 @@ mod tests {
     }
 
     #[test]
-    fn test_reopen_nonexistent_bean() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
+    fn test_reopen_nonexistent_unit() {
+        let (_dir, mana_dir) = setup_test_mana_dir();
         let result = cmd_reopen(&mana_dir, "99");
         assert!(result.is_err());
     }
 
     #[test]
     fn test_reopen_updates_updated_at() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
+        let (_dir, mana_dir) = setup_test_mana_dir();
         let mut unit = Unit::new("1", "Task");
         unit.status = Status::Closed;
         unit.closed_at = Some(Utc::now());
@@ -100,7 +100,7 @@ mod tests {
 
     #[test]
     fn test_reopen_rebuilds_index() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
+        let (_dir, mana_dir) = setup_test_mana_dir();
         let mut unit = Unit::new("1", "Task");
         unit.status = Status::Closed;
         let slug = title_to_slug(&unit.title);
@@ -115,8 +115,8 @@ mod tests {
     }
 
     #[test]
-    fn test_reopen_open_bean() {
-        let (_dir, mana_dir) = setup_test_beans_dir();
+    fn test_reopen_open_unit() {
+        let (_dir, mana_dir) = setup_test_mana_dir();
         let unit = Unit::new("1", "Task");
         let slug = title_to_slug(&unit.title);
         unit.to_file(mana_dir.join(format!("1-{}.md", slug)))

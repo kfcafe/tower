@@ -44,7 +44,7 @@ pub enum ReviewVerdict {
 pub struct ReviewArgs {
     /// Unit ID to review.
     pub id: String,
-    /// Override model (passed as BEAN_REVIEW_MODEL env var to the agent).
+    /// Override model (passed as MANA_REVIEW_MODEL env var to the agent).
     pub model: Option<String>,
     /// Include only the git diff, not the full unit description.
     pub diff_only: bool,
@@ -61,10 +61,10 @@ pub struct ReviewArgs {
 pub fn cmd_review(mana_dir: &Path, args: ReviewArgs) -> Result<()> {
     let config = Config::load_with_extends(mana_dir)?;
 
-    let bean_path = find_unit_file(mana_dir, &args.id)
+    let unit_path = find_unit_file(mana_dir, &args.id)
         .with_context(|| format!("Unit not found: {}", args.id))?;
     let unit =
-        Unit::from_file(&bean_path).with_context(|| format!("Failed to load unit: {}", args.id))?;
+        Unit::from_file(&unit_path).with_context(|| format!("Failed to load unit: {}", args.id))?;
 
     // Enforce max_reopens to prevent infinite review loops.
     // Count how many times review has previously reopened this unit by
@@ -105,7 +105,7 @@ pub fn cmd_review(mana_dir: &Path, args: ReviewArgs) -> Result<()> {
         return Ok(());
     };
 
-    // Model precedence: CLI override > bean-level > config review_model > no substitution
+    // Model precedence: CLI override > unit-level > config review_model > no substitution
     let effective_model = args
         .model
         .as_deref()
@@ -119,15 +119,15 @@ pub fn cmd_review(mana_dir: &Path, args: ReviewArgs) -> Result<()> {
     let mut child_cmd = Command::new("sh");
     child_cmd
         .args(["-c", &cmd_str])
-        // Pass full context via env so agent can read it from $BEAN_REVIEW_CONTEXT
-        .env("BEAN_REVIEW_CONTEXT", &context)
-        .env("BEAN_REVIEW_ID", &args.id)
-        .env("BEAN_REVIEW_MODE", "1")
+        // Pass full context via env so agent can read it from $MANA_REVIEW_CONTEXT
+        .env("MANA_REVIEW_CONTEXT", &context)
+        .env("MANA_REVIEW_ID", &args.id)
+        .env("MANA_REVIEW_MODE", "1")
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit());
 
     if let Some(ref model) = args.model {
-        child_cmd.env("BEAN_REVIEW_MODEL", model);
+        child_cmd.env("MANA_REVIEW_MODEL", model);
     }
 
     let output = child_cmd
@@ -137,7 +137,7 @@ pub fn cmd_review(mana_dir: &Path, args: ReviewArgs) -> Result<()> {
     let stdout = String::from_utf8_lossy(&output.stdout);
     let verdict = parse_verdict(&stdout);
 
-    apply_verdict(mana_dir, &args.id, &bean_path, verdict)?;
+    apply_verdict(mana_dir, &args.id, &unit_path, verdict)?;
 
     Ok(())
 }
@@ -265,11 +265,11 @@ pub fn parse_verdict(output: &str) -> ReviewVerdict {
 pub fn apply_verdict(
     mana_dir: &Path,
     id: &str,
-    bean_path: &PathBuf,
+    unit_path: &PathBuf,
     verdict: ReviewVerdict,
 ) -> Result<()> {
     let mut unit =
-        Unit::from_file(bean_path).with_context(|| format!("Failed to reload unit: {}", id))?;
+        Unit::from_file(unit_path).with_context(|| format!("Failed to reload unit: {}", id))?;
 
     match verdict {
         ReviewVerdict::Approve => {
@@ -280,7 +280,7 @@ pub fn apply_verdict(
             // Remove review-failed if it was set from a previous review cycle
             unit.labels.retain(|l| l != "review-failed");
             unit.updated_at = Utc::now();
-            unit.to_file(bean_path)
+            unit.to_file(unit_path)
                 .with_context(|| format!("Failed to save unit: {}", id))?;
         }
 
@@ -310,7 +310,7 @@ pub fn apply_verdict(
             unit.closed_at = None;
             unit.close_reason = None;
             unit.updated_at = Utc::now();
-            unit.to_file(bean_path)
+            unit.to_file(unit_path)
                 .with_context(|| format!("Failed to save unit: {}", id))?;
         }
 
@@ -329,7 +329,7 @@ pub fn apply_verdict(
                 None => unit.notes = Some(review_note),
             }
             unit.updated_at = Utc::now();
-            unit.to_file(bean_path)
+            unit.to_file(unit_path)
                 .with_context(|| format!("Failed to save unit: {}", id))?;
         }
     }
@@ -444,7 +444,7 @@ mod tests {
     }
 
     #[test]
-    fn apply_verdict_request_changes_reopens_bean() {
+    fn apply_verdict_request_changes_reopens_unit() {
         let (_dir, mana_dir) = setup();
         let mut unit = Unit::new("1", "Test unit");
         unit.status = Status::Closed;

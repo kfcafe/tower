@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 
-use crate::discovery::archive_path_for_bean;
+use crate::discovery::archive_path_for_unit;
 use crate::index::{ArchiveIndex, IndexEntry};
 use crate::unit::Unit;
 use crate::util::title_to_slug;
@@ -10,18 +10,18 @@ use crate::util::title_to_slug;
 /// Move a closed unit to the dated archive directory.
 /// Updates the unit's `is_archived` flag and writes to the archive path.
 /// Returns the archive path.
-pub(crate) fn archive_bean(mana_dir: &Path, unit: &mut Unit, bean_path: &Path) -> Result<PathBuf> {
+pub(crate) fn archive_unit(mana_dir: &Path, unit: &mut Unit, unit_path: &Path) -> Result<PathBuf> {
     let id = &unit.id;
     let slug = unit
         .slug
         .clone()
         .unwrap_or_else(|| title_to_slug(&unit.title));
-    let ext = bean_path
+    let ext = unit_path
         .extension()
         .and_then(|e| e.to_str())
         .unwrap_or("md");
     let today = chrono::Local::now().naive_local().date();
-    let archive_path = archive_path_for_bean(mana_dir, id, &slug, ext, today);
+    let archive_path = archive_path_for_unit(mana_dir, id, &slug, ext, today);
 
     // Create archive directories if needed
     if let Some(parent) = archive_path.parent() {
@@ -30,7 +30,7 @@ pub(crate) fn archive_bean(mana_dir: &Path, unit: &mut Unit, bean_path: &Path) -
     }
 
     // Move the unit file to archive
-    std::fs::rename(bean_path, &archive_path)
+    std::fs::rename(unit_path, &archive_path)
         .with_context(|| format!("Failed to move unit {} to archive", id))?;
 
     // Update unit metadata to mark as archived

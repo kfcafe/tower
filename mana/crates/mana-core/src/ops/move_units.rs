@@ -19,7 +19,7 @@ pub struct MoveResult {
 /// Resolve a path to a `.mana/` directory.
 ///
 /// Accepts either a path ending in `.mana/` or a project directory containing `.mana/`.
-pub fn resolve_beans_dir(path: &Path) -> Result<PathBuf> {
+pub fn resolve_mana_dir(path: &Path) -> Result<PathBuf> {
     if path.is_dir() && path.file_name().is_some_and(|n| n == ".mana") {
         return Ok(path.to_path_buf());
     }
@@ -43,7 +43,7 @@ pub fn resolve_beans_dir(path: &Path) -> Result<PathBuf> {
 /// Clears parent, dependencies, and claim fields on the moved unit.
 ///
 /// Returns a map of old_id -> new_id.
-pub fn move_beans(source_dir: &Path, dest_dir: &Path, ids: &[String]) -> Result<MoveResult> {
+pub fn move_units(source_dir: &Path, dest_dir: &Path, ids: &[String]) -> Result<MoveResult> {
     let source_canonical = source_dir
         .canonicalize()
         .with_context(|| format!("Failed to resolve source path: {}", source_dir.display()))?;
@@ -107,17 +107,17 @@ pub fn move_beans(source_dir: &Path, dest_dir: &Path, ids: &[String]) -> Result<
 /// Move units from another project into this one.
 pub fn move_from(mana_dir: &Path, from: &str, ids: &[String]) -> Result<MoveResult> {
     let from_path = PathBuf::from(from);
-    let source_dir = resolve_beans_dir(&from_path)
+    let source_dir = resolve_mana_dir(&from_path)
         .with_context(|| format!("Failed to resolve --from: {}", from))?;
-    move_beans(&source_dir, mana_dir, ids)
+    move_units(&source_dir, mana_dir, ids)
 }
 
 /// Move units from this project into another one.
 pub fn move_to(mana_dir: &Path, to: &str, ids: &[String]) -> Result<MoveResult> {
     let to_path = PathBuf::from(to);
     let dest_dir =
-        resolve_beans_dir(&to_path).with_context(|| format!("Failed to resolve --to: {}", to))?;
-    move_beans(mana_dir, &dest_dir, ids)
+        resolve_mana_dir(&to_path).with_context(|| format!("Failed to resolve --to: {}", to))?;
+    move_units(mana_dir, &dest_dir, ids)
 }
 
 #[cfg(test)]
@@ -126,7 +126,7 @@ mod tests {
     use crate::util::title_to_slug;
     use tempfile::TempDir;
 
-    fn setup_beans_dir(name: &str) -> (TempDir, PathBuf) {
+    fn setup_mana_dir(name: &str) -> (TempDir, PathBuf) {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -166,7 +166,7 @@ mod tests {
         (dir, mana_dir)
     }
 
-    fn create_test_bean(mana_dir: &Path, id: &str, title: &str) {
+    fn create_test_unit(mana_dir: &Path, id: &str, title: &str) {
         let mut unit = Unit::new(id, title);
         unit.slug = Some(title_to_slug(title));
         unit.verify = Some("true".to_string());
@@ -176,32 +176,32 @@ mod tests {
     }
 
     #[test]
-    fn move_single_bean() {
-        let (_src_dir, src_beans) = setup_beans_dir("source");
-        let (_dst_dir, dst_beans) = setup_beans_dir("dest");
+    fn move_single_unit() {
+        let (_src_dir, src_units) = setup_mana_dir("source");
+        let (_dst_dir, dst_units) = setup_mana_dir("dest");
 
-        create_test_bean(&src_beans, "1", "Fix login bug");
+        create_test_unit(&src_units, "1", "Fix login bug");
 
-        let result = move_beans(&src_beans, &dst_beans, &["1".to_string()]).unwrap();
+        let result = move_units(&src_units, &dst_units, &["1".to_string()]).unwrap();
 
         assert_eq!(result.id_map.get("1"), Some(&"1".to_string()));
-        assert!(!src_beans.join("1-fix-login-bug.md").exists());
-        assert!(dst_beans.join("1-fix-login-bug.md").exists());
+        assert!(!src_units.join("1-fix-login-bug.md").exists());
+        assert!(dst_units.join("1-fix-login-bug.md").exists());
     }
 
     #[test]
     fn move_fails_for_same_directory() {
-        let (_dir, mana_dir) = setup_beans_dir("same");
-        create_test_bean(&mana_dir, "1", "Task");
+        let (_dir, mana_dir) = setup_mana_dir("same");
+        create_test_unit(&mana_dir, "1", "Task");
 
-        let result = move_beans(&mana_dir, &mana_dir, &["1".to_string()]);
+        let result = move_units(&mana_dir, &mana_dir, &["1".to_string()]);
         assert!(result.is_err());
     }
 
     #[test]
     fn move_clears_parent_and_deps() {
-        let (_src_dir, src_beans) = setup_beans_dir("source");
-        let (_dst_dir, dst_beans) = setup_beans_dir("dest");
+        let (_src_dir, src_units) = setup_mana_dir("source");
+        let (_dst_dir, dst_units) = setup_mana_dir("dest");
 
         let mut unit = Unit::new("1.1", "Child task");
         unit.slug = Some("child-task".to_string());
@@ -209,12 +209,12 @@ mod tests {
         unit.parent = Some("1".to_string());
         unit.dependencies = vec!["5".to_string()];
         unit.claimed_by = Some("agent-1".to_string());
-        unit.to_file(src_beans.join("1.1-child-task.md")).unwrap();
+        unit.to_file(src_units.join("1.1-child-task.md")).unwrap();
 
-        let result = move_beans(&src_beans, &dst_beans, &["1.1".to_string()]).unwrap();
+        let result = move_units(&src_units, &dst_units, &["1.1".to_string()]).unwrap();
 
         let new_id = result.id_map.get("1.1").unwrap();
-        let moved = Unit::from_file(dst_beans.join(format!("{}-child-task.md", new_id))).unwrap();
+        let moved = Unit::from_file(dst_units.join(format!("{}-child-task.md", new_id))).unwrap();
 
         assert!(moved.parent.is_none());
         assert!(moved.dependencies.is_empty());
@@ -222,12 +222,12 @@ mod tests {
     }
 
     #[test]
-    fn resolve_with_beans_dir() {
+    fn resolve_with_mana_dir() {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
 
-        let result = resolve_beans_dir(&mana_dir).unwrap();
+        let result = resolve_mana_dir(&mana_dir).unwrap();
         assert_eq!(result, mana_dir);
     }
 
@@ -237,14 +237,14 @@ mod tests {
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
 
-        let result = resolve_beans_dir(dir.path()).unwrap();
+        let result = resolve_mana_dir(dir.path()).unwrap();
         assert_eq!(result, mana_dir);
     }
 
     #[test]
-    fn resolve_fails_for_no_beans() {
+    fn resolve_fails_for_no_units() {
         let dir = TempDir::new().unwrap();
-        let result = resolve_beans_dir(dir.path());
+        let result = resolve_mana_dir(dir.path());
         assert!(result.is_err());
     }
 }

@@ -87,7 +87,7 @@ mod tests {
         (dir, mana_dir)
     }
 
-    fn create_archived_bean(mana_dir: &Path, id: &str, title: &str) -> std::path::PathBuf {
+    fn create_archived_unit(mana_dir: &Path, id: &str, title: &str) -> std::path::PathBuf {
         let archive_dir = mana_dir.join("archive").join("2026").join("01");
         fs::create_dir_all(&archive_dir).unwrap();
 
@@ -95,17 +95,17 @@ mod tests {
         unit.is_archived = true;
 
         let slug = title_to_slug(title);
-        let bean_path = archive_dir.join(format!("{}-{}.md", id, slug));
-        unit.to_file(&bean_path).unwrap();
+        let unit_path = archive_dir.join(format!("{}-{}.md", id, slug));
+        unit.to_file(&unit_path).unwrap();
 
-        bean_path
+        unit_path
     }
 
     #[test]
     fn unarchive_basic() {
         let (_dir, mana_dir) = setup();
 
-        let archived_path = create_archived_bean(&mana_dir, "1", "Task");
+        let archived_path = create_archived_unit(&mana_dir, "1", "Task");
         assert!(archived_path.exists());
 
         let result = unarchive(&mana_dir, "1").unwrap();
@@ -126,7 +126,7 @@ mod tests {
     fn unarchive_updates_index() {
         let (_dir, mana_dir) = setup();
 
-        create_archived_bean(&mana_dir, "1", "Task");
+        create_archived_unit(&mana_dir, "1", "Task");
 
         let initial_index = Index::build(&mana_dir).unwrap();
         assert!(initial_index.units.is_empty());
@@ -170,11 +170,11 @@ mod tests {
     fn unarchive_already_in_main_dir() {
         let (_dir, mana_dir) = setup();
 
-        create_archived_bean(&mana_dir, "1", "Task");
+        create_archived_unit(&mana_dir, "1", "Task");
 
         let main_path = mana_dir.join("1-task.md");
-        let existing_bean = Unit::new("1", "Existing");
-        existing_bean.to_file(&main_path).unwrap();
+        let existing_unit = Unit::new("1", "Existing");
+        existing_unit.to_file(&main_path).unwrap();
 
         let result = unarchive(&mana_dir, "1");
         assert!(result.is_err());

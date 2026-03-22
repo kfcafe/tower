@@ -171,9 +171,9 @@ fn build_tree_recursive(
 /// Shows all dependencies rooted at units with no parents.
 pub fn build_full_graph(index: &Index) -> Result<String> {
     // Find root units (those with no parent)
-    let root_beans: Vec<_> = index.units.iter().filter(|e| e.parent.is_none()).collect();
+    let root_units: Vec<_> = index.units.iter().filter(|e| e.parent.is_none()).collect();
 
-    if root_beans.is_empty() {
+    if root_units.is_empty() {
         return Ok("No units found.".to_string());
     }
 
@@ -195,7 +195,7 @@ pub fn build_full_graph(index: &Index) -> Result<String> {
         index.units.iter().map(|e| (e.id.clone(), e)).collect();
 
     let mut visited = HashSet::new();
-    for root in root_beans {
+    for root in root_units {
         output.push_str(&format!("{} {}\n", root.id, root.title));
         build_tree_recursive(
             &mut output,
@@ -220,8 +220,8 @@ pub fn count_subtree_attempts(mana_dir: &Path, root_id: &str) -> Result<u32> {
     let archived = Index::collect_archived(mana_dir).unwrap_or_default();
 
     // Combine active and archived units
-    let mut all_beans = index.units;
-    all_beans.extend(archived);
+    let mut all_units = index.units;
+    all_units.extend(archived);
 
     let mut total = 0u32;
     let mut stack = vec![root_id.to_string()];
@@ -231,10 +231,10 @@ pub fn count_subtree_attempts(mana_dir: &Path, root_id: &str) -> Result<u32> {
         if !visited.insert(id.clone()) {
             continue;
         }
-        if let Some(entry) = all_beans.iter().find(|b| b.id == id) {
+        if let Some(entry) = all_units.iter().find(|b| b.id == id) {
             total += entry.attempts;
             // Find children
-            for child in all_beans
+            for child in all_units
                 .iter()
                 .filter(|b| b.parent.as_deref() == Some(id.as_str()))
             {
@@ -312,7 +312,7 @@ mod tests {
     use std::fs;
     use tempfile::TempDir;
 
-    fn setup_test_beans(specs: Vec<(&str, Vec<&str>)>) -> (TempDir, std::path::PathBuf) {
+    fn setup_test_units(specs: Vec<(&str, Vec<&str>)>) -> (TempDir, std::path::PathBuf) {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -328,14 +328,14 @@ mod tests {
 
     #[test]
     fn detect_self_cycle() {
-        let (_dir, mana_dir) = setup_test_beans(vec![("1", vec![])]);
+        let (_dir, mana_dir) = setup_test_units(vec![("1", vec![])]);
         let index = Index::build(&mana_dir).unwrap();
         assert!(detect_cycle(&index, "1", "1").unwrap());
     }
 
     #[test]
     fn detect_two_node_cycle() {
-        let (_dir, mana_dir) = setup_test_beans(vec![("1", vec!["2"]), ("2", vec![])]);
+        let (_dir, mana_dir) = setup_test_units(vec![("1", vec!["2"]), ("2", vec![])]);
         let index = Index::build(&mana_dir).unwrap();
         assert!(detect_cycle(&index, "2", "1").unwrap());
         assert!(!detect_cycle(&index, "1", "2").unwrap());
@@ -344,7 +344,7 @@ mod tests {
     #[test]
     fn detect_three_node_cycle() {
         let (_dir, mana_dir) =
-            setup_test_beans(vec![("1", vec!["2"]), ("2", vec!["3"]), ("3", vec![])]);
+            setup_test_units(vec![("1", vec!["2"]), ("2", vec!["3"]), ("3", vec![])]);
         let index = Index::build(&mana_dir).unwrap();
         // If we add 3 -> 1, it creates a cycle
         assert!(detect_cycle(&index, "3", "1").unwrap());
@@ -354,7 +354,7 @@ mod tests {
     #[test]
     fn no_cycle_linear_chain() {
         let (_dir, mana_dir) =
-            setup_test_beans(vec![("1", vec!["2"]), ("2", vec!["3"]), ("3", vec![])]);
+            setup_test_units(vec![("1", vec!["2"]), ("2", vec!["3"]), ("3", vec![])]);
         let index = Index::build(&mana_dir).unwrap();
         assert!(!detect_cycle(&index, "1", "2").unwrap());
         assert!(!detect_cycle(&index, "2", "3").unwrap());
@@ -366,7 +366,7 @@ mod tests {
 
     /// Helper: create units with parent + attempts for subtree tests.
     /// Each spec: (id, parent, attempts)
-    fn setup_subtree_beans(specs: Vec<(&str, Option<&str>, u32)>) -> (TempDir, std::path::PathBuf) {
+    fn setup_subtree_units(specs: Vec<(&str, Option<&str>, u32)>) -> (TempDir, std::path::PathBuf) {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -384,15 +384,15 @@ mod tests {
     }
 
     #[test]
-    fn subtree_attempts_single_bean_no_children() {
-        let (_dir, mana_dir) = setup_subtree_beans(vec![("1", None, 5)]);
+    fn subtree_attempts_single_unit_no_children() {
+        let (_dir, mana_dir) = setup_subtree_units(vec![("1", None, 5)]);
         let total = count_subtree_attempts(&mana_dir, "1").unwrap();
         assert_eq!(total, 5);
     }
 
     #[test]
     fn subtree_attempts_includes_root() {
-        let (_dir, mana_dir) = setup_subtree_beans(vec![
+        let (_dir, mana_dir) = setup_subtree_units(vec![
             ("1", None, 3),
             ("1.1", Some("1"), 2),
             ("1.2", Some("1"), 1),
@@ -404,7 +404,7 @@ mod tests {
 
     #[test]
     fn subtree_attempts_sums_all_descendants() {
-        let (_dir, mana_dir) = setup_subtree_beans(vec![
+        let (_dir, mana_dir) = setup_subtree_units(vec![
             ("1", None, 0),
             ("1.1", Some("1"), 2),
             ("1.2", Some("1"), 3),
@@ -419,7 +419,7 @@ mod tests {
     #[test]
     fn subtree_attempts_subtree_only() {
         // Only counts descendants of the given root, not siblings
-        let (_dir, mana_dir) = setup_subtree_beans(vec![
+        let (_dir, mana_dir) = setup_subtree_units(vec![
             ("1", None, 1),
             ("1.1", Some("1"), 5),
             ("2", None, 10),
@@ -432,14 +432,14 @@ mod tests {
 
     #[test]
     fn subtree_attempts_unknown_root_returns_zero() {
-        let (_dir, mana_dir) = setup_subtree_beans(vec![("1", None, 5)]);
+        let (_dir, mana_dir) = setup_subtree_units(vec![("1", None, 5)]);
         let total = count_subtree_attempts(&mana_dir, "999").unwrap();
         assert_eq!(total, 0);
     }
 
     #[test]
     fn subtree_attempts_zero_attempts_everywhere() {
-        let (_dir, mana_dir) = setup_subtree_beans(vec![
+        let (_dir, mana_dir) = setup_subtree_units(vec![
             ("1", None, 0),
             ("1.1", Some("1"), 0),
             ("1.2", Some("1"), 0),
@@ -449,18 +449,18 @@ mod tests {
     }
 
     #[test]
-    fn subtree_attempts_includes_archived_beans() {
-        let (_dir, mana_dir) = setup_subtree_beans(vec![("1", None, 1), ("1.2", Some("1"), 2)]);
+    fn subtree_attempts_includes_archived_units() {
+        let (_dir, mana_dir) = setup_subtree_units(vec![("1", None, 1), ("1.2", Some("1"), 2)]);
 
         // Create an archived child with attempts
         let archive_dir = mana_dir.join("archive").join("2026").join("02");
         fs::create_dir_all(&archive_dir).unwrap();
-        let mut archived_bean = Unit::new("1.1", "Archived Child");
-        archived_bean.parent = Some("1".to_string());
-        archived_bean.attempts = 3;
-        archived_bean.status = crate::unit::Status::Closed;
-        archived_bean.is_archived = true;
-        archived_bean
+        let mut archived_unit = Unit::new("1.1", "Archived Child");
+        archived_unit.parent = Some("1".to_string());
+        archived_unit.attempts = 3;
+        archived_unit.status = crate::unit::Status::Closed;
+        archived_unit.is_archived = true;
+        archived_unit
             .to_file(archive_dir.join("1.1-archived-child.md"))
             .unwrap();
 

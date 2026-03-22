@@ -31,12 +31,12 @@ pub fn recall(mana_dir: &Path, query: &str, all: bool) -> Result<Vec<RecallMatch
             continue;
         }
 
-        let bean_path = match find_unit_file(mana_dir, &entry.id) {
+        let unit_path = match find_unit_file(mana_dir, &entry.id) {
             Ok(p) => p,
             Err(_) => continue,
         };
 
-        let unit = match Unit::from_file(&bean_path) {
+        let unit = match Unit::from_file(&unit_path) {
             Ok(b) => b,
             Err(_) => continue,
         };
@@ -49,12 +49,12 @@ pub fn recall(mana_dir: &Path, query: &str, all: bool) -> Result<Vec<RecallMatch
     if all {
         let archived = Index::collect_archived(mana_dir).unwrap_or_default();
         for entry in &archived {
-            let bean_path = match find_archived_unit(mana_dir, &entry.id) {
+            let unit_path = match find_archived_unit(mana_dir, &entry.id) {
                 Ok(p) => p,
                 Err(_) => continue,
             };
 
-            let unit = match Unit::from_file(&bean_path) {
+            let unit = match Unit::from_file(&unit_path) {
                 Ok(b) => b,
                 Err(_) => continue,
             };
@@ -134,13 +134,13 @@ fn score_match(unit: &Unit, query_lower: &str) -> Option<u32> {
 mod tests {
     use super::*;
 
-    fn make_bean(id: &str, title: &str) -> Unit {
+    fn make_unit(id: &str, title: &str) -> Unit {
         Unit::new(id, title)
     }
 
     #[test]
     fn score_match_title() {
-        let unit = make_bean("1", "Auth uses RS256");
+        let unit = make_unit("1", "Auth uses RS256");
         assert!(score_match(&unit, "rs256").is_some());
         assert!(score_match(&unit, "auth").is_some());
         assert!(score_match(&unit, "xyz").is_none());
@@ -148,21 +148,21 @@ mod tests {
 
     #[test]
     fn score_match_description() {
-        let mut unit = make_bean("1", "Config");
+        let mut unit = make_unit("1", "Config");
         unit.description = Some("Uses YAML format for configuration".to_string());
         assert!(score_match(&unit, "yaml").is_some());
     }
 
     #[test]
     fn score_match_paths() {
-        let mut unit = make_bean("1", "Config");
+        let mut unit = make_unit("1", "Config");
         unit.paths = vec!["src/auth.rs".to_string()];
         assert!(score_match(&unit, "auth").is_some());
     }
 
     #[test]
     fn title_scores_higher_than_description() {
-        let mut unit = make_bean("1", "Auth module");
+        let mut unit = make_unit("1", "Auth module");
         unit.description = Some("Auth is important".to_string());
         let score = score_match(&unit, "auth").unwrap();
         assert_eq!(score, 15); // Title (10) + Description (5)

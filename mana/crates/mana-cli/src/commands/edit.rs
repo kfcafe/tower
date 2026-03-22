@@ -266,23 +266,23 @@ pub fn load_backup(path: &Path) -> Result<Vec<u8>> {
 /// ```
 pub fn cmd_edit(mana_dir: &Path, id: &str) -> Result<()> {
     // Step 1: Find the unit file
-    let bean_path =
+    let unit_path =
         find_unit_file(mana_dir, id).with_context(|| format!("Unit not found: {}", id))?;
 
     // Step 2: Load the current unit content as backup
-    let backup = load_backup(&bean_path)
+    let backup = load_backup(&unit_path)
         .with_context(|| format!("Failed to load unit for editing: {}", id))?;
 
     // Step 3: Open editor for user to modify the file
     loop {
-        match open_editor(&bean_path) {
+        match open_editor(&unit_path) {
             Ok(()) => {
                 // Step 4: Read the edited content
-                let edited_content = fs::read_to_string(&bean_path)
+                let edited_content = fs::read_to_string(&unit_path)
                     .with_context(|| format!("Failed to read edited unit file: {}", id))?;
 
                 // Step 5: Validate and save the edited content (updates timestamp)
-                match validate_and_save(&bean_path, &edited_content) {
+                match validate_and_save(&unit_path, &edited_content) {
                     Ok(()) => {
                         // Step 6: Rebuild the index to reflect changes
                         rebuild_index_after_edit(mana_dir)
@@ -295,10 +295,10 @@ pub fn cmd_edit(mana_dir: &Path, id: &str) -> Result<()> {
                         // Validation failed - present user with options
                         eprintln!("Validation error: {}", validation_err);
 
-                        match prompt_rollback(&backup, &bean_path) {
+                        match prompt_rollback(&backup, &unit_path) {
                             Ok(()) => {
                                 // Check if file was restored to backup or if user wants to retry
-                                let current = fs::read(&bean_path)
+                                let current = fs::read(&unit_path)
                                     .with_context(|| "Failed to read unit file")?;
 
                                 if current == backup {
@@ -312,7 +312,7 @@ pub fn cmd_edit(mana_dir: &Path, id: &str) -> Result<()> {
                             }
                             Err(e) => {
                                 // User chose abort - restore backup and return error
-                                let _ = fs::write(&bean_path, &backup);
+                                let _ = fs::write(&unit_path, &backup);
                                 return Err(e).context("Edit aborted by user");
                             }
                         }
@@ -324,7 +324,7 @@ pub fn cmd_edit(mana_dir: &Path, id: &str) -> Result<()> {
                 eprintln!("Editor error: {}", editor_err);
 
                 // Attempt rollback
-                match fs::write(&bean_path, &backup) {
+                match fs::write(&unit_path, &backup) {
                     Ok(()) => {
                         return Err(editor_err).context("Editor failed; backup restored");
                     }
@@ -356,7 +356,7 @@ mod tests {
         (dir, file_path)
     }
 
-    fn create_valid_bean_file(content: &str) -> (TempDir, std::path::PathBuf) {
+    fn create_valid_unit_file(content: &str) -> (TempDir, std::path::PathBuf) {
         let dir = TempDir::new().unwrap();
         let file_path = dir.path().join("1-test.md");
         fs::write(&file_path, content).unwrap();
@@ -474,16 +474,16 @@ mod tests {
 
     #[test]
     fn test_validate_and_save_parses_and_validates_yaml() {
-        let bean_content = r#"id: "1"
+        let unit_content = r#"id: "1"
 title: Test Unit
 status: open
 priority: 2
 created_at: "2026-01-26T15:00:00Z"
 updated_at: "2026-01-26T15:00:00Z"
 "#;
-        let (_dir, path) = create_valid_bean_file(bean_content);
+        let (_dir, path) = create_valid_unit_file(unit_content);
 
-        let result = validate_and_save(&path, bean_content);
+        let result = validate_and_save(&path, unit_content);
         assert!(result.is_ok());
 
         // Verify file was written
@@ -493,34 +493,34 @@ updated_at: "2026-01-26T15:00:00Z"
 
     #[test]
     fn test_validate_and_save_updates_timestamp() {
-        let bean_content = r#"id: "1"
+        let unit_content = r#"id: "1"
 title: Test Unit
 status: open
 priority: 2
 created_at: "2026-01-26T15:00:00Z"
 updated_at: "2026-01-26T15:00:00Z"
 "#;
-        let (_dir, path) = create_valid_bean_file(bean_content);
+        let (_dir, path) = create_valid_unit_file(unit_content);
 
         // Save original timestamp
-        let before = Unit::from_string(bean_content).unwrap();
+        let before = Unit::from_string(unit_content).unwrap();
         let before_ts = before.updated_at;
 
         // Wait a tiny bit to ensure time difference
         std::thread::sleep(std::time::Duration::from_millis(10));
 
         // Validate and save
-        validate_and_save(&path, bean_content).unwrap();
+        validate_and_save(&path, unit_content).unwrap();
 
         // Load the saved unit and check timestamp was updated
-        let saved_bean = Unit::from_file(&path).unwrap();
-        assert!(saved_bean.updated_at > before_ts);
+        let saved_unit = Unit::from_file(&path).unwrap();
+        assert!(saved_unit.updated_at > before_ts);
     }
 
     #[test]
     fn test_validate_and_save_rejects_invalid_yaml() {
         let invalid_content = "id: 1\ntitle: Test\nstatus: invalid_status\n";
-        let (_dir, path) = create_valid_bean_file(invalid_content);
+        let (_dir, path) = create_valid_unit_file(invalid_content);
 
         let result = validate_and_save(&path, invalid_content);
         assert!(result.is_err());
@@ -530,16 +530,16 @@ updated_at: "2026-01-26T15:00:00Z"
 
     #[test]
     fn test_validate_and_save_persists_to_disk() {
-        let bean_content = r#"id: "1"
+        let unit_content = r#"id: "1"
 title: Original Title
 status: open
 priority: 2
 created_at: "2026-01-26T15:00:00Z"
 updated_at: "2026-01-26T15:00:00Z"
 "#;
-        let (_dir, path) = create_valid_bean_file(bean_content);
+        let (_dir, path) = create_valid_unit_file(unit_content);
 
-        validate_and_save(&path, bean_content).unwrap();
+        validate_and_save(&path, unit_content).unwrap();
 
         // Read from disk and verify
         let unit = Unit::from_file(&path).unwrap();
@@ -562,7 +562,7 @@ updated_at: "2026-01-26T15:00:00Z"
 
 This is a markdown body.
 "#;
-        let (_dir, path) = create_valid_bean_file(md_content);
+        let (_dir, path) = create_valid_unit_file(md_content);
 
         validate_and_save(&path, md_content).unwrap();
 
@@ -578,7 +578,7 @@ This is a markdown body.
 title: Test
 status: open
 "#; // Missing created_at and updated_at
-        let (_dir, path) = create_valid_bean_file(invalid_content);
+        let (_dir, path) = create_valid_unit_file(invalid_content);
 
         let result = validate_and_save(&path, invalid_content);
         assert!(result.is_err());
@@ -595,14 +595,14 @@ status: open
         fs::create_dir(&mana_dir).unwrap();
 
         // Create a unit file
-        let bean_content = r#"id: "1"
+        let unit_content = r#"id: "1"
 title: Test Unit
 status: open
 priority: 2
 created_at: "2026-01-26T15:00:00Z"
 updated_at: "2026-01-26T15:00:00Z"
 "#;
-        fs::write(mana_dir.join("1-test.md"), bean_content).unwrap();
+        fs::write(mana_dir.join("1-test.md"), unit_content).unwrap();
 
         // Rebuild index
         rebuild_index_after_edit(&mana_dir).unwrap();
@@ -618,19 +618,19 @@ updated_at: "2026-01-26T15:00:00Z"
     }
 
     #[test]
-    fn test_rebuild_index_after_edit_includes_all_beans() {
+    fn test_rebuild_index_after_edit_includes_all_units() {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
 
         // Create multiple units
-        let bean1 = Unit::new("1", "First Unit");
-        let bean2 = Unit::new("2", "Second Unit");
-        let bean3 = Unit::new("3", "Third Unit");
+        let unit1 = Unit::new("1", "First Unit");
+        let unit2 = Unit::new("2", "Second Unit");
+        let unit3 = Unit::new("3", "Third Unit");
 
-        bean1.to_file(mana_dir.join("1-first.md")).unwrap();
-        bean2.to_file(mana_dir.join("2-second.md")).unwrap();
-        bean3.to_file(mana_dir.join("3-third.md")).unwrap();
+        unit1.to_file(mana_dir.join("1-first.md")).unwrap();
+        unit2.to_file(mana_dir.join("2-second.md")).unwrap();
+        unit3.to_file(mana_dir.join("3-third.md")).unwrap();
 
         rebuild_index_after_edit(&mana_dir).unwrap();
 
@@ -668,7 +668,7 @@ updated_at: "2026-01-26T15:00:00Z"
     }
 
     #[test]
-    fn test_rebuild_index_after_edit_invalid_beans_dir() {
+    fn test_rebuild_index_after_edit_invalid_mana_dir() {
         let nonexistent = Path::new("/nonexistent/.mana");
         let result = rebuild_index_after_edit(nonexistent);
         assert!(result.is_err());
@@ -716,18 +716,18 @@ updated_at: "2026-01-26T15:00:00Z"
     #[test]
     fn test_validate_and_save_workflow_full() {
         // Full workflow: backup -> edit -> validate -> save
-        let bean_content = r#"id: "1"
+        let unit_content = r#"id: "1"
 title: Original
 status: open
 priority: 2
 created_at: "2026-01-26T15:00:00Z"
 updated_at: "2026-01-26T15:00:00Z"
 "#;
-        let (_dir, path) = create_valid_bean_file(bean_content);
+        let (_dir, path) = create_valid_unit_file(unit_content);
 
         // Step 1: Backup
         let backup = load_backup(&path).unwrap();
-        assert_eq!(backup, bean_content.as_bytes());
+        assert_eq!(backup, unit_content.as_bytes());
 
         // Step 2: Simulate edit (modify title)
         let edited_content = r#"id: "1"
@@ -742,8 +742,8 @@ updated_at: "2026-01-26T15:00:00Z"
         validate_and_save(&path, edited_content).unwrap();
 
         // Step 4: Verify changes persisted
-        let saved_bean = Unit::from_file(&path).unwrap();
-        assert_eq!(saved_bean.title, "Modified");
+        let saved_unit = Unit::from_file(&path).unwrap();
+        assert_eq!(saved_unit.title, "Modified");
     }
 
     #[test]
@@ -753,8 +753,8 @@ updated_at: "2026-01-26T15:00:00Z"
         fs::create_dir(&mana_dir).unwrap();
 
         // Create initial unit
-        let bean1 = Unit::new("1", "First");
-        bean1.to_file(mana_dir.join("1-first.md")).unwrap();
+        let unit1 = Unit::new("1", "First");
+        unit1.to_file(mana_dir.join("1-first.md")).unwrap();
 
         // Build index
         rebuild_index_after_edit(&mana_dir).unwrap();
@@ -762,8 +762,8 @@ updated_at: "2026-01-26T15:00:00Z"
         assert_eq!(index1.units.len(), 1);
 
         // Add another unit and rebuild
-        let bean2 = Unit::new("2", "Second");
-        bean2.to_file(mana_dir.join("2-second.md")).unwrap();
+        let unit2 = Unit::new("2", "Second");
+        unit2.to_file(mana_dir.join("2-second.md")).unwrap();
 
         rebuild_index_after_edit(&mana_dir).unwrap();
         let index2 = Index::load(&mana_dir).unwrap();
@@ -775,7 +775,7 @@ updated_at: "2026-01-26T15:00:00Z"
     // =====================================================================
 
     #[test]
-    fn test_cmd_edit_finds_bean_by_id() {
+    fn test_cmd_edit_finds_unit_by_id() {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -789,7 +789,7 @@ updated_at: "2026-01-26T15:00:00Z"
     }
 
     #[test]
-    fn test_cmd_edit_fails_for_nonexistent_bean() {
+    fn test_cmd_edit_fails_for_nonexistent_unit() {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -801,33 +801,33 @@ updated_at: "2026-01-26T15:00:00Z"
 
     #[test]
     fn test_cmd_edit_loads_backup_correctly() {
-        let bean_content = r#"id: "1"
+        let unit_content = r#"id: "1"
 title: Test Unit
 status: open
 priority: 2
 created_at: "2026-01-26T15:00:00Z"
 updated_at: "2026-01-26T15:00:00Z"
 "#;
-        let (_dir, path) = create_valid_bean_file(bean_content);
+        let (_dir, path) = create_valid_unit_file(unit_content);
 
         // Load backup
         let backup = load_backup(&path).unwrap();
 
         // Verify backup matches original
-        assert_eq!(backup, bean_content.as_bytes());
+        assert_eq!(backup, unit_content.as_bytes());
     }
 
     #[test]
     fn test_cmd_edit_workflow_backup_edit_save() {
         // Test the complete workflow: backup -> edit -> validate -> save -> index
-        let bean_content = r#"id: "1"
+        let unit_content = r#"id: "1"
 title: Original
 status: open
 priority: 2
 created_at: "2026-01-26T15:00:00Z"
 updated_at: "2026-01-26T15:00:00Z"
 "#;
-        let (_dir, path) = create_valid_bean_file(bean_content);
+        let (_dir, path) = create_valid_unit_file(unit_content);
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -837,7 +837,7 @@ updated_at: "2026-01-26T15:00:00Z"
 
         // Step 1: Backup
         let backup = load_backup(&path).unwrap();
-        assert_eq!(backup, bean_content.as_bytes());
+        assert_eq!(backup, unit_content.as_bytes());
 
         // Step 2: Simulate edit (modify title in memory)
         let edited_content = r#"id: "1"
@@ -855,9 +855,9 @@ updated_at: "2026-01-26T15:00:00Z"
         validate_and_save(&path, edited_content).unwrap();
 
         // Step 5: Verify changes persisted and timestamp updated
-        let saved_bean = Unit::from_file(&path).unwrap();
-        assert_eq!(saved_bean.title, "Modified");
-        assert_ne!(saved_bean.updated_at.to_string(), "2026-01-26T15:00:00Z");
+        let saved_unit = Unit::from_file(&path).unwrap();
+        assert_eq!(saved_unit.title, "Modified");
+        assert_ne!(saved_unit.updated_at.to_string(), "2026-01-26T15:00:00Z");
 
         // Step 6: Rebuild index
         rebuild_index_after_edit(&mana_dir).unwrap();
@@ -868,7 +868,7 @@ updated_at: "2026-01-26T15:00:00Z"
     #[test]
     fn test_cmd_edit_validates_schema_before_save() {
         let invalid_content = "id: 1\ntitle: Test\nstatus: invalid_status\n";
-        let (_dir, path) = create_valid_bean_file(invalid_content);
+        let (_dir, path) = create_valid_unit_file(invalid_content);
 
         let result = validate_and_save(&path, invalid_content);
         assert!(result.is_err(), "Should reject invalid schema");
@@ -877,7 +877,7 @@ updated_at: "2026-01-26T15:00:00Z"
     }
 
     #[test]
-    fn test_cmd_edit_preserves_bean_naming_convention() {
+    fn test_cmd_edit_preserves_unit_naming_convention() {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -907,12 +907,12 @@ updated_at: "2026-01-26T15:00:00Z"
         );
 
         // Verify the unit was updated
-        let updated_bean = Unit::from_file(&original_path).unwrap();
-        assert_eq!(updated_bean.title, "Updated Task");
+        let updated_unit = Unit::from_file(&original_path).unwrap();
+        assert_eq!(updated_unit.title, "Updated Task");
     }
 
     #[test]
-    fn test_cmd_edit_index_rebuild_includes_edited_bean() {
+    fn test_cmd_edit_index_rebuild_includes_edited_unit() {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -926,8 +926,8 @@ updated_at: "2026-01-26T15:00:00Z"
         assert_eq!(index1.units[0].title, "Original");
 
         // Edit the unit
-        let bean_content = fs::read_to_string(mana_dir.join("1-original.md")).unwrap();
-        let modified = bean_content.replace("Original", "Modified");
+        let unit_content = fs::read_to_string(mana_dir.join("1-original.md")).unwrap();
+        let modified = unit_content.replace("Original", "Modified");
         validate_and_save(&mana_dir.join("1-original.md"), &modified).unwrap();
 
         // Rebuild index

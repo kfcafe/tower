@@ -32,18 +32,18 @@ fn api_re_exports_core_types() {
 }
 
 #[test]
-fn api_get_bean_loads_by_id() {
+fn api_get_unit_loads_by_id() {
     let (_dir, mana_dir) = setup_test_env();
-    let unit = get_bean(&mana_dir, "1").unwrap();
+    let unit = get_unit(&mana_dir, "1").unwrap();
     assert_eq!(unit.id, "1");
     assert_eq!(unit.title, "Sample task");
     assert_eq!(unit.status, Status::Open);
 }
 
 #[test]
-fn api_get_bean_not_found() {
+fn api_get_unit_not_found() {
     let (_dir, mana_dir) = setup_test_env();
-    let result = get_bean(&mana_dir, "999");
+    let result = get_unit(&mana_dir, "999");
     assert!(result.is_err());
 }
 
@@ -58,7 +58,7 @@ fn api_load_index_returns_entries() {
 
 #[test]
 fn api_find_mana_dir_discovers_directory() {
-    let (dir, _beans_dir) = setup_test_env();
+    let (dir, _mana_dir) = setup_test_env();
     let found = find_mana_dir(dir.path()).unwrap();
     assert!(found.ends_with(".mana"));
     assert!(found.is_dir());

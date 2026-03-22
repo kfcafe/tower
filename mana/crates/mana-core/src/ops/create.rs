@@ -74,7 +74,7 @@ pub fn create(mana_dir: &Path, params: CreateParams) -> Result<CreateResult> {
 
     let mut config = Config::load(mana_dir)?;
 
-    let bean_id = if let Some(ref parent_id) = params.parent {
+    let unit_id = if let Some(ref parent_id) = params.parent {
         assign_child_id(mana_dir, parent_id)?
     } else {
         let id = config.increment_id();
@@ -83,7 +83,7 @@ pub fn create(mana_dir: &Path, params: CreateParams) -> Result<CreateResult> {
     };
 
     let slug = title_to_slug(&params.title);
-    let mut unit = Unit::new(&bean_id, &params.title);
+    let mut unit = Unit::new(&unit_id, &params.title);
     unit.slug = Some(slug.clone());
     unit.description = params.description;
     unit.acceptance = params.acceptance;
@@ -116,8 +116,8 @@ pub fn create(mana_dir: &Path, params: CreateParams) -> Result<CreateResult> {
         return Err(anyhow!("Pre-create hook rejected unit creation"));
     }
 
-    let bean_path = mana_dir.join(format!("{}-{}.md", bean_id, slug));
-    unit.to_file(&bean_path)?;
+    let unit_path = mana_dir.join(format!("{}-{}.md", unit_id, slug));
+    unit.to_file(&unit_path)?;
     let index = Index::build(mana_dir)?;
     index.save(mana_dir)?;
 
@@ -127,7 +127,7 @@ pub fn create(mana_dir: &Path, params: CreateParams) -> Result<CreateResult> {
 
     Ok(CreateResult {
         unit,
-        path: bean_path,
+        path: unit_path,
     })
 }
 
@@ -217,7 +217,7 @@ pub mod tests {
     use super::*;
     use tempfile::TempDir;
 
-    fn setup_beans_dir() -> (TempDir, PathBuf) {
+    fn setup_mana_dir() -> (TempDir, PathBuf) {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
         fs::create_dir(&mana_dir).unwrap();
@@ -282,7 +282,7 @@ pub mod tests {
 
     #[test]
     fn create_minimal() {
-        let (_dir, bd) = setup_beans_dir();
+        let (_dir, bd) = setup_mana_dir();
         let r = create(&bd, minimal_params("First")).unwrap();
         assert_eq!(r.unit.id, "1");
         assert!(r.path.exists());
@@ -290,14 +290,14 @@ pub mod tests {
 
     #[test]
     fn create_increments() {
-        let (_dir, bd) = setup_beans_dir();
+        let (_dir, bd) = setup_mana_dir();
         assert_eq!(create(&bd, minimal_params("A")).unwrap().unit.id, "1");
         assert_eq!(create(&bd, minimal_params("B")).unwrap().unit.id, "2");
     }
 
     #[test]
     fn create_child() {
-        let (_dir, bd) = setup_beans_dir();
+        let (_dir, bd) = setup_mana_dir();
         create(&bd, minimal_params("Parent")).unwrap();
         let mut p = minimal_params("Child");
         p.parent = Some("1".into());
@@ -306,7 +306,7 @@ pub mod tests {
 
     #[test]
     fn create_rebuilds_index() {
-        let (_dir, bd) = setup_beans_dir();
+        let (_dir, bd) = setup_mana_dir();
         create(&bd, minimal_params("Indexed")).unwrap();
         let index = Index::load(&bd).unwrap();
         assert_eq!(index.units[0].title, "Indexed");

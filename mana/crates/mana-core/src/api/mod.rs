@@ -948,15 +948,15 @@ pub fn record_attempt(mana_dir: &Path, id: &str, attempt: AttemptRecord) -> Resu
     use crate::discovery::find_unit_file;
     use crate::index::Index;
 
-    let bean_path =
+    let unit_path =
         find_unit_file(mana_dir, id).map_err(|_| anyhow::anyhow!("Unit not found: {}", id))?;
-    let mut unit = Unit::from_file(&bean_path)
+    let mut unit = Unit::from_file(&unit_path)
         .map_err(|e| anyhow::anyhow!("Failed to load unit {}: {}", id, e))?;
 
     unit.attempt_log.push(attempt);
     unit.updated_at = chrono::Utc::now();
 
-    unit.to_file(&bean_path)
+    unit.to_file(&unit_path)
         .map_err(|e| anyhow::anyhow!("Failed to save unit {}: {}", id, e))?;
 
     let index = Index::build(mana_dir)?;
@@ -1002,7 +1002,7 @@ pub fn run_verify(mana_dir: &Path, id: &str) -> Result<Option<VerifyResult>> {
 /// Create a verified fact — a unit that encodes checked project knowledge.
 ///
 /// Facts differ from regular units in that they:
-/// - Have `bean_type = "fact"` and the `"fact"` label
+/// - Have `unit_type = "fact"` and the `"fact"` label
 /// - Require a verify command (the verification is the point)
 /// - Have a TTL (default 30 days) after which they are considered stale
 /// - Can reference source file paths for relevance scoring
@@ -1024,7 +1024,7 @@ pub fn run_verify(mana_dir: &Path, id: &str) -> Result<Option<VerifyResult>> {
 ///     ttl_days: Some(90),
 ///     pass_ok: true,
 /// }).unwrap();
-/// println!("Created fact {} (stale after {:?})", r.bean_id, r.unit.stale_after);
+/// println!("Created fact {} (stale after {:?})", r.unit_id, r.unit.stale_after);
 /// ```
 pub fn create_fact(mana_dir: &Path, params: fact::FactParams) -> Result<FactResult> {
     fact::create_fact(mana_dir, params)
@@ -1032,7 +1032,7 @@ pub fn create_fact(mana_dir: &Path, params: fact::FactParams) -> Result<FactResu
 
 /// Verify all facts and report staleness and failures.
 ///
-/// Re-runs the verify command for every unit with `bean_type = "fact"`.
+/// Re-runs the verify command for every unit with `unit_type = "fact"`.
 /// Stale facts (past their `stale_after` date) are reported without re-running.
 /// Facts that require artifacts produced by failing/stale facts are flagged as
 /// "suspect" (up to depth 3 in the dependency chain).
@@ -1057,22 +1057,4 @@ pub fn verify_facts(mana_dir: &Path) -> Result<VerifyFactsResult> {
     fact::verify_facts(mana_dir)
 }
 
-// ---------------------------------------------------------------------------
-// Legacy aliases (keep for backward compatibility during migration)
-// ---------------------------------------------------------------------------
-
-/// Load a unit by ID.
-///
-/// # Deprecated
-/// Use [`get_unit`] instead.
-pub fn get_bean(mana_dir: &Path, id: &str) -> ManaResult<Unit> {
-    get_unit(mana_dir, id)
-}
-
-/// Load an archived unit by ID.
-///
-/// # Deprecated
-/// Use [`get_archived_unit`] instead.
-pub fn get_archived_bean(mana_dir: &Path, id: &str) -> ManaResult<Unit> {
-    get_archived_unit(mana_dir, id)
-}
+// Legacy aliases removed — beans→mana rename complete.

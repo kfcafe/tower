@@ -275,12 +275,12 @@ fn build_description_template(mana_dir: &Path, parent_id: Option<&str>, title: &
 
     // If parent exists, pull context from it
     if let Some(pid) = parent_id {
-        if let Ok(parent_bean) = load_bean_by_id(mana_dir, pid) {
+        if let Ok(parent_unit) = load_unit_by_id(mana_dir, pid) {
             template.push_str(&format!(
                 "<!-- Parent: {} — {} -->\n\n",
-                pid, parent_bean.title
+                pid, parent_unit.title
             ));
-            if let Some(ref desc) = parent_bean.description {
+            if let Some(ref desc) = parent_unit.description {
                 // Extract file references from parent for hints
                 let files: Vec<&str> = desc
                     .lines()
@@ -314,7 +314,7 @@ fn build_description_template(mana_dir: &Path, parent_id: Option<&str>, title: &
 }
 
 /// Load a unit by ID (scans units dir for matching file).
-fn load_bean_by_id(mana_dir: &Path, id: &str) -> Result<crate::unit::Unit> {
+fn load_unit_by_id(mana_dir: &Path, id: &str) -> Result<crate::unit::Unit> {
     use std::fs;
     let prefix = format!("{}-", id);
     let exact_yaml = format!("{}.yaml", id);

@@ -32,32 +32,32 @@ fn setup_mcp_env() -> (TempDir, std::path::PathBuf) {
     .unwrap();
 
     // Unit 1: open with verify (scoped with produces/paths)
-    let mut bean1 = Unit::new("1", "Fix login bug");
-    bean1.slug = Some("fix-login-bug".to_string());
-    bean1.verify = Some("echo pass".to_string());
-    bean1.description = Some("Fix the login authentication flow".to_string());
-    bean1.produces = vec!["LoginFix".to_string()];
-    bean1.paths = vec!["src/login.rs".to_string()];
-    bean1.to_file(mana_dir.join("1-fix-login-bug.md")).unwrap();
+    let mut unit1 = Unit::new("1", "Fix login bug");
+    unit1.slug = Some("fix-login-bug".to_string());
+    unit1.verify = Some("echo pass".to_string());
+    unit1.description = Some("Fix the login authentication flow".to_string());
+    unit1.produces = vec!["LoginFix".to_string()];
+    unit1.paths = vec!["src/login.rs".to_string()];
+    unit1.to_file(mana_dir.join("1-fix-login-bug.md")).unwrap();
 
     // Unit 2: open, depends on 1 (scoped with produces/paths)
-    let mut bean2 = Unit::new("2", "Add tests for login");
-    bean2.slug = Some("add-tests-for-login".to_string());
-    bean2.verify = Some("echo pass".to_string());
-    bean2.dependencies = vec!["1".to_string()];
-    bean2.produces = vec!["LoginTests".to_string()];
-    bean2.paths = vec!["tests/login.rs".to_string()];
-    bean2
+    let mut unit2 = Unit::new("2", "Add tests for login");
+    unit2.slug = Some("add-tests-for-login".to_string());
+    unit2.verify = Some("echo pass".to_string());
+    unit2.dependencies = vec!["1".to_string()];
+    unit2.produces = vec!["LoginTests".to_string()];
+    unit2.paths = vec!["tests/login.rs".to_string()];
+    unit2
         .to_file(mana_dir.join("2-add-tests-for-login.md"))
         .unwrap();
 
     // Unit 3: open goal (no verify, but scoped)
-    let mut bean3 = Unit::new("3", "Refactor auth module");
-    bean3.slug = Some("refactor-auth-module".to_string());
-    bean3.priority = 1;
-    bean3.produces = vec!["AuthRefactor".to_string()];
-    bean3.paths = vec!["src/auth.rs".to_string()];
-    bean3
+    let mut unit3 = Unit::new("3", "Refactor auth module");
+    unit3.slug = Some("refactor-auth-module".to_string());
+    unit3.priority = 1;
+    unit3.produces = vec!["AuthRefactor".to_string()];
+    unit3.paths = vec!["src/auth.rs".to_string()];
+    unit3
         .to_file(mana_dir.join("3-refactor-auth-module.md"))
         .unwrap();
 
@@ -120,14 +120,14 @@ fn mcp_tool_definitions_returns_all_ten_tools() {
     assert_eq!(defs.len(), 10, "Expected 10 tools, got {}", defs.len());
 
     let names: Vec<&str> = defs.iter().map(|t| t.name.as_str()).collect();
-    assert!(names.contains(&"list_beans"));
-    assert!(names.contains(&"show_bean"));
-    assert!(names.contains(&"ready_beans"));
-    assert!(names.contains(&"create_bean"));
-    assert!(names.contains(&"claim_bean"));
-    assert!(names.contains(&"close_bean"));
-    assert!(names.contains(&"verify_bean"));
-    assert!(names.contains(&"context_bean"));
+    assert!(names.contains(&"list_units"));
+    assert!(names.contains(&"show_unit"));
+    assert!(names.contains(&"ready_units"));
+    assert!(names.contains(&"create_unit"));
+    assert!(names.contains(&"claim_unit"));
+    assert!(names.contains(&"close_unit"));
+    assert!(names.contains(&"verify_unit"));
+    assert!(names.contains(&"context_unit"));
     assert!(names.contains(&"status"));
     assert!(names.contains(&"tree"));
 }
@@ -155,23 +155,23 @@ fn mcp_tool_definitions_have_valid_json_schemas() {
 fn mcp_required_tools_have_required_params() {
     let defs = tools::tool_definitions();
 
-    let show = defs.iter().find(|t| t.name == "show_bean").unwrap();
+    let show = defs.iter().find(|t| t.name == "show_unit").unwrap();
     let required = show.input_schema["required"].as_array().unwrap();
     assert!(required.contains(&json!("id")));
 
-    let create = defs.iter().find(|t| t.name == "create_bean").unwrap();
+    let create = defs.iter().find(|t| t.name == "create_unit").unwrap();
     let required = create.input_schema["required"].as_array().unwrap();
     assert!(required.contains(&json!("title")));
 }
 
 // ---------------------------------------------------------------------------
-// Tool handlers: list_beans
+// Tool handlers: list_units
 // ---------------------------------------------------------------------------
 
 #[test]
-fn mcp_list_beans_returns_all_open() {
+fn mcp_list_units_returns_all_open() {
     let (_dir, mana_dir) = setup_mcp_env();
-    let result = tools::handle_tool_call("list_beans", &json!({}), &mana_dir);
+    let result = tools::handle_tool_call("list_units", &json!({}), &mana_dir);
 
     let text = result["content"][0]["text"].as_str().unwrap();
     let parsed: Value = serde_json::from_str(text).unwrap();
@@ -179,9 +179,9 @@ fn mcp_list_beans_returns_all_open() {
 }
 
 #[test]
-fn mcp_list_beans_filter_by_priority() {
+fn mcp_list_units_filter_by_priority() {
     let (_dir, mana_dir) = setup_mcp_env();
-    let result = tools::handle_tool_call("list_beans", &json!({"priority": 1}), &mana_dir);
+    let result = tools::handle_tool_call("list_units", &json!({"priority": 1}), &mana_dir);
 
     let text = result["content"][0]["text"].as_str().unwrap();
     let parsed: Value = serde_json::from_str(text).unwrap();
@@ -190,13 +190,13 @@ fn mcp_list_beans_filter_by_priority() {
 }
 
 // ---------------------------------------------------------------------------
-// Tool handlers: show_bean
+// Tool handlers: show_unit
 // ---------------------------------------------------------------------------
 
 #[test]
-fn mcp_show_bean_returns_full_details() {
+fn mcp_show_unit_returns_full_details() {
     let (_dir, mana_dir) = setup_mcp_env();
-    let result = tools::handle_tool_call("show_bean", &json!({"id": "1"}), &mana_dir);
+    let result = tools::handle_tool_call("show_unit", &json!({"id": "1"}), &mana_dir);
 
     assert!(result.get("isError").is_none());
     let text = result["content"][0]["text"].as_str().unwrap();
@@ -207,9 +207,9 @@ fn mcp_show_bean_returns_full_details() {
 }
 
 #[test]
-fn mcp_show_bean_missing_id_returns_error() {
+fn mcp_show_unit_missing_id_returns_error() {
     let (_dir, mana_dir) = setup_mcp_env();
-    let result = tools::handle_tool_call("show_bean", &json!({}), &mana_dir);
+    let result = tools::handle_tool_call("show_unit", &json!({}), &mana_dir);
 
     assert_eq!(result["isError"], true);
     let text = result["content"][0]["text"].as_str().unwrap();
@@ -217,21 +217,21 @@ fn mcp_show_bean_missing_id_returns_error() {
 }
 
 #[test]
-fn mcp_show_bean_invalid_id_returns_error() {
+fn mcp_show_unit_invalid_id_returns_error() {
     let (_dir, mana_dir) = setup_mcp_env();
-    let result = tools::handle_tool_call("show_bean", &json!({"id": "999"}), &mana_dir);
+    let result = tools::handle_tool_call("show_unit", &json!({"id": "999"}), &mana_dir);
 
     assert_eq!(result["isError"], true);
 }
 
 // ---------------------------------------------------------------------------
-// Tool handlers: ready_beans
+// Tool handlers: ready_units
 // ---------------------------------------------------------------------------
 
 #[test]
-fn mcp_ready_beans_excludes_blocked() {
+fn mcp_ready_units_excludes_blocked() {
     let (_dir, mana_dir) = setup_mcp_env();
-    let result = tools::handle_tool_call("ready_beans", &json!({}), &mana_dir);
+    let result = tools::handle_tool_call("ready_units", &json!({}), &mana_dir);
 
     let text = result["content"][0]["text"].as_str().unwrap();
     let parsed: Value = serde_json::from_str(text).unwrap();
@@ -244,14 +244,14 @@ fn mcp_ready_beans_excludes_blocked() {
 }
 
 // ---------------------------------------------------------------------------
-// Tool handlers: create_bean
+// Tool handlers: create_unit
 // ---------------------------------------------------------------------------
 
 #[test]
-fn mcp_create_bean_basic() {
+fn mcp_create_unit_basic() {
     let (_dir, mana_dir) = setup_mcp_env();
     let result = tools::handle_tool_call(
-        "create_bean",
+        "create_unit",
         &json!({
             "title": "New task from MCP",
             "verify": "echo test",
@@ -273,9 +273,9 @@ fn mcp_create_bean_basic() {
 }
 
 #[test]
-fn mcp_create_bean_missing_title_returns_error() {
+fn mcp_create_unit_missing_title_returns_error() {
     let (_dir, mana_dir) = setup_mcp_env();
-    let result = tools::handle_tool_call("create_bean", &json!({}), &mana_dir);
+    let result = tools::handle_tool_call("create_unit", &json!({}), &mana_dir);
 
     assert_eq!(result["isError"], true);
     let text = result["content"][0]["text"].as_str().unwrap();
@@ -283,10 +283,10 @@ fn mcp_create_bean_missing_title_returns_error() {
 }
 
 #[test]
-fn mcp_create_bean_with_priority() {
+fn mcp_create_unit_with_priority() {
     let (_dir, mana_dir) = setup_mcp_env();
     let result = tools::handle_tool_call(
-        "create_bean",
+        "create_unit",
         &json!({
             "title": "Urgent fix",
             "priority": 0
@@ -302,14 +302,14 @@ fn mcp_create_bean_with_priority() {
 }
 
 // ---------------------------------------------------------------------------
-// Tool handlers: claim_bean
+// Tool handlers: claim_unit
 // ---------------------------------------------------------------------------
 
 #[test]
-fn mcp_claim_bean_sets_in_progress() {
+fn mcp_claim_unit_sets_in_progress() {
     let (_dir, mana_dir) = setup_mcp_env();
     let result = tools::handle_tool_call(
-        "claim_bean",
+        "claim_unit",
         &json!({"id": "1", "by": "cursor-agent"}),
         &mana_dir,
     );
@@ -326,19 +326,19 @@ fn mcp_claim_bean_sets_in_progress() {
 }
 
 #[test]
-fn mcp_claim_bean_already_claimed_returns_error() {
+fn mcp_claim_unit_already_claimed_returns_error() {
     let (_dir, mana_dir) = setup_mcp_env();
 
     // Claim once
     tools::handle_tool_call(
-        "claim_bean",
+        "claim_unit",
         &json!({"id": "1", "by": "agent-1"}),
         &mana_dir,
     );
 
     // Claim again — should fail
     let result = tools::handle_tool_call(
-        "claim_bean",
+        "claim_unit",
         &json!({"id": "1", "by": "agent-2"}),
         &mana_dir,
     );
@@ -349,13 +349,13 @@ fn mcp_claim_bean_already_claimed_returns_error() {
 }
 
 // ---------------------------------------------------------------------------
-// Tool handlers: verify_bean
+// Tool handlers: verify_unit
 // ---------------------------------------------------------------------------
 
 #[test]
-fn mcp_verify_bean_passing() {
+fn mcp_verify_unit_passing() {
     let (_dir, mana_dir) = setup_mcp_env();
-    let result = tools::handle_tool_call("verify_bean", &json!({"id": "1"}), &mana_dir);
+    let result = tools::handle_tool_call("verify_unit", &json!({"id": "1"}), &mana_dir);
 
     assert!(result.get("isError").is_none());
     let text = result["content"][0]["text"].as_str().unwrap();
@@ -365,22 +365,22 @@ fn mcp_verify_bean_passing() {
 }
 
 #[test]
-fn mcp_verify_bean_no_verify_command() {
+fn mcp_verify_unit_no_verify_command() {
     let (_dir, mana_dir) = setup_mcp_env();
-    let result = tools::handle_tool_call("verify_bean", &json!({"id": "3"}), &mana_dir);
+    let result = tools::handle_tool_call("verify_unit", &json!({"id": "3"}), &mana_dir);
 
     let text = result["content"][0]["text"].as_str().unwrap();
     assert!(text.contains("no verify command"));
 }
 
 // ---------------------------------------------------------------------------
-// Tool handlers: close_bean
+// Tool handlers: close_unit
 // ---------------------------------------------------------------------------
 
 #[test]
-fn mcp_close_bean_with_passing_verify() {
+fn mcp_close_unit_with_passing_verify() {
     let (_dir, mana_dir) = setup_mcp_env();
-    let result = tools::handle_tool_call("close_bean", &json!({"id": "1"}), &mana_dir);
+    let result = tools::handle_tool_call("close_unit", &json!({"id": "1"}), &mana_dir);
 
     assert!(result.get("isError").is_none());
     let text = result["content"][0]["text"].as_str().unwrap();
@@ -388,7 +388,7 @@ fn mcp_close_bean_with_passing_verify() {
 }
 
 #[test]
-fn mcp_close_bean_with_failing_verify_returns_error() {
+fn mcp_close_unit_with_failing_verify_returns_error() {
     let (_dir, mana_dir) = setup_mcp_env();
 
     // Create a unit with a failing verify
@@ -399,7 +399,7 @@ fn mcp_close_bean_with_failing_verify_returns_error() {
     let index = Index::build(&mana_dir).unwrap();
     index.save(&mana_dir).unwrap();
 
-    let result = tools::handle_tool_call("close_bean", &json!({"id": "10"}), &mana_dir);
+    let result = tools::handle_tool_call("close_unit", &json!({"id": "10"}), &mana_dir);
 
     assert_eq!(result["isError"], true);
     let text = result["content"][0]["text"].as_str().unwrap();
@@ -407,7 +407,7 @@ fn mcp_close_bean_with_failing_verify_returns_error() {
 }
 
 #[test]
-fn mcp_close_bean_force_skips_verify() {
+fn mcp_close_unit_force_skips_verify() {
     let (_dir, mana_dir) = setup_mcp_env();
 
     // Create a unit with a failing verify
@@ -419,7 +419,7 @@ fn mcp_close_bean_force_skips_verify() {
     index.save(&mana_dir).unwrap();
 
     let result =
-        tools::handle_tool_call("close_bean", &json!({"id": "10", "force": true}), &mana_dir);
+        tools::handle_tool_call("close_unit", &json!({"id": "10", "force": true}), &mana_dir);
 
     assert!(result.get("isError").is_none());
     let text = result["content"][0]["text"].as_str().unwrap();
@@ -436,7 +436,7 @@ fn mcp_create_then_close_roundtrip() {
 
     // Create
     let create_result = tools::handle_tool_call(
-        "create_bean",
+        "create_unit",
         &json!({
             "title": "Roundtrip test",
             "verify": "echo ok"
@@ -448,7 +448,7 @@ fn mcp_create_then_close_roundtrip() {
     assert!(text.contains("Created unit 4"));
 
     // Close
-    let close_result = tools::handle_tool_call("close_bean", &json!({"id": "4"}), &mana_dir);
+    let close_result = tools::handle_tool_call("close_unit", &json!({"id": "4"}), &mana_dir);
     assert!(close_result.get("isError").is_none());
     let text = close_result["content"][0]["text"].as_str().unwrap();
     assert!(text.contains("Closed unit 4"));
@@ -488,7 +488,7 @@ fn mcp_status_overview() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn mcp_tree_shows_all_beans() {
+fn mcp_tree_shows_all_units() {
     let (_dir, mana_dir) = setup_mcp_env();
     let result = tools::handle_tool_call("tree", &json!({}), &mana_dir);
 
@@ -520,13 +520,13 @@ fn mcp_tree_with_parent_child() {
 }
 
 // ---------------------------------------------------------------------------
-// Tool handlers: context_bean
+// Tool handlers: context_unit
 // ---------------------------------------------------------------------------
 
 #[test]
-fn mcp_context_bean_no_paths() {
+fn mcp_context_unit_no_paths() {
     let (_dir, mana_dir) = setup_mcp_env();
-    let result = tools::handle_tool_call("context_bean", &json!({"id": "1"}), &mana_dir);
+    let result = tools::handle_tool_call("context_unit", &json!({"id": "1"}), &mana_dir);
 
     let text = result["content"][0]["text"].as_str().unwrap();
     assert!(text.contains("no file paths"));
@@ -597,7 +597,7 @@ fn mcp_resource_read_rules_present() {
 }
 
 #[test]
-fn mcp_resource_read_bean() {
+fn mcp_resource_read_unit() {
     let (_dir, mana_dir) = setup_mcp_env();
     let contents = resources::handle_resource_read("units://unit/1", &mana_dir).unwrap();
 
@@ -654,7 +654,7 @@ fn mcp_tool_call_result_format_matches_spec() {
 #[test]
 fn mcp_error_result_has_is_error_flag() {
     let (_dir, mana_dir) = setup_mcp_env();
-    let result = tools::handle_tool_call("show_bean", &json!({"id": "999"}), &mana_dir);
+    let result = tools::handle_tool_call("show_unit", &json!({"id": "999"}), &mana_dir);
 
     assert_eq!(result["isError"], true);
     assert!(result["content"].is_array());
