@@ -1,14 +1,27 @@
 use sysinfo::System;
 
 /// Returns available system memory in MB, or None if it can't be determined.
+///
+/// Prefers `available_memory()` (accurate on Linux via MemAvailable).
+/// Falls back to `total_memory - used_memory` on macOS where available_memory
+/// returns 0.
 pub fn available_memory_mb() -> Option<u64> {
     let mut sys = System::new();
     sys.refresh_memory();
+
     let available = sys.available_memory();
-    if available == 0 {
-        None
+    if available > 0 {
+        return Some(available / (1024 * 1024));
+    }
+
+    // Fallback for macOS: available_memory() returns 0, so approximate
+    // with total - used (includes reclaimable cache in "available")
+    let total = sys.total_memory();
+    let used = sys.used_memory();
+    if total > 0 && used < total {
+        Some((total - used) / (1024 * 1024))
     } else {
-        Some(available / (1024 * 1024))
+        None
     }
 }
 
@@ -49,13 +62,12 @@ mod tests {
 
     #[test]
     fn allows_when_unavailable() {
-        // Can't determine memory — allow spawn (don't block on uncertainty)
+        // Can't determine memory — allow spawn rather than block on uncertainty
         assert!(has_sufficient_memory_with(2048, || None));
     }
 
     #[test]
     fn available_memory_returns_something() {
-        // Smoke test: on any real system this should return Some
         let mem = available_memory_mb();
         assert!(mem.is_some(), "expected to read system memory");
         assert!(mem.unwrap() > 0, "expected non-zero available memory");
