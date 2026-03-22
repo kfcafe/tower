@@ -186,6 +186,13 @@ pub struct Config {
     /// collects AwaitingVerify units and runs each unique verify command once.
     #[serde(default, skip_serializing_if = "is_false_bool")]
     pub batch_verify: bool,
+    /// Minimum available system memory (MB) to keep free when spawning agents.
+    /// When set to a non-zero value, `mana run` checks available system memory
+    /// before each agent spawn. If available memory is below this threshold,
+    /// dispatch pauses until a running agent finishes and frees memory.
+    /// Default: 0 (disabled). Recommended: 2048–4096 on a 16GB machine.
+    #[serde(default, skip_serializing_if = "is_zero_u64")]
+    pub memory_reserve_mb: u64,
 }
 
 fn default_auto_close_parent() -> bool {
@@ -206,6 +213,10 @@ fn default_poll_interval() -> u32 {
 
 fn is_false_bool(v: &bool) -> bool {
     !v
+}
+
+fn is_zero_u64(v: &u64) -> bool {
+    *v == 0
 }
 
 impl Default for Config {
@@ -238,6 +249,7 @@ impl Default for Config {
             review_model: None,
             research_model: None,
             batch_verify: false,
+            memory_reserve_mb: 0,
         }
     }
 }
