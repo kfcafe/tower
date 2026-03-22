@@ -1,7 +1,7 @@
 //! Project and global configuration.
 //!
 //! Configuration is stored in `.mana/config.yaml` (project-level) and
-//! `~/.config/units/config.yaml` (global/user-level).
+//! `~/.config/mana/config.yaml` (global/user-level).
 //!
 //! ## Loading config
 //!
@@ -413,10 +413,10 @@ impl Config {
 }
 
 // ---------------------------------------------------------------------------
-// Global config (~/.config/units/config.yaml)
+// Global config (~/.config/mana/config.yaml)
 // ---------------------------------------------------------------------------
 
-/// Minimal global config stored at `~/.config/units/config.yaml`.
+/// Minimal global config stored at `~/.config/mana/config.yaml`.
 /// Only holds user identity fields — project-level config has everything else.
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct GlobalConfig {
@@ -427,26 +427,50 @@ pub struct GlobalConfig {
 }
 
 impl GlobalConfig {
-    /// Path to global config file: `~/.config/units/config.yaml`.
+    /// Path to the new global config file: `~/.config/mana/config.yaml`.
     pub fn path() -> Result<PathBuf> {
+        let home = dirs::home_dir().ok_or_else(|| anyhow!("Cannot determine home directory"))?;
+        Ok(home.join(".config").join("mana").join("config.yaml"))
+    }
+
+    /// Path to the legacy global config file (`~/.config/` + `units/config.yaml`).
+    /// Used as a read-only fallback during migration.
+    fn legacy_path() -> Result<PathBuf> {
         let home = dirs::home_dir().ok_or_else(|| anyhow!("Cannot determine home directory"))?;
         Ok(home.join(".config").join("units").join("config.yaml"))
     }
 
     /// Load global config. Returns Default if file doesn't exist.
+    ///
+    /// Falls back to the legacy `units` config directory if the new path doesn't exist
+    /// but the old one does, to support migration from the old location.
     pub fn load() -> Result<Self> {
         let path = Self::path()?;
-        if !path.exists() {
-            return Ok(Self::default());
+        if path.exists() {
+            let contents = fs::read_to_string(&path)
+                .with_context(|| format!("Failed to read global config at {}", path.display()))?;
+            let config: GlobalConfig = serde_yml::from_str(&contents)
+                .with_context(|| format!("Failed to parse global config at {}", path.display()))?;
+            return Ok(config);
         }
-        let contents = fs::read_to_string(&path)
-            .with_context(|| format!("Failed to read global config at {}", path.display()))?;
-        let config: GlobalConfig = serde_yml::from_str(&contents)
-            .with_context(|| format!("Failed to parse global config at {}", path.display()))?;
-        Ok(config)
+
+        // Backwards-compatible fallback: read from legacy units config path.
+        if let Ok(legacy) = Self::legacy_path() {
+            if legacy.exists() {
+                let contents = fs::read_to_string(&legacy).with_context(|| {
+                    format!("Failed to read legacy global config at {}", legacy.display())
+                })?;
+                let config: GlobalConfig = serde_yml::from_str(&contents).with_context(|| {
+                    format!("Failed to parse legacy global config at {}", legacy.display())
+                })?;
+                return Ok(config);
+            }
+        }
+
+        Ok(Self::default())
     }
 
-    /// Save global config, creating parent directories if needed.
+    /// Save global config to `~/.config/mana/config.yaml`, creating parent directories if needed.
     pub fn save(&self) -> Result<()> {
         let path = Self::path()?;
         if let Some(parent) = path.parent() {
@@ -467,7 +491,7 @@ impl GlobalConfig {
 /// Resolve the current user identity using a priority chain:
 ///
 /// 1. Project config `user` field (from `.mana/config.yaml`)
-/// 2. Global config `user` field (from `~/.config/units/config.yaml`)
+/// 2. Global config `user` field (from `~/.config/mana/config.yaml`)
 /// 3. `git config user.name` (fallback)
 /// 4. `$USER` environment variable (last resort)
 ///
