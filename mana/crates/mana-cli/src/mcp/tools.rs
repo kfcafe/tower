@@ -621,7 +621,7 @@ fn handle_status(mana_dir: &Path) -> Result<String> {
 
     for entry in &index.units {
         match entry.status {
-            Status::InProgress => claimed.push(entry),
+            Status::InProgress | Status::AwaitingVerify => claimed.push(entry),
             Status::Open => {
                 if let Some(reason) = check_blocked(entry, &index) {
                     blocked.push((entry, reason.to_string()));
@@ -770,7 +770,7 @@ fn auto_close_parent(mana_dir: &Path, parent_id: &str) -> Result<()> {
 fn status_icon(status: Status) -> &'static str {
     match status {
         Status::Open => "[ ]",
-        Status::InProgress => "[-]",
+        Status::InProgress | Status::AwaitingVerify => "[-]",
         Status::Closed => "[x]",
     }
 }

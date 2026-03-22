@@ -59,7 +59,7 @@ fn read_status_resource(mana_dir: &Path) -> Result<Vec<ResourceContent>> {
 
     for entry in &index.units {
         match entry.status {
-            crate::unit::Status::InProgress => claimed += 1,
+            crate::unit::Status::InProgress | crate::unit::Status::AwaitingVerify => claimed += 1,
             crate::unit::Status::Closed => closed += 1,
             crate::unit::Status::Open => {
                 if entry.has_verify {

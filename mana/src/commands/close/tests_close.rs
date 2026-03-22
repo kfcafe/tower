@@ -746,6 +746,7 @@ fn setup_test_beans_dir_with_config() -> (TempDir, std::path::PathBuf) {
         plan_model: None,
         review_model: None,
         research_model: None,
+        batch_verify: false,
     };
     config.save(&mana_dir).unwrap();
 
@@ -862,6 +863,7 @@ fn test_auto_close_disabled_via_config() {
         plan_model: None,
         review_model: None,
         research_model: None,
+        batch_verify: false,
     };
     config.save(&mana_dir).unwrap();
 
@@ -1959,6 +1961,7 @@ fn setup_beans_dir_with_max_loops(max_loops: u32) -> (TempDir, std::path::PathBu
         plan_model: None,
         review_model: None,
         research_model: None,
+        batch_verify: false,
     };
     config.save(&mana_dir).unwrap();
 

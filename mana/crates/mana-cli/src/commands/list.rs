@@ -166,7 +166,7 @@ fn get_status_indicator(entry: &IndexEntry, index: &Index) -> (String, String) {
     } else {
         let indicator = match entry.status {
             Status::Open => "[ ]",
-            Status::InProgress => "[-]",
+            Status::InProgress | Status::AwaitingVerify => "[-]",
             Status::Closed => "[x]",
         };
         // Scope warnings are non-blocking annotations

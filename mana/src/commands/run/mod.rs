@@ -888,6 +888,7 @@ mod tests {
             plan_model: None,
             review_model: None,
             research_model: None,
+            batch_verify: false,
         };
         let mode = determine_spawn_mode(&config);
         assert_eq!(
@@ -928,6 +929,7 @@ mod tests {
             plan_model: None,
             review_model: None,
             research_model: None,
+            batch_verify: false,
         };
         let mode = determine_spawn_mode(&config);
         assert_eq!(mode, SpawnMode::Direct);

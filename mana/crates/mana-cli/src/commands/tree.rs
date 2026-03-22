@@ -66,7 +66,7 @@ fn print_tree_node(
     if let Some(entry) = index.units.iter().find(|e| e.id == bean_id) {
         let status_indicator = match entry.status {
             Status::Open => "[ ]",
-            Status::InProgress => "[-]",
+            Status::InProgress | Status::AwaitingVerify => "[-]",
             Status::Closed => "[x]",
         };
 

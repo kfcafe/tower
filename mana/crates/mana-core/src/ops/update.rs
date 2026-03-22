@@ -176,6 +176,7 @@ mod tests {
             plan_model: None,
             review_model: None,
             research_model: None,
+            batch_verify: false,
         }
         .save(&bd)
         .unwrap();

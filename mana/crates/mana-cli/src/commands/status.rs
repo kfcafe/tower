@@ -97,7 +97,7 @@ pub fn cmd_status(json: bool, mana_dir: &Path) -> Result<()> {
             continue;
         }
         match entry.status {
-            Status::InProgress => {
+            Status::InProgress | Status::AwaitingVerify => {
                 claimed.push(entry);
             }
             Status::Open => {

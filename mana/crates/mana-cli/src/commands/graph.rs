@@ -305,7 +305,7 @@ fn render_tree<'a>(
 fn format_node(entry: &IndexEntry, index: &Index) -> String {
     let status_icon = match entry.status {
         Status::Closed => "[✓]",
-        Status::InProgress => "[●]",
+        Status::InProgress | Status::AwaitingVerify => "[●]",
         Status::Open => {
             if check_blocked(entry, index).is_some() {
                 "[!]"

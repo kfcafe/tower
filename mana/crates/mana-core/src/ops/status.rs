@@ -43,7 +43,7 @@ pub fn status(mana_dir: &Path) -> Result<StatusSummary> {
             continue;
         }
         match entry.status {
-            Status::InProgress => {
+            Status::InProgress | Status::AwaitingVerify => {
                 claimed.push(entry.clone());
             }
             Status::Open => {
@@ -188,5 +188,22 @@ mod tests {
         assert!(result.ready.is_empty());
         assert!(result.goals.is_empty());
         assert!(result.blocked.is_empty());
+    }
+
+    #[test]
+    fn awaiting_verify_appears_in_claimed() {
+        let (_dir, mana_dir) = setup();
+
+        let mut unit = Unit::new("1", "Awaiting verify task");
+        unit.verify = Some("cargo test".to_string());
+        unit.status = Status::AwaitingVerify;
+        write_bean(&mana_dir, &unit);
+
+        let result = status(&mana_dir).unwrap();
+
+        assert_eq!(result.claimed.len(), 1);
+        assert_eq!(result.claimed[0].id, "1");
+        assert!(result.ready.is_empty());
+        assert!(result.goals.is_empty());
     }
 }

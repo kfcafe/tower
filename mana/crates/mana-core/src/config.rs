@@ -180,6 +180,12 @@ pub struct Config {
     /// Model to use for project research (`mana plan` with no args). Substituted into `{model}` in templates.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub research_model: Option<String>,
+    /// Enable runner-mediated batch verification (default: false).
+    /// When enabled, `mana run` sets `MANA_BATCH_VERIFY=1` on spawned agents.
+    /// Agents signal completion without running verify inline; the runner
+    /// collects AwaitingVerify units and runs each unique verify command once.
+    #[serde(default, skip_serializing_if = "is_false_bool")]
+    pub batch_verify: bool,
 }
 
 fn default_auto_close_parent() -> bool {
@@ -231,6 +237,7 @@ impl Default for Config {
             plan_model: None,
             review_model: None,
             research_model: None,
+            batch_verify: false,
         }
     }
 }
@@ -577,6 +584,7 @@ mod tests {
             plan_model: None,
             review_model: None,
             research_model: None,
+            batch_verify: false,
         };
 
         config.save(dir.path()).unwrap();
@@ -614,6 +622,7 @@ mod tests {
             plan_model: None,
             review_model: None,
             research_model: None,
+            batch_verify: false,
         };
 
         assert_eq!(config.increment_id(), 1);
@@ -667,6 +676,7 @@ mod tests {
             plan_model: None,
             review_model: None,
             research_model: None,
+            batch_verify: false,
         };
         config.save(dir.path()).unwrap();
 
@@ -719,6 +729,7 @@ mod tests {
             plan_model: None,
             review_model: None,
             research_model: None,
+            batch_verify: false,
         };
         config.save(dir.path()).unwrap();
 
@@ -783,6 +794,7 @@ mod tests {
             plan_model: None,
             review_model: None,
             research_model: None,
+            batch_verify: false,
         };
         config.save(dir.path()).unwrap();
 
@@ -823,6 +835,7 @@ mod tests {
             plan_model: None,
             review_model: None,
             research_model: None,
+            batch_verify: false,
         };
         config.save(dir.path()).unwrap();
 
@@ -873,6 +886,7 @@ mod tests {
             plan_model: None,
             review_model: None,
             research_model: None,
+            batch_verify: false,
         };
         config.save(dir.path()).unwrap();
 
@@ -1097,6 +1111,7 @@ mod tests {
             plan_model: None,
             review_model: None,
             research_model: None,
+            batch_verify: false,
         };
         config.save(dir.path()).unwrap();
 
@@ -1162,6 +1177,7 @@ mod tests {
             plan_model: None,
             review_model: None,
             research_model: None,
+            batch_verify: false,
         };
         config.save(dir.path()).unwrap();
 
@@ -1199,6 +1215,7 @@ mod tests {
             plan_model: None,
             review_model: None,
             research_model: None,
+            batch_verify: false,
         };
         config.save(dir.path()).unwrap();
 
@@ -1249,6 +1266,7 @@ mod tests {
             plan_model: None,
             review_model: None,
             research_model: None,
+            batch_verify: false,
         };
         config.save(dir.path()).unwrap();
 
@@ -1299,6 +1317,7 @@ mod tests {
             plan_model: None,
             review_model: None,
             research_model: None,
+            batch_verify: false,
         };
         config.save(dir.path()).unwrap();
 
@@ -1414,11 +1433,55 @@ mod tests {
             plan_model: None,
             review_model: None,
             research_model: None,
+            batch_verify: false,
         };
 
         config.save(dir.path()).unwrap();
         let loaded = Config::load(dir.path()).unwrap();
 
         assert_eq!(config, loaded);
+    }
+
+    #[test]
+    fn batch_verify_defaults_to_false() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(
+            dir.path().join("config.yaml"),
+            "project: test\nnext_id: 1\n",
+        )
+        .unwrap();
+
+        let loaded = Config::load(dir.path()).unwrap();
+        assert!(!loaded.batch_verify);
+    }
+
+    #[test]
+    fn batch_verify_can_be_enabled() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(
+            dir.path().join("config.yaml"),
+            "project: test\nnext_id: 1\nbatch_verify: true\n",
+        )
+        .unwrap();
+
+        let loaded = Config::load(dir.path()).unwrap();
+        assert!(loaded.batch_verify);
+    }
+
+    #[test]
+    fn batch_verify_not_serialized_when_false() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(
+            dir.path().join("config.yaml"),
+            "project: test\nnext_id: 1\n",
+        )
+        .unwrap();
+
+        let loaded = Config::load(dir.path()).unwrap();
+        assert!(!loaded.batch_verify);
+
+        loaded.save(dir.path()).unwrap();
+        let contents = fs::read_to_string(dir.path().join("config.yaml")).unwrap();
+        assert!(!contents.contains("batch_verify"));
     }
 }

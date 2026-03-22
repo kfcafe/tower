@@ -10,6 +10,8 @@ use serde::{Deserialize, Serialize};
 pub enum Status {
     Open,
     InProgress,
+    /// Agent has finished work; runner will run the verify command on its behalf.
+    AwaitingVerify,
     Closed,
 }
 
@@ -18,6 +20,7 @@ impl std::fmt::Display for Status {
         match self {
             Status::Open => write!(f, "open"),
             Status::InProgress => write!(f, "in_progress"),
+            Status::AwaitingVerify => write!(f, "awaiting_verify"),
             Status::Closed => write!(f, "closed"),
         }
     }
@@ -139,6 +142,23 @@ mod tests {
         assert_eq!(open.trim(), "open");
         assert_eq!(in_progress.trim(), "in_progress");
         assert_eq!(closed.trim(), "closed");
+    }
+
+    #[test]
+    fn awaiting_verify_serializes_as_snake_case() {
+        let yaml = serde_yml::to_string(&Status::AwaitingVerify).unwrap();
+        assert_eq!(yaml.trim(), "awaiting_verify");
+    }
+
+    #[test]
+    fn awaiting_verify_deserializes_from_snake_case() {
+        let status: Status = serde_yml::from_str("awaiting_verify").unwrap();
+        assert_eq!(status, Status::AwaitingVerify);
+    }
+
+    #[test]
+    fn awaiting_verify_display() {
+        assert_eq!(Status::AwaitingVerify.to_string(), "awaiting_verify");
     }
 
     #[test]

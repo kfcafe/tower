@@ -136,6 +136,7 @@ mod tests {
             plan_model: None,
             review_model: None,
             research_model: None,
+            batch_verify: false,
         };
         config.save(&mana_dir).unwrap();
 

@@ -92,7 +92,7 @@ pub fn cmd_recall(mana_dir: &Path, query: &str, all: bool, json: bool) -> Result
             } else {
                 match unit.status {
                     Status::Closed => "✓",
-                    Status::InProgress => "►",
+                    Status::InProgress | Status::AwaitingVerify => "►",
                     Status::Open => "○",
                 }
             };
