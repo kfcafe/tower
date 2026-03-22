@@ -1214,6 +1214,7 @@ dependencies = [
  "glob",
  "imp-llm",
  "libc",
+ "mana-core",
  "regex",
  "serde",
  "serde_json",

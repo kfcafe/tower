@@ -72,11 +72,7 @@ fn lifecycle_create_claim_force_close() {
     let (_dir, mana_dir) = setup_mana_dir();
 
     // Create
-    let r = create_unit(
-        &mana_dir,
-        create_params_with_verify("Fix the bug", "true"),
-    )
-    .unwrap();
+    let r = create_unit(&mana_dir, create_params_with_verify("Fix the bug", "true")).unwrap();
     assert_eq!(r.unit.id, "1");
     assert_eq!(r.unit.title, "Fix the bug");
     assert_eq!(r.unit.status, Status::Open);
@@ -148,7 +144,11 @@ fn lifecycle_verify_passes_and_closes() {
 fn lifecycle_verify_fails_and_stays_open() {
     let (_dir, mana_dir) = setup_mana_dir();
 
-    create_unit(&mana_dir, create_params_with_verify("Failing test", "false")).unwrap();
+    create_unit(
+        &mana_dir,
+        create_params_with_verify("Failing test", "false"),
+    )
+    .unwrap();
     force_claim(&mana_dir, "1");
 
     let outcome = close_unit(
@@ -204,10 +204,7 @@ fn lifecycle_fail_unit_reopens_it() {
     assert!(unit.claimed_by.is_none());
     // Notes should record the failure reason
     assert!(
-        unit.notes
-            .as_deref()
-            .unwrap_or("")
-            .contains("Out of time")
+        unit.notes.as_deref().unwrap_or("").contains("Out of time")
             || unit.close_reason.as_deref().unwrap_or("").contains("Out")
     );
 }
@@ -285,7 +282,12 @@ fn update_unit_fields() {
     assert_eq!(r.unit.title, "Updated title");
     assert_eq!(r.unit.priority, 1);
     assert!(r.unit.labels.contains(&"backend".to_string()));
-    assert!(r.unit.notes.as_deref().unwrap_or("").contains("Added a note"));
+    assert!(r
+        .unit
+        .notes
+        .as_deref()
+        .unwrap_or("")
+        .contains("Added a note"));
 
     // Verify persisted
     let unit = get_unit(&mana_dir, "1").unwrap();
@@ -321,7 +323,11 @@ fn update_notes_appends_rather_than_replaces() {
     let unit = get_unit(&mana_dir, "1").unwrap();
     let notes = unit.notes.as_deref().unwrap_or("");
     assert!(notes.contains("First note"), "First note lost: {}", notes);
-    assert!(notes.contains("Second note"), "Second note missing: {}", notes);
+    assert!(
+        notes.contains("Second note"),
+        "Second note missing: {}",
+        notes
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -359,7 +365,10 @@ fn dependency_resolution_respects_order() {
 
     let pos_1 = order.iter().position(|id| id == "1").unwrap();
     let pos_2 = order.iter().position(|id| id == "2").unwrap();
-    assert!(pos_1 < pos_2, "Unit 1 must come before unit 2 in sort order");
+    assert!(
+        pos_1 < pos_2,
+        "Unit 1 must come before unit 2 in sort order"
+    );
 }
 
 #[test]
@@ -367,7 +376,11 @@ fn ready_units_requires_deps_closed() {
     let (_dir, mana_dir) = setup_mana_dir();
 
     create_unit(&mana_dir, create_params_with_verify("Dep", "true")).unwrap(); // 1
-    create_unit(&mana_dir, create_params_with_verify("Blocked on dep", "true")).unwrap(); // 2
+    create_unit(
+        &mana_dir,
+        create_params_with_verify("Blocked on dep", "true"),
+    )
+    .unwrap(); // 2
 
     add_dep(&mana_dir, "2", "1").unwrap();
 
@@ -377,7 +390,10 @@ fn ready_units_requires_deps_closed() {
     // Only unit 1 should be ready; unit 2 is blocked by unclosed dep
     let ready_ids: Vec<&str> = ready.iter().map(|e| e.id.as_str()).collect();
     assert!(ready_ids.contains(&"1"), "Unit 1 should be ready");
-    assert!(!ready_ids.contains(&"2"), "Unit 2 should be blocked by dep on 1");
+    assert!(
+        !ready_ids.contains(&"2"),
+        "Unit 2 should be blocked by dep on 1"
+    );
 }
 
 #[test]
@@ -390,13 +406,24 @@ fn ready_units_unblocked_after_dep_closed() {
 
     // Close unit 1
     force_claim(&mana_dir, "1");
-    close_unit(&mana_dir, "1", CloseOpts { reason: None, force: true }).unwrap();
+    close_unit(
+        &mana_dir,
+        "1",
+        CloseOpts {
+            reason: None,
+            force: true,
+        },
+    )
+    .unwrap();
 
     // After archiving unit 1, the ready_units() API (index-only) won't see it as closed.
     // Use compute_ready_queue() which checks the archive for satisfied deps.
     let queue = compute_ready_queue(&mana_dir, None, false).unwrap();
     let ready_ids: Vec<&str> = queue.units.iter().map(|u| u.id.as_str()).collect();
-    assert!(ready_ids.contains(&"2"), "Unit 2 should be ready after dep closed (via compute_ready_queue)");
+    assert!(
+        ready_ids.contains(&"2"),
+        "Unit 2 should be ready after dep closed (via compute_ready_queue)"
+    );
 }
 
 #[test]
@@ -458,7 +485,7 @@ fn remove_dep_works() {
 fn dependency_graph_has_correct_structure() {
     let (_dir, mana_dir) = setup_mana_dir();
 
-    create_unit(&mana_dir, create_params("Root")).unwrap();    // 1
+    create_unit(&mana_dir, create_params("Root")).unwrap(); // 1
     create_unit(&mana_dir, create_params("Child A")).unwrap(); // 2
     create_unit(&mana_dir, create_params("Child B")).unwrap(); // 3
 
@@ -737,7 +764,15 @@ fn get_status_returns_correct_counts() {
     create_unit(&mana_dir, create_params_with_verify("Will close", "true")).unwrap();
 
     force_claim(&mana_dir, "2");
-    close_unit(&mana_dir, "2", CloseOpts { reason: None, force: true }).unwrap();
+    close_unit(
+        &mana_dir,
+        "2",
+        CloseOpts {
+            reason: None,
+            force: true,
+        },
+    )
+    .unwrap();
 
     let summary = get_status(&mana_dir).unwrap();
     // There should be at least one open unit and one closed
@@ -760,7 +795,15 @@ fn get_stats_tracks_completion_percentage() {
     assert_eq!(stats_before.total, 2);
 
     force_claim(&mana_dir, "2");
-    close_unit(&mana_dir, "2", CloseOpts { reason: None, force: true }).unwrap();
+    close_unit(
+        &mana_dir,
+        "2",
+        CloseOpts {
+            reason: None,
+            force: true,
+        },
+    )
+    .unwrap();
 
     let stats_after = get_stats(&mana_dir).unwrap();
     // After archive, the active index only has unit A (open). Archived units are
@@ -789,11 +832,17 @@ fn compute_ready_queue_returns_units_with_no_unmet_deps() {
     // Only unit 1 is ready; unit 2's dep is unsatisfied so it won't appear in the
     // ready queue at all — compute_ready_queue only includes units whose deps are met.
     assert!(ready_ids.contains(&"1"), "Unit 1 should be ready");
-    assert!(!ready_ids.contains(&"2"), "Unit 2 should not be in ready queue");
+    assert!(
+        !ready_ids.contains(&"2"),
+        "Unit 2 should not be in ready queue"
+    );
     // In simulation mode unit 2 should appear
     let sim_queue = compute_ready_queue(&mana_dir, None, true).unwrap();
     let sim_ids: Vec<&str> = sim_queue.units.iter().map(|u| u.id.as_str()).collect();
-    assert!(sim_ids.contains(&"2"), "Unit 2 should appear in simulation mode");
+    assert!(
+        sim_ids.contains(&"2"),
+        "Unit 2 should appear in simulation mode"
+    );
 }
 
 #[test]

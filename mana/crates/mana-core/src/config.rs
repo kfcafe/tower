@@ -458,10 +458,16 @@ impl GlobalConfig {
         if let Ok(legacy) = Self::legacy_path() {
             if legacy.exists() {
                 let contents = fs::read_to_string(&legacy).with_context(|| {
-                    format!("Failed to read legacy global config at {}", legacy.display())
+                    format!(
+                        "Failed to read legacy global config at {}",
+                        legacy.display()
+                    )
                 })?;
                 let config: GlobalConfig = serde_yml::from_str(&contents).with_context(|| {
-                    format!("Failed to parse legacy global config at {}", legacy.display())
+                    format!(
+                        "Failed to parse legacy global config at {}",
+                        legacy.display()
+                    )
                 })?;
                 return Ok(config);
             }
