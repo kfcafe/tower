@@ -35,7 +35,7 @@ fn has_sufficient_memory_with(reserve_mb: u64, get_available: impl Fn() -> Optio
     if reserve_mb == 0 {
         return true;
     }
-    get_available().map_or(true, |available| available >= reserve_mb)
+    get_available().is_none_or(|available| available >= reserve_mb)
 }
 
 #[cfg(test)]
