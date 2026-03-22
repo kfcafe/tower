@@ -34,6 +34,7 @@ use mana::commands::{
     cmd_stats, cmd_status, cmd_sync, cmd_tidy, cmd_trace, cmd_tree, cmd_trust, cmd_unarchive,
     cmd_update, cmd_verify, cmd_verify_facts,
     review::{cmd_review, ReviewArgs},
+    review_human::cmd_review_human,
 };
 use mana::discovery::find_mana_dir;
 use mana::index::Index;
@@ -876,17 +877,38 @@ fn main() -> Result<()> {
             )
         }
 
-        Command::Review { id, diff, model } => {
-            validate_unit_id(&id)?;
-            let resolved_id = resolve_unit_id(&id, &mana_dir)?;
-            cmd_review(
-                &mana_dir,
-                ReviewArgs {
-                    id: resolved_id,
-                    model,
-                    diff_only: diff,
-                },
-            )
+        Command::Review {
+            id,
+            approve,
+            request_changes,
+            reject,
+            agent,
+            diff,
+            model,
+        } => {
+            if agent {
+                // Old behavior: AI adversarial review
+                let id = id.ok_or_else(|| anyhow::anyhow!("unit ID required for --agent mode"))?;
+                validate_unit_id(&id)?;
+                let resolved_id = resolve_unit_id(&id, &mana_dir)?;
+                cmd_review(
+                    &mana_dir,
+                    ReviewArgs {
+                        id: resolved_id,
+                        model,
+                        diff_only: diff,
+                    },
+                )
+            } else {
+                // New behavior: human review
+                cmd_review_human(
+                    &mana_dir,
+                    id.as_deref(),
+                    approve,
+                    request_changes.as_deref(),
+                    reject.as_deref(),
+                )
+            }
         }
     }
 }

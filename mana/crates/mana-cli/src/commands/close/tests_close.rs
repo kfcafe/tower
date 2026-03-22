@@ -24,7 +24,7 @@ fn test_close_single_unit() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let archived = crate::discovery::find_archived_unit(&mana_dir, "1").unwrap();
     let updated = Unit::from_file(&archived).unwrap();
@@ -46,6 +46,7 @@ fn test_close_with_reason() {
         &mana_dir,
         vec!["1".to_string()],
         Some("Fixed".to_string()),
+        false,
         false,
     )
     .unwrap();
@@ -81,6 +82,7 @@ fn test_close_multiple_units() {
         vec!["1".to_string(), "2".to_string(), "3".to_string()],
         None,
         false,
+        false,
     )
     .unwrap();
 
@@ -96,14 +98,14 @@ fn test_close_multiple_units() {
 #[test]
 fn test_close_nonexistent_unit() {
     let (_dir, mana_dir) = setup_test_mana_dir();
-    let result = cmd_close(&mana_dir, vec!["99".to_string()], None, false);
+    let result = cmd_close(&mana_dir, vec!["99".to_string()], None, false, false);
     assert!(result.is_err());
 }
 
 #[test]
 fn test_close_no_ids() {
     let (_dir, mana_dir) = setup_test_mana_dir();
-    let result = cmd_close(&mana_dir, vec![], None, false);
+    let result = cmd_close(&mana_dir, vec![], None, false, false);
     assert!(result.is_err());
 }
 
@@ -121,7 +123,7 @@ fn test_close_rebuilds_index() {
         .to_file(mana_dir.join(format!("2-{}.md", slug2)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let index = Index::load(&mana_dir).unwrap();
     assert_eq!(index.units.len(), 1);
@@ -144,7 +146,7 @@ fn test_close_sets_updated_at() {
 
     std::thread::sleep(std::time::Duration::from_millis(10));
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let archived = crate::discovery::find_archived_unit(&mana_dir, "1").unwrap();
     let updated = Unit::from_file(&archived).unwrap();
@@ -160,7 +162,7 @@ fn test_close_with_passing_verify() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let archived = crate::discovery::find_archived_unit(&mana_dir, "1").unwrap();
     let updated = Unit::from_file(&archived).unwrap();
@@ -179,7 +181,7 @@ fn test_close_with_failing_verify_increments_attempts() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let updated =
         Unit::from_file(crate::discovery::find_unit_file(&mana_dir, "1").unwrap()).unwrap();
@@ -199,28 +201,28 @@ fn test_close_with_failing_verify_multiple_attempts() {
         .unwrap();
 
     // First attempt
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
     let updated =
         Unit::from_file(crate::discovery::find_unit_file(&mana_dir, "1").unwrap()).unwrap();
     assert_eq!(updated.attempts, 1);
     assert_eq!(updated.status, Status::Open);
 
     // Second attempt
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
     let updated =
         Unit::from_file(crate::discovery::find_unit_file(&mana_dir, "1").unwrap()).unwrap();
     assert_eq!(updated.attempts, 2);
     assert_eq!(updated.status, Status::Open);
 
     // Third attempt
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
     let updated =
         Unit::from_file(crate::discovery::find_unit_file(&mana_dir, "1").unwrap()).unwrap();
     assert_eq!(updated.attempts, 3);
     assert_eq!(updated.status, Status::Open);
 
     // Fourth attempt
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
     let updated =
         Unit::from_file(crate::discovery::find_unit_file(&mana_dir, "1").unwrap()).unwrap();
     assert_eq!(updated.attempts, 4);
@@ -237,7 +239,7 @@ fn test_close_failure_appends_to_notes() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let updated =
         Unit::from_file(crate::discovery::find_unit_file(&mana_dir, "1").unwrap()).unwrap();
@@ -258,7 +260,7 @@ fn test_close_failure_creates_notes_if_none() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let updated =
         Unit::from_file(crate::discovery::find_unit_file(&mana_dir, "1").unwrap()).unwrap();
@@ -276,7 +278,7 @@ fn test_close_without_verify_still_works() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let archived = crate::discovery::find_archived_unit(&mana_dir, "1").unwrap();
     let updated = Unit::from_file(&archived).unwrap();
@@ -294,7 +296,7 @@ fn test_close_with_force_skips_verify() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, true).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, true, false).unwrap();
 
     let archived = crate::discovery::find_archived_unit(&mana_dir, "1").unwrap();
     let updated = Unit::from_file(&archived).unwrap();
@@ -312,7 +314,7 @@ fn test_close_with_empty_verify_still_closes() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let archived = crate::discovery::find_archived_unit(&mana_dir, "1").unwrap();
     let updated = Unit::from_file(&archived).unwrap();
@@ -330,7 +332,7 @@ fn test_close_with_whitespace_verify_still_closes() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let archived = crate::discovery::find_archived_unit(&mana_dir, "1").unwrap();
     let updated = Unit::from_file(&archived).unwrap();
@@ -347,7 +349,7 @@ fn test_close_with_shell_operators_work() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let archived = crate::discovery::find_archived_unit(&mana_dir, "1").unwrap();
     let updated = Unit::from_file(&archived).unwrap();
@@ -364,7 +366,7 @@ fn test_close_with_pipe_propagates_exit_code() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    let _ = cmd_close(&mana_dir, vec!["1".to_string()], None, false);
+    let _ = cmd_close(&mana_dir, vec!["1".to_string()], None, false, false);
 
     let updated =
         Unit::from_file(crate::discovery::find_unit_file(&mana_dir, "1").unwrap()).unwrap();
@@ -399,7 +401,7 @@ fn test_close_with_passing_pre_close_hook() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let archived = crate::discovery::find_archived_unit(&mana_dir, "1").unwrap();
     let updated = Unit::from_file(&archived).unwrap();
@@ -430,7 +432,7 @@ fn test_close_with_failing_pre_close_hook_blocks_close() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let not_archived = crate::discovery::find_unit_file(&mana_dir, "1");
     assert!(not_archived.is_ok());
@@ -478,6 +480,7 @@ fn test_close_batch_with_mixed_hook_results() {
         vec!["1".to_string(), "2".to_string(), "3".to_string()],
         None,
         false,
+        false,
     )
     .unwrap();
 
@@ -509,7 +512,7 @@ fn test_close_with_untrusted_hooks_silently_skips() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let archived = crate::discovery::find_archived_unit(&mana_dir, "1").unwrap();
     let updated = Unit::from_file(&archived).unwrap();
@@ -529,7 +532,7 @@ fn test_close_with_missing_hook_silently_succeeds() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let archived = crate::discovery::find_archived_unit(&mana_dir, "1").unwrap();
     let updated = Unit::from_file(&archived).unwrap();
@@ -564,6 +567,7 @@ fn test_close_passes_reason_to_pre_close_hook() {
         &mana_dir,
         vec!["1".to_string()],
         Some("Completed".to_string()),
+        false,
         false,
     )
     .unwrap();
@@ -617,6 +621,7 @@ fn test_close_batch_partial_rejection_by_hook() {
         vec!["1".to_string(), "2".to_string(), "3".to_string()],
         None,
         false,
+        false,
     )
     .unwrap();
 
@@ -668,7 +673,7 @@ fn test_post_close_hook_fires_after_successful_close() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     assert!(marker.exists(), "post-close hook should have fired");
 
@@ -701,7 +706,7 @@ fn test_post_close_hook_failure_does_not_prevent_close() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let archived = crate::discovery::find_archived_unit(&mana_dir, "1").unwrap();
     let updated = Unit::from_file(&archived).unwrap();
@@ -777,14 +782,14 @@ fn test_auto_close_parent_when_all_children_closed() {
         .to_file(mana_dir.join(format!("1.2-{}.md", child2_slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1.1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1.1".to_string()], None, false, false).unwrap();
 
     let parent_still_open = crate::discovery::find_unit_file(&mana_dir, "1");
     assert!(parent_still_open.is_ok());
     let parent_unit = Unit::from_file(parent_still_open.unwrap()).unwrap();
     assert_eq!(parent_unit.status, Status::Open);
 
-    cmd_close(&mana_dir, vec!["1.2".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1.2".to_string()], None, false, false).unwrap();
 
     let parent_archived = crate::discovery::find_archived_unit(&mana_dir, "1");
     assert!(parent_archived.is_ok(), "Parent should be auto-archived");
@@ -821,7 +826,7 @@ fn test_no_auto_close_when_children_still_open() {
         .to_file(mana_dir.join(format!("1.2-{}.md", child2_slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1.1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1.1".to_string()], None, false, false).unwrap();
 
     let parent_still_open = crate::discovery::find_unit_file(&mana_dir, "1");
     assert!(parent_still_open.is_ok());
@@ -880,7 +885,7 @@ fn test_auto_close_disabled_via_config() {
         .to_file(mana_dir.join(format!("1.1-{}.md", child_slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1.1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1.1".to_string()], None, false, false).unwrap();
 
     let parent_still_open = crate::discovery::find_unit_file(&mana_dir, "1");
     assert!(parent_still_open.is_ok());
@@ -912,7 +917,7 @@ fn test_auto_close_recursive_grandparent() {
         .to_file(mana_dir.join(format!("1.1.1-{}.md", gc_slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1.1.1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1.1.1".to_string()], None, false, false).unwrap();
 
     let gc_archived = crate::discovery::find_archived_unit(&mana_dir, "1.1.1");
     assert!(gc_archived.is_ok(), "Grandchild should be archived");
@@ -947,7 +952,7 @@ fn test_auto_close_with_no_parent() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let archived = crate::discovery::find_archived_unit(&mana_dir, "1");
     assert!(archived.is_ok());
@@ -979,12 +984,12 @@ fn test_all_children_closed_checks_archived_units() {
         .to_file(mana_dir.join(format!("1.2-{}.md", child2_slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1.1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1.1".to_string()], None, false, false).unwrap();
 
     let child1_archived = crate::discovery::find_archived_unit(&mana_dir, "1.1");
     assert!(child1_archived.is_ok(), "Child 1 should be archived");
 
-    cmd_close(&mana_dir, vec!["1.2".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1.2".to_string()], None, false, false).unwrap();
 
     let parent_archived = crate::discovery::find_archived_unit(&mana_dir, "1");
     assert!(
@@ -1007,7 +1012,7 @@ fn test_feature_unit_not_closed_in_non_tty() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let still_open = crate::discovery::find_unit_file(&mana_dir, "1").unwrap();
     let updated = Unit::from_file(&still_open).unwrap();
@@ -1024,7 +1029,7 @@ fn test_feature_unit_force_still_blocked_in_non_tty() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, true).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, true, false).unwrap();
 
     let still_open = crate::discovery::find_unit_file(&mana_dir, "1").unwrap();
     let updated = Unit::from_file(&still_open).unwrap();
@@ -1056,8 +1061,8 @@ fn test_feature_parent_not_auto_closed() {
         .to_file(mana_dir.join(format!("1.2-{}.md", child2_slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1.1".to_string()], None, false).unwrap();
-    cmd_close(&mana_dir, vec!["1.2".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1.1".to_string()], None, false, false).unwrap();
+    cmd_close(&mana_dir, vec!["1.2".to_string()], None, false, false).unwrap();
 
     let parent_still_open = crate::discovery::find_unit_file(&mana_dir, "1");
     assert!(
@@ -1085,7 +1090,7 @@ fn test_non_feature_parent_still_auto_closes() {
         .to_file(mana_dir.join(format!("1.1-{}.md", child_slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1.1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1.1".to_string()], None, false, false).unwrap();
 
     let parent_archived = crate::discovery::find_archived_unit(&mana_dir, "1");
     assert!(
@@ -1121,7 +1126,7 @@ fn test_feature_grandparent_blocks_recursive_auto_close() {
         .to_file(mana_dir.join(format!("1.1.1-{}.md", c_slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1.1.1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1.1.1".to_string()], None, false, false).unwrap();
 
     assert!(crate::discovery::find_archived_unit(&mana_dir, "1.1.1").is_ok());
 
@@ -1193,7 +1198,7 @@ fn on_close_run_action_executes_command() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     assert!(marker.exists(), "on_close run command should have executed");
 }
@@ -1210,7 +1215,7 @@ fn on_close_notify_action_prints_message() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let archived = crate::discovery::find_archived_unit(&mana_dir, "1").unwrap();
     let updated = Unit::from_file(&archived).unwrap();
@@ -1231,7 +1236,7 @@ fn on_close_run_failure_does_not_prevent_close() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let archived = crate::discovery::find_archived_unit(&mana_dir, "1").unwrap();
     let updated = Unit::from_file(&archived).unwrap();
@@ -1263,7 +1268,7 @@ fn on_close_multiple_actions_all_run() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     assert!(marker1.exists(), "First on_close run should have executed");
     assert!(marker2.exists(), "Second on_close run should have executed");
@@ -1283,7 +1288,7 @@ fn on_close_run_skipped_without_trust() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     assert!(
         !marker.exists(),
@@ -1311,7 +1316,7 @@ fn on_close_runs_in_project_root() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let pwd_output = fs::read_to_string(&pwd_file).unwrap();
     let expected = std::fs::canonicalize(project_root).unwrap();
@@ -1332,7 +1337,7 @@ fn history_failure_creates_run_record() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let updated =
         Unit::from_file(crate::discovery::find_unit_file(&mana_dir, "1").unwrap()).unwrap();
@@ -1358,7 +1363,7 @@ fn history_success_creates_run_record() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let archived = crate::discovery::find_archived_unit(&mana_dir, "1").unwrap();
     let updated = Unit::from_file(&archived).unwrap();
@@ -1378,7 +1383,7 @@ fn history_has_correct_duration() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let archived = crate::discovery::find_archived_unit(&mana_dir, "1").unwrap();
     let updated = Unit::from_file(&archived).unwrap();
@@ -1400,7 +1405,7 @@ fn history_records_exit_code() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let updated =
         Unit::from_file(crate::discovery::find_unit_file(&mana_dir, "1").unwrap()).unwrap();
@@ -1418,9 +1423,9 @@ fn history_multiple_attempts_accumulate() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let updated =
         Unit::from_file(crate::discovery::find_unit_file(&mana_dir, "1").unwrap()).unwrap();
@@ -1444,7 +1449,7 @@ fn history_agent_from_env_var() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     std::env::remove_var("MANA_AGENT");
 
@@ -1462,7 +1467,7 @@ fn history_no_record_without_verify() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let archived = crate::discovery::find_archived_unit(&mana_dir, "1").unwrap();
     let updated = Unit::from_file(&archived).unwrap();
@@ -1481,7 +1486,7 @@ fn history_no_record_when_force_skip() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, true).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, true, false).unwrap();
 
     let archived = crate::discovery::find_archived_unit(&mana_dir, "1").unwrap();
     let updated = Unit::from_file(&archived).unwrap();
@@ -1500,7 +1505,7 @@ fn history_failure_then_success_accumulates() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let mut updated =
         Unit::from_file(crate::discovery::find_unit_file(&mana_dir, "1").unwrap()).unwrap();
@@ -1509,7 +1514,7 @@ fn history_failure_then_success_accumulates() {
         .to_file(crate::discovery::find_unit_file(&mana_dir, "1").unwrap())
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let archived = crate::discovery::find_archived_unit(&mana_dir, "1").unwrap();
     let final_unit = Unit::from_file(&archived).unwrap();
@@ -1539,7 +1544,7 @@ fn on_fail_retry_releases_claim_when_under_max() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let updated =
         Unit::from_file(crate::discovery::find_unit_file(&mana_dir, "1").unwrap()).unwrap();
@@ -1565,7 +1570,7 @@ fn on_fail_retry_keeps_claim_when_at_max() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let updated =
         Unit::from_file(crate::discovery::find_unit_file(&mana_dir, "1").unwrap()).unwrap();
@@ -1591,7 +1596,7 @@ fn on_fail_retry_max_defaults_to_max_attempts() {
         .unwrap();
 
     // First attempt (1 < 3) — should release
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
     let updated =
         Unit::from_file(crate::discovery::find_unit_file(&mana_dir, "1").unwrap()).unwrap();
     assert_eq!(updated.attempts, 1);
@@ -1605,7 +1610,7 @@ fn on_fail_retry_max_defaults_to_max_attempts() {
     unit2
         .to_file(crate::discovery::find_unit_file(&mana_dir, "1").unwrap())
         .unwrap();
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
     let updated =
         Unit::from_file(crate::discovery::find_unit_file(&mana_dir, "1").unwrap()).unwrap();
     assert_eq!(updated.attempts, 2);
@@ -1619,7 +1624,7 @@ fn on_fail_retry_max_defaults_to_max_attempts() {
     unit3
         .to_file(crate::discovery::find_unit_file(&mana_dir, "1").unwrap())
         .unwrap();
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
     let updated =
         Unit::from_file(crate::discovery::find_unit_file(&mana_dir, "1").unwrap()).unwrap();
     assert_eq!(updated.attempts, 3);
@@ -1641,7 +1646,7 @@ fn on_fail_retry_with_delay_releases_claim() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let updated =
         Unit::from_file(crate::discovery::find_unit_file(&mana_dir, "1").unwrap()).unwrap();
@@ -1664,7 +1669,7 @@ fn on_fail_escalate_updates_priority() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let updated =
         Unit::from_file(crate::discovery::find_unit_file(&mana_dir, "1").unwrap()).unwrap();
@@ -1686,7 +1691,7 @@ fn on_fail_escalate_appends_message_to_notes() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let updated =
         Unit::from_file(crate::discovery::find_unit_file(&mana_dir, "1").unwrap()).unwrap();
@@ -1710,7 +1715,7 @@ fn on_fail_escalate_adds_label() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let updated =
         Unit::from_file(crate::discovery::find_unit_file(&mana_dir, "1").unwrap()).unwrap();
@@ -1731,7 +1736,7 @@ fn on_fail_escalate_no_duplicate_label() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let updated =
         Unit::from_file(crate::discovery::find_unit_file(&mana_dir, "1").unwrap()).unwrap();
@@ -1754,7 +1759,7 @@ fn on_fail_none_existing_behavior_unchanged() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let updated =
         Unit::from_file(crate::discovery::find_unit_file(&mana_dir, "1").unwrap()).unwrap();
@@ -1777,7 +1782,7 @@ fn output_capture_json_stdout_stored_as_outputs() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let archived = crate::discovery::find_archived_unit(&mana_dir, "1").unwrap();
     let updated = Unit::from_file(&archived).unwrap();
@@ -1796,7 +1801,7 @@ fn output_capture_non_json_stdout_stored_as_text() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let archived = crate::discovery::find_archived_unit(&mana_dir, "1").unwrap();
     let updated = Unit::from_file(&archived).unwrap();
@@ -1813,7 +1818,7 @@ fn output_capture_empty_stdout_no_outputs() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let archived = crate::discovery::find_archived_unit(&mana_dir, "1").unwrap();
     let updated = Unit::from_file(&archived).unwrap();
@@ -1832,7 +1837,7 @@ fn output_capture_large_stdout_truncated() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let archived = crate::discovery::find_archived_unit(&mana_dir, "1").unwrap();
     let updated = Unit::from_file(&archived).unwrap();
@@ -1854,7 +1859,7 @@ fn output_capture_stderr_not_captured_as_outputs() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let archived = crate::discovery::find_archived_unit(&mana_dir, "1").unwrap();
     let updated = Unit::from_file(&archived).unwrap();
@@ -1873,7 +1878,7 @@ fn output_capture_failure_unchanged() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let updated =
         Unit::from_file(crate::discovery::find_unit_file(&mana_dir, "1").unwrap()).unwrap();
@@ -1893,7 +1898,7 @@ fn output_capture_json_array() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let archived = crate::discovery::find_archived_unit(&mana_dir, "1").unwrap();
     let updated = Unit::from_file(&archived).unwrap();
@@ -1912,7 +1917,7 @@ fn output_capture_mixed_stdout_stderr() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let archived = crate::discovery::find_archived_unit(&mana_dir, "1").unwrap();
     let updated = Unit::from_file(&archived).unwrap();
@@ -1987,7 +1992,7 @@ fn max_loops_circuit_breaker_triggers_at_limit() {
         .to_file(mana_dir.join(format!("1.1-{}.md", child1_slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1.1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1.1".to_string()], None, false, false).unwrap();
 
     let updated =
         Unit::from_file(crate::discovery::find_unit_file(&mana_dir, "1.1").unwrap()).unwrap();
@@ -2019,7 +2024,7 @@ fn max_loops_circuit_breaker_does_not_trigger_below_limit() {
         .to_file(mana_dir.join(format!("1.1-{}.md", child_slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1.1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1.1".to_string()], None, false, false).unwrap();
 
     let updated =
         Unit::from_file(crate::discovery::find_unit_file(&mana_dir, "1.1").unwrap()).unwrap();
@@ -2042,7 +2047,7 @@ fn max_loops_zero_disables_circuit_breaker() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let updated =
         Unit::from_file(crate::discovery::find_unit_file(&mana_dir, "1").unwrap()).unwrap();
@@ -2073,7 +2078,7 @@ fn max_loops_per_unit_overrides_config() {
         .to_file(mana_dir.join(format!("1.1-{}.md", child_slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1.1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1.1".to_string()], None, false, false).unwrap();
 
     let updated =
         Unit::from_file(crate::discovery::find_unit_file(&mana_dir, "1.1").unwrap()).unwrap();
@@ -2101,7 +2106,7 @@ fn max_loops_circuit_breaker_skips_on_fail_retry() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let updated =
         Unit::from_file(crate::discovery::find_unit_file(&mana_dir, "1").unwrap()).unwrap();
@@ -2141,7 +2146,7 @@ fn max_loops_counts_across_siblings() {
         .to_file(mana_dir.join(format!("1.2-{}.md", child_slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1.2".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1.2".to_string()], None, false, false).unwrap();
 
     let updated =
         Unit::from_file(crate::discovery::find_unit_file(&mana_dir, "1.2").unwrap()).unwrap();
@@ -2164,7 +2169,7 @@ fn max_loops_standalone_unit_uses_own_max_loops() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let updated =
         Unit::from_file(crate::discovery::find_unit_file(&mana_dir, "1").unwrap()).unwrap();
@@ -2183,7 +2188,7 @@ fn max_loops_no_config_defaults_to_10() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let updated =
         Unit::from_file(crate::discovery::find_unit_file(&mana_dir, "1").unwrap()).unwrap();
@@ -2205,7 +2210,7 @@ fn max_loops_no_duplicate_label() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let updated =
         Unit::from_file(crate::discovery::find_unit_file(&mana_dir, "1").unwrap()).unwrap();
@@ -2401,7 +2406,14 @@ mod worktree_merge_tests {
         fs::write(worktree_dir.join("feature.txt"), "feature content").unwrap();
 
         // No set_current_dir needed — detect_worktree now takes an explicit path
-        cmd_close(&worktree_mana_dir, vec!["1".to_string()], None, false).unwrap();
+        cmd_close(
+            &worktree_mana_dir,
+            vec!["1".to_string()],
+            None,
+            false,
+            false,
+        )
+        .unwrap();
 
         assert!(
             main_dir.join("feature.txt").exists(),
@@ -2428,7 +2440,14 @@ mod worktree_merge_tests {
             .unwrap();
 
         // No set_current_dir needed
-        cmd_close(&worktree_mana_dir, vec!["1".to_string()], None, false).unwrap();
+        cmd_close(
+            &worktree_mana_dir,
+            vec!["1".to_string()],
+            None,
+            false,
+            false,
+        )
+        .unwrap();
 
         let unit_file = crate::discovery::find_unit_file(&worktree_mana_dir, "1").unwrap();
         let updated = Unit::from_file(&unit_file).unwrap();
@@ -2464,7 +2483,7 @@ mod worktree_merge_tests {
             .unwrap();
 
         // No set_current_dir needed
-        cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+        cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
         let archived = crate::discovery::find_archived_unit(&mana_dir, "1").unwrap();
         let updated = Unit::from_file(&archived).unwrap();
@@ -2485,7 +2504,7 @@ mod worktree_merge_tests {
             .unwrap();
 
         // No set_current_dir needed
-        cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+        cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
         let archived = crate::discovery::find_archived_unit(&mana_dir, "1").unwrap();
         let updated = Unit::from_file(&archived).unwrap();

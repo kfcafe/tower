@@ -707,6 +707,7 @@ dependencies = [
  "glob",
  "libc",
  "mana-core",
+ "mana-review",
  "regex",
  "serde",
  "serde_json",

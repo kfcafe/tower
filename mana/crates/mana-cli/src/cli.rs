@@ -1102,20 +1102,39 @@ Examples:
         display_order = 39,
         after_help = "\
 Examples:
-  mana review 5                  Review unit 5's implementation
-  mana review 5 --diff           Include only git diff (no spec)
-  mana review 5 --model claude   Use a specific model
-  mana run --review              Auto-review after each close"
+  mana review                              Show review queue (units awaiting review)
+  mana review 5                            Open HTML review page for unit 5
+  mana review 5 --approve                  Approve unit 5
+  mana review 5 --request-changes 'fix X'  Request changes with feedback
+  mana review 5 --reject 'wrong approach'  Reject unit 5
+  mana review 5 --agent                    Run AI adversarial review (old behavior)
+  mana review 5 --agent --model claude     AI review with specific model"
     )]
     Review {
-        /// Unit ID to review
-        id: String,
+        /// Unit ID to review (omit to show review queue)
+        id: Option<String>,
 
-        /// Include only the git diff, not the full unit description
+        /// Approve the unit
+        #[arg(long)]
+        approve: bool,
+
+        /// Request changes with feedback message
+        #[arg(long, value_name = "FEEDBACK")]
+        request_changes: Option<String>,
+
+        /// Reject the unit with a reason
+        #[arg(long, value_name = "REASON")]
+        reject: Option<String>,
+
+        /// Run AI adversarial review instead of human review
+        #[arg(long)]
+        agent: bool,
+
+        /// Include only the git diff (agent mode)
         #[arg(long)]
         diff: bool,
 
-        /// Override model for the review agent
+        /// Override model (agent mode)
         #[arg(long)]
         model: Option<String>,
     },

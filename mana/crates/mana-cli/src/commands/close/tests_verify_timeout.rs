@@ -26,7 +26,7 @@ fn verify_timeout_kills_slow_process_and_records_timeout() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let updated =
         Unit::from_file(crate::discovery::find_unit_file(&mana_dir, "1").unwrap()).unwrap();
@@ -57,7 +57,7 @@ fn verify_timeout_does_not_affect_fast_commands() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let archived = crate::discovery::find_archived_unit(&mana_dir, "1").unwrap();
     let updated = Unit::from_file(&archived).unwrap();
@@ -79,7 +79,7 @@ fn verify_timeout_unit_level_overrides_config() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let updated =
         Unit::from_file(crate::discovery::find_unit_file(&mana_dir, "1").unwrap()).unwrap();
@@ -100,7 +100,7 @@ fn verify_timeout_config_level_applies_when_unit_has_none() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let updated =
         Unit::from_file(crate::discovery::find_unit_file(&mana_dir, "1").unwrap()).unwrap();
@@ -119,7 +119,7 @@ fn verify_timeout_appends_to_notes() {
     unit.to_file(mana_dir.join(format!("1-{}.md", slug)))
         .unwrap();
 
-    cmd_close(&mana_dir, vec!["1".to_string()], None, false).unwrap();
+    cmd_close(&mana_dir, vec!["1".to_string()], None, false, false).unwrap();
 
     let updated =
         Unit::from_file(crate::discovery::find_unit_file(&mana_dir, "1").unwrap()).unwrap();
