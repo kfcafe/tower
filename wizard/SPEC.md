@@ -1,6 +1,6 @@
 # Wizard — Canvas-Native Interface for Mana
 
-Status: Draft 0.3  
+Status: Draft 0.4  
 Owner: Wizard project (new workspace)  
 Temporary placement: `wizard/` lives inside the current mana repo for now. See `UMBRELLA.md` for the plan to move all four projects (`mana/`, `imp/`, `wizard/`, `familiar/`) under a shared `tower/` monorepo root.  
 Relationship to existing vision: replaces TUI-first `wizard` with a canvas-first desktop client while preserving `wiz` CLI and headless orchestration.
@@ -474,7 +474,7 @@ Desktop app responsibilities:
 - integrate built-in editor, terminal, and browser panels
 - manage Photon window lifecycle, native panel compositing
 
-The desktop shell is a Photon app — a Zig binary with Bun backend, using Photon's custom rendering engine instead of a system webview. SolidJS runs on JavaScriptCore (via Bun) against Photon's DOM. The backend daemon (`wizard-orch`) remains a separate Rust process; the desktop shell connects to it over a socket using `wizard-proto`.
+The desktop shell is a Photon app — a Zig binary with Bun backend, using Photon's custom rendering engine instead of a system webview. The UI is vanilla TypeScript running on Bun/JSC, manipulating Photon's DOM directly with no framework. The built-in editor is a Rust→WASM engine (ropey + tree-sitter) rendered by Photon's text subsystem. The backend daemon (`wizard-orch`) remains a separate Rust process; the desktop shell connects to it over a socket using `wizard-proto`.
 
 ## 13.5 Rendering Architecture
 
@@ -488,7 +488,7 @@ Wizard is Photon's flagship application — a real, complex, demanding desktop t
 │  ┌─ Layer 1: Canvas + UI + Editor (Photon renderer) ──────────┐   │
 │  │  Photon: custom DOM + CSS + layout + GPU paint (Zig)        │   │
 │  │  JavaScript: JavaScriptCore via Bun                         │   │
-│  │  SolidJS shell + canvas renderer + CodeMirror 6 editor      │   │
+│  │  Vanilla TypeScript UI + Rust→WASM editor engine            │   │
 │  │  All typed cards, edges, semantic zoom, inspector,          │   │
 │  │  command palette, status bar, editor panes                  │   │
 │  └─────────────────────────────────────────────────────────────┘   │
@@ -530,9 +530,9 @@ Wizard is Photon's flagship application — a real, complex, demanding desktop t
 
 The primary surface. Renders the entire canvas, all typed cards, edges, inspector, command palette, status bar, and the built-in editor panes. Photon provides the DOM, CSS resolution, layout, and GPU paint pipeline. JavaScript runs on JavaScriptCore through Bun.
 
-**Framework decision:** use **SolidJS** for the shell and UI bindings. Solid compiles to direct DOM API calls (`createElement`, `appendChild`, `setAttribute`) — no virtual DOM, no abstraction layer. These standard DOM APIs are exactly what Photon implements via its JS DOM bindings. Solid's signal-based reactivity is a natural fit for Wizard's fine-grained state: selection, zoom, card expansion, agent presence, runtime updates.
+**UI decision: vanilla TypeScript, no framework.** The UI is plain TypeScript running on Bun/JSC, manipulating Photon's DOM directly via standard APIs (`createElement`, `appendChild`, `setAttribute`). No SolidJS, no React, no framework. The daemon pushes typed events over the socket; the TypeScript layer finds the relevant DOM nodes and updates them. This is event-driven UI, not reactive UI — simpler, no framework overhead, and no dependency on a JS ecosystem that Photon's DOM may not fully support.
 
-**Built-in editor decision:** use **CodeMirror 6** inside the same rendering layer. CodeMirror is DOM-native and needs precise text measurement, fast DOM mutation, and editor-grade input handling (IME, clipboard, selection). Photon's Phase 2 roadmap targets exactly these capabilities for the VS Code benchmark. Keep a path for an optional Neovim-backed power-user mode later.
+**Built-in editor decision: Rust→WASM engine rendered by Photon.** The editor uses a Rust WASM module for the editing brain (text buffer via `ropey`, syntax highlighting via `tree-sitter`, cursor/selection model, undo/redo, diff computation). Photon's text subsystem handles rendering (monospace grid, syntax-colored tokens, cursor overlay, selection highlight, diff gutters). Keyboard and mouse input flows from Photon → WASM engine → DOM updates. No JavaScript editor library. For heavy editing, "open in external editor" (`$EDITOR`) is always available.
 
 The canvas renderer benefits from Photon's architecture:
 - **GPU-accelerated rendering** via Metal (macOS), Vulkan (Linux), DirectX (Windows) — smooth zoom and pan at scale
@@ -542,11 +542,11 @@ The canvas renderer benefits from Photon's architecture:
 
 Unlike a system webview where DOM-first rendering is a starting point that may need to graduate to canvas/WebGL, Photon IS the GPU renderer. The DOM is rendered directly to the GPU paint pipeline. There is no graduation step.
 
-**Future option — WASM DOM for the graph hot path:**
+**Future option — WASM for the canvas hot path:**
 
-Photon's WASM DOM bindings allow any language compiled to WASM to manipulate the DOM directly, without JavaScript. This opens an architecturally unique option: the performance-critical canvas layer (graph layout, edge drawing, semantic zoom transitions) could be written in Rust, compiled to WASM, and drive Photon's DOM directly. SolidJS handles the UI chrome (inspector, command palette, panels); Rust WASM handles the rendering hot path.
+The editor already uses Rust→WASM via Photon's WASM DOM bindings. The same approach could extend to the canvas layer if vanilla TypeScript DOM manipulation becomes a bottleneck at scale (hundreds of nodes, rapid graph updates). Graph layout computation, edge drawing, and semantic zoom transitions could move to Rust WASM, bypassing JavaScript entirely for the rendering hot path while TypeScript handles UI chrome.
 
-This is an optimization path, not a requirement. SolidJS-only on Photon works for MVP.
+Evaluate after MVP 1 — likely not needed initially.
 
 ### Layer 2 — Terminal panels (libghostty)
 
@@ -612,7 +612,7 @@ All layers run in the same Photon process. The Zig binary manages:
 - Photon renderer: DOM, layout, paint, GPU compositing
 - libghostty PTY lifecycle: spawn, resize, destroy, compose into window
 - Panel layout and docking state (stored in `.wizard/`)
-- Bun runtime: hosts SolidJS app code, provides JSC for DOM scripting
+- Bun runtime: hosts TypeScript UI code, provides JSC for DOM scripting, loads WASM editor module
 
 The UI communicates with the `wizard-orch` daemon over a socket using `wizard-proto`. This is the same protocol the `wiz` CLI uses — the desktop app is just another client of the daemon. The daemon manages orchestration, graph projection, and imp supervision; the desktop app manages rendering, input, and local view state.
 
@@ -620,7 +620,7 @@ The UI communicates with the `wizard-orch` daemon over a socket using `wizard-pr
 
 ```text
 ┌─ Photon Desktop ─────────────────────────────┐
-│  SolidJS (JSC) ←→ Bun backend (TypeScript)   │
+│  TypeScript UI (JSC) ←→ Bun backend           │
 │                    │                          │
 │                    │ WebSocket / Unix socket   │
 │                    ▼                          │
@@ -637,7 +637,7 @@ The UI communicates with the `wizard-orch` daemon over a socket using `wizard-pr
 └───────────────────────────────────────────────┘
 ```
 
-The Bun backend in the Photon process acts as the bridge: it receives user intent from SolidJS via Photon's internal bridge, translates it into `wizard-proto` commands, and forwards them to the daemon. Incoming events and snapshots from the daemon flow back through Bun into the SolidJS reactive state.
+The Bun backend in the Photon process acts as the bridge: it receives user intent from the TypeScript UI layer, translates it into `wizard-proto` commands, and forwards them to the daemon. Incoming events and snapshots from the daemon flow back through Bun into the TypeScript UI layer, which updates the DOM directly.
 
 This separation means:
 - The daemon survives UI closure (headless orchestration continues)
@@ -744,9 +744,25 @@ Add richer agent-emitted artifacts from tool events.
 
 Wizard coordinates code work. The canvas remains the primary surface, but Wizard now includes an integrated editor, terminal, and browser where they directly serve the coordination workflow.
 
-### Editor integration (CodeMirror 6)
+### Editor integration (Rust→WASM + Photon)
 
-Wizard includes a built-in editor for focused code work.
+Wizard includes a built-in editor for focused code work. The editor uses a **Rust→WASM engine** for the editing brain and **Photon's text subsystem** for rendering.
+
+**WASM editor engine (Rust):**
+- Text buffer via `ropey` (rope data structure — efficient for large files)
+- Syntax highlighting via `tree-sitter` (incremental, language-aware, same engine as Zed/Neovim/Helix)
+- Cursor and selection model
+- Undo/redo transaction history
+- Diff computation for review workflows
+- Exposes API to Photon via WASM DOM bindings: insert, delete, get visible lines, get syntax tokens, handle key events
+
+**Photon rendering (Zig):**
+- Monospace text grid with syntax-colored tokens
+- Line numbers gutter
+- Cursor and selection highlighting
+- Scroll container with smooth scrolling
+- Diff gutters (added/removed/changed markers)
+- Input capture: keyboard → WASM engine, mouse clicks → buffer positions
 
 Required actions:
 - open files directly from unit cards, file cards, diffs, and search results
@@ -771,7 +787,8 @@ Required external-editor actions:
 - "open selection in external editor" from the canvas or built-in editor
 
 Future path:
-- optional Neovim-backed power mode for users who want a real editor core with modal editing and existing config
+- optional Neovim-backed power mode for users who want modal editing and existing config
+- richer tree-sitter integration: code folding, symbol outline, semantic navigation
 
 ### Terminal integration (libghostty — Zig-native)
 
@@ -855,7 +872,7 @@ Motion should communicate:
 ## 20. MVP Scope
 
 ### MVP 1 — Read-only graph client on Photon
-- Photon renders Wizard's canvas UI (SolidJS on JSC)
+- Photon renders Wizard's canvas UI (vanilla TypeScript on JSC)
 - socket connection to `wizard-orch` daemon for graph snapshots
 - render mana graph on canvas (Photon DOM + GPU paint)
 - semantic zoom (4 levels)
@@ -863,7 +880,7 @@ Motion should communicate:
 - saved local views in `.wizard/`
 - keyboard navigation and command palette
 
-This is a simpler rendering target than Photon's VS Code benchmark — mostly flexbox cards with text, status badges, and CSS transforms for zoom. Validates the Photon + SolidJS + daemon architecture end-to-end.
+This is a simpler rendering target than Photon's VS Code benchmark — mostly flexbox cards with text, status badges, and CSS transforms for zoom. Validates the Photon + vanilla TypeScript + daemon architecture end-to-end.
 
 ### MVP 2 — Operational controls + terminal + editor
 - run / retry / stop / verify from canvas
@@ -871,7 +888,7 @@ This is a simpler rendering target than Photon's VS Code benchmark — mostly fl
 - active agent cards
 - libghostty integration: Zig-native terminal compositing, verify terminal and quick terminal
 - agent output streaming to terminal panel
-- built-in CodeMirror 6 editor: open, edit, save, jump-to-line (depends on Photon editor-grade input handling)
+- built-in Rust→WASM editor: open, edit, save, jump-to-line (ropey + tree-sitter, rendered by Photon)
 - editor panes attached to focus rooms and file cards
 
 ### MVP 3 — Review and evidence
@@ -948,20 +965,22 @@ Mitigation:
 3. ~~How much low-level tool activity should be exposed by default vs on demand?~~ **Decision: three levels — default summarized runtime, expandable per-agent detail, and raw debug/event stream on demand.**
 4. ~~Should facts be visually separate from work, or embedded directly into work clusters?~~ **Decision: hybrid — separate knowledge map at overview level, embedded facts inside focus rooms.**
 5. ~~Should `wiz` launch the desktop app by default, or remain CLI-first with `wiz open` for GUI?~~ **Decision: open or attach to the desktop app on local GUI sessions; fall back to CLI behavior in headless, SSH, or no-GUI environments.**
-6. ~~Which web framework for the canvas UI layer? React (ecosystem), Solid (performance), Svelte (simplicity), or Leptos (Rust-native via WASM)?~~ **Decision: SolidJS for the shell and UI bindings. Solid compiles to direct DOM API calls, which map cleanly onto Photon's JS DOM bindings.**
+6. ~~Which web framework for the canvas UI layer? React (ecosystem), Solid (performance), Svelte (simplicity), or Leptos (Rust-native via WASM)?~~ **Decision (revised): no framework. Vanilla TypeScript on Bun/JSC, manipulating Photon's DOM directly. Event-driven updates from the daemon, not reactive framework patterns. No SolidJS, no React — simpler, no ecosystem dependency, no framework-DOM compatibility concerns.**
 7. ~~libghostty integration path — wrapper crate, Tauri native views, or direct Zig integration?~~ **Decision (revised): Zig-native integration. Photon and libghostty are both Zig — terminal panels are composited directly by Photon's window manager with zero FFI overhead. No wrapper crate needed.**
 8. ~~Should agent terminal output be a real PTY passthrough from the imp process, or a reconstructed stream from structured events?~~ **Decision: both — live PTY passthrough for rich runtime viewing, plus structured capture for persistence, search, and artifact creation.**
 9. ~~Where should shared Wizard project config live without polluting `.wizard/` local state?~~ **Decision: shared project config lives in `<project>/.wizard.toml`; `.wizard/` stays local-only and user defaults live in `~/.config/wizard/config.toml`.**
-10. ~~How does the desktop shell communicate with the wizard-orch daemon?~~ **Decision: WebSocket or Unix socket using wizard-proto. Same protocol the `wiz` CLI uses. The Bun backend in the Photon process acts as the bridge between SolidJS and the Rust daemon.**
+10. ~~How does the desktop shell communicate with the wizard-orch daemon?~~ **Decision: WebSocket or Unix socket using wizard-proto. Same protocol the `wiz` CLI uses. The Bun backend in the Photon process acts as the bridge between the TypeScript UI and the Rust daemon.**
+11. ~~Built-in editor: CodeMirror 6 (JS), custom Zig, or Rust→WASM?~~ **Decision: Rust→WASM editor engine (`ropey` for text buffer, `tree-sitter` for syntax highlighting, custom editing model) rendered by Photon's text subsystem. No JavaScript editor library. Zero JS dependencies.**
 11. ~~Should browser panels use a separate rendering engine (system webview, Gecko, Chromium)?~~ **Decision: No. Browser panels use Photon itself. Progressive capability — app-level HTML/CSS now, full web rendering as Photon Phase 3 matures. External browser fallback always available.**
 
 ### Remaining open questions
 
-1. Should the optional power-user editor mode be Neovim-backed, or is CodeMirror 6 plus strong keyboard workflows enough for v1 and v2?
+1. Should the optional power-user editor mode be Neovim-backed, or is the Rust→WASM editor plus strong keyboard workflows enough for v1 and v2?
 2. Should docked panels (editor, terminal, browser, inspector) share one unified layout manager, or should the canvas own its own layout and treat panels as secondary surfaces?
-3. Should the canvas graph hot path use Rust → WASM → Photon DOM for performance, or is SolidJS-only sufficient? Evaluate after MVP 1.
+3. Should the canvas graph hot path use Rust → WASM → Photon DOM for performance, or is vanilla TypeScript sufficient? Evaluate after MVP 1.
 4. What is the minimum Photon feature set needed for Wizard MVP 1? (Flexbox, text, transforms, scroll, mouse/keyboard events — likely already covered by current Photon Phase 2 progress.)
 5. Should the Bun↔daemon socket use WebSocket (simpler, HTTP-compatible) or Unix domain socket (faster, local-only)?
+6. How much of Zed's editor crates can be extracted for the WASM editor engine vs building from scratch with `ropey` + `tree-sitter`?
 
 ## 24. Initial Mana Breakdown
 

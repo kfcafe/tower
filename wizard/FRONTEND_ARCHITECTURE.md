@@ -22,35 +22,34 @@ The frontend is **not** the source of truth for project work state. `.mana/` rem
 
 ## Shell
 - **Photon** rendering engine (Zig) — custom DOM, CSS, layout, GPU paint
-- **Bun** backend — hosts SolidJS on JavaScriptCore, manages daemon connection
+- **Bun** backend — hosts vanilla TypeScript on JavaScriptCore, manages daemon connection, loads WASM editor module
 - No system webview — Photon replaces it entirely
 
-## UI framework
-- **SolidJS**
+## UI approach
+- **Vanilla TypeScript** — no framework
 
-### Why SolidJS
+### Why no framework
 
-Wizard is a long-lived desktop tool with dense, fine-grained state:
-- selection
-- hover state
-- zoom state
-- card expansion
-- runtime status changes
-- per-room layout state
-- panel docking state
-- editor state
-- agent presence
+Wizard's UI is event-driven, not reactive. The daemon pushes typed events over a socket (unit status changed, agent spawned, verify passed). The TypeScript layer finds the relevant DOM nodes and updates them. This is a message loop, not a component tree.
 
-Solid's signal-based reactivity fits this better than React's rerender-centered model. The code stays more local, more explicit, and easier to reason about in an agent-authored codebase.
+No SolidJS, no React, no framework. Reasons:
+- Photon's DOM is a clean subset — no browser quirks to paper over
+- Frameworks add ecosystem dependencies that may not work on Photon's DOM
+- Event-driven updates are simpler than reactive patterns for this use case
+- Vanilla TypeScript on Bun runs natively — no build step, no bundler
+- The code stays explicit and easy to reason about in an agent-authored codebase
 
 ## Editor
-- **CodeMirror 6** as the default integrated editor
+- **Rust→WASM engine** rendered by Photon
 
-### Why CodeMirror 6
-- easy to embed in the same webview layer as the canvas
-- strong extension model
-- good enough for real editing, diff review, and patching
-- simpler and less risky than embedding Neovim, Helix, or Zed as the default editor engine
+### Why Rust→WASM, not CodeMirror or native Zig
+- `ropey` (Rust rope crate) provides an efficient text buffer without writing one from scratch
+- `tree-sitter` provides incremental syntax highlighting — same engine as Zed, Neovim, Helix
+- Rust→WASM is a well-established compilation target with good tooling
+- Photon already has WASM DOM bindings — the editor engine talks to the renderer natively
+- Zero JavaScript dependencies — no CodeMirror, no Monaco, no JS in the editing hot path
+- We control the editor — custom diff views, inline verify output, agent review workflows are easy to add
+- Photon's text subsystem (fonts, measurement, selection, GPU rendering) handles all display
 
 ## Graph rendering
 - **DOM-first** for MVP
@@ -181,15 +180,15 @@ Suggested modules:
 - `CanvasCommands.ts`
 
 ## 6.5 `editor/`
-CodeMirror wrapper and editor-specific behaviors.
+Editor UI wiring and WASM bridge.
 
 Suggested modules:
-- `EditorPane.tsx`
-- `EditorTabs.tsx`
-- `DiffEditorPane.tsx`
-- `editorCommands.ts`
-- `codeMirrorExtensions.ts`
-- `externalEditorBridge.ts`
+- `editorPane.ts` — editor surface container, layout, focus
+- `editorTabs.ts` — tab bar, dirty indicators, tab management
+- `diffPane.ts` — side-by-side and inline diff views
+- `editorCommands.ts` — open, save, jump-to-line, close
+- `editorWasmBridge.ts` — load WASM module, forward input events, receive render updates
+- `externalEditorBridge.ts` — open in `$EDITOR`, deep links to VS Code/Cursor/Neovim
 
 ## 6.6 `panels/`
 Panel docking and containers.
@@ -244,7 +243,7 @@ interface GraphStore {
 
 ## 8.1 Photon rendering
 
-Photon provides the DOM, CSS layout, and GPU paint pipeline. SolidJS manipulates Photon's DOM via standard APIs (`createElement`, `appendChild`, `setAttribute`). Photon renders the DOM directly to the GPU — there is no system webview, no browser engine, and no "graduation from DOM to canvas/WebGL" step.
+Photon provides the DOM, CSS layout, and GPU paint pipeline. Vanilla TypeScript manipulates Photon's DOM via standard APIs (`createElement`, `appendChild`, `setAttribute`). Photon renders the DOM directly to the GPU — there is no system webview, no browser engine, and no "graduation from DOM to canvas/WebGL" step.
 
 The canvas uses:
 - Photon's flexbox/grid layout for card positioning
@@ -258,11 +257,11 @@ The canvas uses:
 - Display list batching handles hundreds of card outlines efficiently
 - We own the renderer — canvas-specific optimizations are possible (skip layout for off-screen zoom levels, batch card rendering)
 
-## 8.2 WASM DOM optimization path
+## 8.2 WASM usage
 
-If SolidJS-driven DOM manipulation becomes a bottleneck at scale (hundreds of nodes, rapid graph updates), the graph hot path can be moved to Rust → WASM → Photon DOM. This bypasses JavaScript entirely for the performance-critical canvas layer while keeping SolidJS for UI chrome.
+The editor already uses Rust→WASM via Photon's WASM DOM bindings (ropey + tree-sitter + editing model). If vanilla TypeScript DOM manipulation becomes a bottleneck for the canvas at scale (hundreds of nodes, rapid graph updates), the graph hot path can also move to Rust WASM.
 
-Evaluate after MVP 1 — likely not needed initially.
+Evaluate canvas WASM after MVP 1 — likely not needed initially.
 
 ## 8.3 Rendering targets
 
@@ -271,12 +270,13 @@ Wizard's rendering needs are simpler than Photon's VS Code benchmark:
 - CSS transforms for semantic zoom
 - Scroll containers for inspector and list views
 - Mouse/keyboard events for selection and navigation
-- CodeMirror 6 for editor panes (depends on Photon's editor-grade input handling)
+- Rust→WASM editor panes (depends on Photon's text subsystem and input handling)
 
 ## 9. Editor Architecture
 
 ## 9.1 Default mode
-- CodeMirror 6
+- Rust→WASM editor engine (ropey + tree-sitter)
+- Photon renders the editor surface (monospace grid, syntax colors, cursor, selections, diff gutters)
 - one editor pane can host either text or diff mode
 - panes can be attached to rooms or floated
 
@@ -293,10 +293,12 @@ Wizard's rendering needs are simpler than Photon's VS Code benchmark:
 - debugger integration
 - complex refactoring UX
 - extension marketplace
+- vim mode (defer to external editor or future Neovim integration)
 
 ## 9.4 Future path
 - optional Neovim-backed power-user mode
-- richer code intelligence via language server integration
+- richer tree-sitter integration: code folding, symbol outline, semantic navigation
+- code intelligence via language server integration
 
 ## 10. Panel Architecture
 
@@ -394,12 +396,12 @@ Mitigation:
 
 ## 14. Near-Term Build Order
 
-1. App shell in Photon + SolidJS (Bun backend, daemon socket connection)
+1. App shell in Photon + vanilla TypeScript (Bun backend, daemon socket connection)
 2. Connection to backend snapshots/events
 3. Read-only graph canvas
 4. Inspector and command palette
 5. Panel manager
-6. CodeMirror editor pane
+6. WASM editor pane (ropey + tree-sitter)
 7. Terminal panel host
 8. Browser panel host
 9. Focus rooms
@@ -410,8 +412,8 @@ Mitigation:
 | Area | Decision |
 |---|---|
 | Shell | Photon (Zig) + Bun backend |
-| UI framework | SolidJS (on JSC via Bun) |
-| Default editor | CodeMirror 6 (on Photon) |
+| UI approach | Vanilla TypeScript (on JSC via Bun) — no framework |
+| Editor engine | Rust→WASM (ropey + tree-sitter) rendered by Photon |
 | Terminal | libghostty (Zig-native compositing) |
 | Browser | Photon rendering (progressive capability) |
 | Graph rendering | Photon DOM + GPU paint (no graduation step) |

@@ -212,7 +212,7 @@ Important property:
 
 The Photon desktop shell connects to the wizard-orch daemon over a **WebSocket or Unix socket** using wizard-proto. This is the same protocol the `wiz` CLI uses — one transport, multiple clients.
 
-The Bun backend in the Photon process acts as the bridge: it connects to the daemon socket, serializes/deserializes wizard-proto messages, and forwards them between SolidJS and the daemon.
+The Bun backend in the Photon process acts as the bridge: it connects to the daemon socket, serializes/deserializes wizard-proto messages, and forwards them between the TypeScript UI layer and the daemon.
 
 The transport is socket-based from day one. No framework-specific IPC (Tauri invoke/listen) to abstract away later.
 
@@ -258,7 +258,7 @@ Required commands:
 - report dirty conflicts when file changed externally
 
 The backend should remain editor-agnostic.
-It does not know about CodeMirror directly. It only speaks in file buffers, diffs, and edit commands.
+It does not know about the WASM editor engine directly. It only speaks in file buffers, diffs, and edit commands.
 
 ## 10. Browser Backend Design
 

@@ -31,10 +31,10 @@ This document focuses on how these layers connect and where responsibilities sto
 │                                                                   │
 │  Photon renderer (Zig)                                            │
 │  ├── custom DOM + CSS + layout + GPU paint                        │
-│  ├── SolidJS app (on JSC via Bun)                                 │
+│  ├── Vanilla TypeScript UI (on JSC via Bun)                      │
 │  │   ├── canvas                                                   │
 │  │   ├── inspector                                                │
-│  │   ├── CodeMirror editor panes                                  │
+│  │   ├── WASM editor panes (ropey + tree-sitter)                  │
 │  │   ├── command palette                                          │
 │  │   └── runtime strip                                            │
 │  ├── libghostty terminal panels (Zig-native compositing)          │
@@ -142,7 +142,7 @@ Does not own:
 ## 4.3 Edit file flow
 
 1. User opens a file from a unit card or artifact.
-2. Frontend opens CodeMirror editor pane.
+2. Frontend opens editor pane (loads WASM editor module if not already loaded).
 3. Backend provides file contents and metadata.
 4. User edits locally.
 5. Save command sends buffer back to backend.
@@ -210,8 +210,8 @@ Wizard config exists so shared orchestration and repo-specific behavior can be e
 |---|---|---|
 | Rendering engine | Photon (Zig) | custom DOM/CSS/layout/GPU paint — we own the renderer, canvas-specific optimizations possible |
 | Desktop shell | Photon + Bun | Zig binary with Bun backend, no system webview |
-| UI framework | SolidJS (on JSC) | fine-grained reactivity, compiles to standard DOM APIs that map to Photon's JS bindings |
-| Editor | CodeMirror 6 (on Photon) | embeddable, flexible, sufficient for v1 focused editing |
+| UI approach | Vanilla TypeScript (on JSC) | event-driven DOM updates, no framework, no ecosystem dependency |
+| Editor engine | Rust→WASM (ropey + tree-sitter) | zero JS dependencies, tree-sitter highlighting, rendered by Photon's text subsystem |
 | Terminal | libghostty (Zig-native) | real PTY, native quality, composited directly by Photon — no FFI boundary |
 | Browser panels | Photon rendering | same engine renders URL content, progressive capability, no separate engine |
 | Daemon | Rust (wizard-orch) | orchestration, graph projection, imp supervision |
@@ -225,13 +225,13 @@ Wizard config exists so shared orchestration and repo-specific behavior can be e
 Because we own Photon and Wizard benefits from controlling the rendering substrate. Canvas-specific GPU optimizations, Zig-native libghostty compositing, and progressive browser panel rendering are all natural on Photon but would require workarounds on Tauri. The daemon boundary means the rendering layer is replaceable if needed.
 
 ## 7.2 Why not full native Rust UI
-Because the canvas/editor/panel experimentation is faster with SolidJS + DOM APIs, and the frontend needs rich editor and rendering ecosystems. Photon provides the native-quality rendering while SolidJS provides the rapid UI iteration.
+Because the canvas/editor/panel experimentation is faster with TypeScript + DOM APIs than raw Zig. Vanilla TypeScript on Bun gives rapid iteration with no build step. The editor brain lives in Rust WASM for performance; the UI chrome is TypeScript for flexibility.
 
 ## 7.3 Why not bundle Gecko or Chromium
 Because Wizard is not a browser. Photon renders what Wizard needs. As Photon matures toward Phase 3, browser panels gain full web rendering without a separate engine.
 
 ## 7.4 Why not use Neovim/Helix/Zed as the default editor
-Because Wizard needs an integrated editor surface that is easy to compose with the canvas and panel system. CodeMirror 6 is the lower-risk default. Keep a path for optional Neovim later.
+Because Wizard needs an integrated editor surface that is easy to compose with the canvas and panel system. A Rust→WASM editor engine (ropey + tree-sitter) rendered by Photon's text subsystem gives us full control with zero JS dependencies. Keep a path for optional Neovim later.
 
 ## 8. Room-Centric UX Model
 
@@ -320,13 +320,13 @@ wizard/
 ### Phase 1
 - `wizard-proto` with socket transport (WebSocket or Unix socket)
 - `wizard-orch` snapshot loader + event publisher
-- Photon + SolidJS shell with daemon connection
+- Photon + vanilla TypeScript shell with daemon connection
 - read-only graph canvas on Photon
 
 ### Phase 2
 - command palette
 - room state persistence
-- CodeMirror editor integration (on Photon)
+- WASM editor integration (ropey + tree-sitter, rendered by Photon)
 - verify terminal via libghostty (Zig-native compositing)
 
 ### Phase 3
@@ -360,7 +360,7 @@ wizard/
 |---|---|
 | Primary surface | Canvas |
 | Rendering engine | Photon (Zig) |
-| Built-in editor | Yes, CodeMirror 6 (on Photon) |
+| Built-in editor | Yes, Rust→WASM engine (ropey + tree-sitter) rendered by Photon |
 | Power-user editor path | Maybe later, likely Neovim-backed |
 | Terminal | libghostty (Zig-native compositing) |
 | Browser panels | Photon rendering (progressive capability) |
