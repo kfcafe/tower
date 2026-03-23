@@ -2,16 +2,47 @@
 id: '19'
 title: 'imp: Rush shell backend for BashTool'
 slug: imp-rush-shell-backend-for-bashtool
-status: open
+status: closed
 priority: 2
 created_at: '2026-03-22T22:05:44.641297Z'
-updated_at: '2026-03-22T22:05:44.641297Z'
+updated_at: '2026-03-23T07:39:31.480407Z'
+notes: |-
+  ---
+  2026-03-23T00:41:09.229434+00:00
+  ## Attempt Failed (30m10s, 2.9M tokens, $1.381)
+
+  ### What was tried
+
+  - 0 tool calls over 51 turns in 30m10s
+
+  ### Why it failed
+
+  - Timeout (30m)
+
+  ### Verify command
+
+  `cd /Users/asher/tower && cargo test -p imp-core test_rush_backend 2>&1 | grep -E "[1-9][0-9]* passed"`
+
+  ### Suggestion for next attempt
+
+  - Agent ran out of time. Consider increasing the timeout or simplifying the task scope.
 labels:
 - imp
 - integration
 - rush
-verify: cd /Users/asher/tower && cargo test -p imp-core test_rush_backend 2>&1 | grep -E "[1-9][0-9]* passed"
+closed_at: '2026-03-23T07:39:31.480407Z'
+verify: cd /Users/asher/tower && cargo test -p imp-core test_rush_backend --features rush-backend 2>&1 | grep -E "[1-9][0-9]* passed"
 fail_first: true
+is_archived: true
+history:
+- attempt: 1
+  started_at: '2026-03-23T07:38:58.839890Z'
+  finished_at: '2026-03-23T07:39:31.429514Z'
+  duration_secs: 32.589
+  result: pass
+  exit_code: 0
+outputs:
+  text: 'test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 296 filtered out; finished in 0.02s'
 ---
 
 Add rush as an optional shell backend for imp's BashTool, replacing `sh -c` with rush's programmatic API or daemon protocol.
