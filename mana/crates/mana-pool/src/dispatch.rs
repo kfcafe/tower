@@ -127,7 +127,7 @@ pub fn run_dispatch(
             let tx = result_tx.clone();
             let cfg = spawn_config.clone();
             let unit_clone = unit.clone();
-            let spawner_handle = Arc::clone(&spawner);  // Arc<dyn Spawner> is Send
+            let spawner_handle = Arc::clone(&spawner); // Arc<dyn Spawner> is Send
 
             std::thread::spawn(move || {
                 let result = spawner_handle.spawn(&unit_clone, &cfg);
