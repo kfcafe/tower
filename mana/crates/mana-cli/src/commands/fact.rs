@@ -138,6 +138,7 @@ mod tests {
             research_model: None,
             batch_verify: false,
             memory_reserve_mb: 0,
+            notify: None,
         };
         config.save(&mana_dir).unwrap();
 

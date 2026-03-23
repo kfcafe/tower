@@ -45,6 +45,39 @@ use serde::{Deserialize, Serialize};
 
 pub const DEFAULT_COMMIT_TEMPLATE: &str = "feat(unit-{id}): {title}";
 
+/// Notification configuration for human-facing alerts.
+///
+/// Commands are shell templates run via `sh -c` with variable interpolation.
+/// All are fire-and-forget — failures are logged but never block operations.
+///
+/// ## Template variables
+///
+/// | Variable | Available in | Description |
+/// |----------|-------------|-------------|
+/// | `{id}` | all | Unit ID |
+/// | `{title}` | all | Unit title |
+/// | `{status}` | on_close, on_scheduled_complete | "pass" or "fail" |
+/// | `{verify_output}` | on_close | First 200 chars of verify output |
+/// | `{attempt}` | on_fail | Current attempt number |
+/// | `{max_attempts}` | on_fail | Max attempts configured |
+/// | `{output}` | on_fail | First 200 chars of verify output |
+/// | `{schedule}` | on_scheduled_complete | Schedule expression |
+/// | `{next_run_at}` | on_scheduled_complete | Next scheduled run time |
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Default)]
+pub struct NotifyConfig {
+    /// Command run when a unit closes successfully.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub on_close: Option<String>,
+
+    /// Command run when a unit's verify fails.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub on_fail: Option<String>,
+
+    /// Command run when a scheduled unit completes (pass or fail).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub on_scheduled_complete: Option<String>,
+}
+
 /// Configuration for the adversarial review feature (`mana review` / `mana run --review`).
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct ReviewConfig {
@@ -193,6 +226,11 @@ pub struct Config {
     /// Default: 0 (disabled). Recommended: 2048–4096 on a 16GB machine.
     #[serde(default, skip_serializing_if = "is_zero_u64")]
     pub memory_reserve_mb: u64,
+    /// Notification settings for human-facing alerts (push notifications,
+    /// desktop alerts, webhook pings). Separate from on_close/on_fail workflow
+    /// hooks — those are for automation, these are for humans.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub notify: Option<NotifyConfig>,
 }
 
 fn default_auto_close_parent() -> bool {
@@ -250,6 +288,7 @@ impl Default for Config {
             research_model: None,
             batch_verify: false,
             memory_reserve_mb: 0,
+            notify: None,
         }
     }
 }
@@ -598,6 +637,7 @@ mod tests {
             research_model: None,
             batch_verify: false,
             memory_reserve_mb: 0,
+            notify: None,
         };
 
         config.save(dir.path()).unwrap();
@@ -637,6 +677,7 @@ mod tests {
             research_model: None,
             batch_verify: false,
             memory_reserve_mb: 0,
+            notify: None,
         };
 
         assert_eq!(config.increment_id(), 1);
@@ -692,6 +733,7 @@ mod tests {
             research_model: None,
             batch_verify: false,
             memory_reserve_mb: 0,
+            notify: None,
         };
         config.save(dir.path()).unwrap();
 
@@ -746,6 +788,7 @@ mod tests {
             research_model: None,
             batch_verify: false,
             memory_reserve_mb: 0,
+            notify: None,
         };
         config.save(dir.path()).unwrap();
 
@@ -812,6 +855,7 @@ mod tests {
             research_model: None,
             batch_verify: false,
             memory_reserve_mb: 0,
+            notify: None,
         };
         config.save(dir.path()).unwrap();
 
@@ -854,6 +898,7 @@ mod tests {
             research_model: None,
             batch_verify: false,
             memory_reserve_mb: 0,
+            notify: None,
         };
         config.save(dir.path()).unwrap();
 
@@ -906,6 +951,7 @@ mod tests {
             research_model: None,
             batch_verify: false,
             memory_reserve_mb: 0,
+            notify: None,
         };
         config.save(dir.path()).unwrap();
 
@@ -1132,6 +1178,7 @@ mod tests {
             research_model: None,
             batch_verify: false,
             memory_reserve_mb: 0,
+            notify: None,
         };
         config.save(dir.path()).unwrap();
 
@@ -1199,6 +1246,7 @@ mod tests {
             research_model: None,
             batch_verify: false,
             memory_reserve_mb: 0,
+            notify: None,
         };
         config.save(dir.path()).unwrap();
 
@@ -1238,6 +1286,7 @@ mod tests {
             research_model: None,
             batch_verify: false,
             memory_reserve_mb: 0,
+            notify: None,
         };
         config.save(dir.path()).unwrap();
 
@@ -1290,6 +1339,7 @@ mod tests {
             research_model: None,
             batch_verify: false,
             memory_reserve_mb: 0,
+            notify: None,
         };
         config.save(dir.path()).unwrap();
 
@@ -1342,6 +1392,7 @@ mod tests {
             research_model: None,
             batch_verify: false,
             memory_reserve_mb: 0,
+            notify: None,
         };
         config.save(dir.path()).unwrap();
 
@@ -1459,6 +1510,7 @@ mod tests {
             research_model: None,
             batch_verify: false,
             memory_reserve_mb: 0,
+            notify: None,
         };
 
         config.save(dir.path()).unwrap();

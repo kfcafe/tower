@@ -992,6 +992,7 @@ mod tests {
             research_model: None,
             batch_verify: false,
             memory_reserve_mb: 0,
+            notify: None,
         };
         let mode = determine_spawn_mode(&config);
         assert_eq!(
@@ -1034,6 +1035,7 @@ mod tests {
             research_model: None,
             batch_verify: false,
             memory_reserve_mb: 0,
+            notify: None,
         };
         let mode = determine_spawn_mode(&config);
         assert_eq!(mode, SpawnMode::Direct);
