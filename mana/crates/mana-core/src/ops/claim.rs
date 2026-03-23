@@ -507,4 +507,57 @@ mod tests {
         );
         assert!(result.unit.attempt_log[1].finished_at.is_none());
     }
+
+    // -----------------------------------------------------------------------
+    // Timeout / stuck-in-progress recovery tests
+    // -----------------------------------------------------------------------
+
+    /// When an agent times out, mana run calls release() to reset the unit back
+    /// to Open so the next dispatch can claim it again without manual intervention.
+    #[test]
+    fn release_resets_timed_out_in_progress_unit_to_open() {
+        let (_dir, bd) = setup();
+        create::create(&bd, minimal_params("Task")).unwrap();
+
+        // Simulate agent claiming and then timing out (unit stuck in_progress)
+        claim(&bd, "1", force_params(Some("agent-1"))).unwrap();
+        // Verify unit is now in_progress (as it would be after a timeout)
+        let bp = find_unit_file(&bd, "1").unwrap();
+        let in_progress = Unit::from_file(&bp).unwrap();
+        assert_eq!(in_progress.status, Status::InProgress);
+
+        // mana run calls release() after a failed/timed-out agent
+        let result = release(&bd, "1").unwrap();
+
+        // Unit must be Open so the next mana run can claim it
+        assert_eq!(result.unit.status, Status::Open);
+        assert_eq!(result.unit.claimed_by, None);
+        assert_eq!(result.unit.claimed_at, None);
+
+        // Subsequent claim must succeed (the core fix: no manual intervention needed)
+        let second = claim(&bd, "1", force_params(Some("agent-2"))).unwrap();
+        assert_eq!(second.unit.status, Status::InProgress);
+        assert_eq!(second.unit.claimed_by, Some("agent-2".to_string()));
+    }
+
+    /// Attempting to claim a unit that is still in_progress (e.g. if release was
+    /// never called) must fail with a descriptive error.
+    #[test]
+    fn claim_stuck_in_progress_without_release_fails() {
+        let (_dir, bd) = setup();
+        create::create(&bd, minimal_params("Task")).unwrap();
+
+        // First agent claims the unit
+        claim(&bd, "1", force_params(Some("agent-1"))).unwrap();
+
+        // Second agent tries to claim without release — must fail
+        let result = claim(&bd, "1", force_params(Some("agent-2")));
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("in_progress") || err.contains("InProgress") || err.contains("only open"),
+            "Error should explain the unit is not open: {}",
+            err
+        );
+    }
 }

@@ -842,6 +842,17 @@ pub(super) fn run_single_direct(
                 summary_result = Some(summary);
             }
         }
+
+        // Reset the unit back to Open so the next `mana run` dispatch can claim it
+        // without requiring manual `mana update <id> --status open`. The release call
+        // marks the current attempt as abandoned and clears claimed_by/claimed_at.
+        if let Err(e) = mana_core::ops::claim::release(mana_dir, &sb.id) {
+            eprintln!(
+                "  ⚠ Failed to release claim on {} after agent failure: {}",
+                sb.id, e
+            );
+        }
+
         summary_result
     } else {
         None
