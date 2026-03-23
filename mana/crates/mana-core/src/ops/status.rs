@@ -3,8 +3,8 @@ use std::path::Path;
 use anyhow::Result;
 use serde::Serialize;
 
-use crate::blocking::check_blocked;
-use crate::index::{Index, IndexEntry};
+use crate::blocking::check_blocked_with_archive;
+use crate::index::{ArchiveIndex, Index, IndexEntry};
 use crate::unit::Status;
 use crate::util::natural_cmp;
 
@@ -30,6 +30,8 @@ pub struct BlockedEntry {
 /// goals (need decomposition), and blocked.
 pub fn status(mana_dir: &Path) -> Result<StatusSummary> {
     let index = Index::load_or_rebuild(mana_dir)?;
+    let archive = ArchiveIndex::load_or_rebuild(mana_dir)
+        .unwrap_or_else(|_| ArchiveIndex { units: Vec::new() });
 
     let mut features: Vec<IndexEntry> = Vec::new();
     let mut claimed: Vec<IndexEntry> = Vec::new();
@@ -47,7 +49,7 @@ pub fn status(mana_dir: &Path) -> Result<StatusSummary> {
                 claimed.push(entry.clone());
             }
             Status::Open => {
-                if let Some(reason) = check_blocked(entry, &index) {
+                if let Some(reason) = check_blocked_with_archive(entry, &index, Some(&archive)) {
                     blocked.push(BlockedEntry {
                         entry: entry.clone(),
                         block_reason: reason.to_string(),
@@ -205,5 +207,39 @@ mod tests {
         assert_eq!(result.claimed[0].id, "1");
         assert!(result.ready.is_empty());
         assert!(result.goals.is_empty());
+    }
+
+    #[test]
+    fn status_archived_dep_not_blocking() {
+        let (_dir, mana_dir) = setup();
+
+        // Write an archived dep into .mana/archive/
+        let archive_dir = mana_dir.join("archive");
+        fs::create_dir(&archive_dir).unwrap();
+        let mut archived_dep = Unit::new("1", "Archived dep");
+        archived_dep.status = Status::Closed;
+        archived_dep
+            .to_file(archive_dir.join("1-archived-dep.md"))
+            .unwrap();
+
+        // Unit depending on the archived dep should NOT be blocked
+        let mut unit = Unit::new("2", "Dependent task");
+        unit.verify = Some("true".to_string());
+        unit.dependencies = vec!["1".to_string()];
+        write_unit(&mana_dir, &unit);
+
+        let result = status(&mana_dir).unwrap();
+
+        assert!(
+            result.blocked.is_empty(),
+            "expected no blocked units, got: {:?}",
+            result
+                .blocked
+                .iter()
+                .map(|b| &b.entry.id)
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(result.ready.len(), 1);
+        assert_eq!(result.ready[0].id, "2");
     }
 }

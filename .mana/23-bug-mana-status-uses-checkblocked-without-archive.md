@@ -2,15 +2,23 @@
 id: '23'
 title: 'bug: mana status uses check_blocked without archive — shows archived deps as blocking'
 slug: bug-mana-status-uses-checkblocked-without-archive
-status: open
+status: in_progress
 priority: 2
 created_at: '2026-03-23T09:43:44.401287Z'
-updated_at: '2026-03-23T09:43:44.401287Z'
+updated_at: '2026-03-23T15:23:34.434158Z'
 labels:
 - bug
 - mana
 verify: cd /Users/asher/tower && cargo test -p mana-core status_archived_dep 2>&1 | grep -E "[1-9][0-9]* passed"
 fail_first: true
+checkpoint: '976b39c612858ccaa220a598aa3fddb417299153'
+claimed_by: pi-agent
+claimed_at: '2026-03-23T15:23:34.434158Z'
+attempt_log:
+- num: 1
+  outcome: abandoned
+  agent: pi-agent
+  started_at: '2026-03-23T15:23:34.434158Z'
 ---
 
 ops/status.rs line 50 calls check_blocked(entry, &index) which does NOT check the archive. ops/run.rs line 297 correctly calls check_blocked_with_archive(entry, &index, Some(&archive)). This means mana status shows units as blocked on archived deps even though mana run would correctly schedule them.
