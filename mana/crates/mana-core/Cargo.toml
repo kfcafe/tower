@@ -6,6 +6,10 @@ rust-version = "1.85"
 description = "Core library for mana — task tracker for AI coding agents"
 license = "Apache-2.0"
 repository = "https://github.com/kfcafe/mana"
+homepage = "https://github.com/kfcafe/mana"
+readme = "../../README.md"
+keywords = ["task-tracker", "ai-agents", "orchestration", "coordination"]
+categories = ["development-tools"]
 
 [lib]
 name = "mana_core"
