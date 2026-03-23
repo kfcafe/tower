@@ -1,5 +1,5 @@
 project: tower
-next_id: 21
+next_id: 24
 auto_close_parent: true
 max_loops: 10
 max_concurrent: 8
