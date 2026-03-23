@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/kfcafe/mana/actions/workflows/ci.yml/badge.svg)](https://github.com/kfcafe/mana/actions/workflows/ci.yml)
 [![Crates.io](https://img.shields.io/crates/v/mana-cli)](https://crates.io/crates/mana-cli)
-[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+[![License](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE-AGPL)
 [![dependency status](https://deps.rs/repo/github/kfcafe/mana/status.svg)](https://deps.rs/repo/github/kfcafe/mana)
 
 Mana is the medium for coding agent work: it gives that work structure, verification, dependencies, and memory.
@@ -453,7 +453,7 @@ mana config set max_concurrent 4
 | `extends` | `[]` | Parent config files to inherit from. |
 | `batch_verify` | `false` | Batch shared verify commands: run each once after agents complete. |
 | `auto_commit` | `false` | Commit all changes on close. Skipped in worktree mode. |
-| `commit_template` | `feat(bean-{id}): {title}` | Template for auto-commit messages. Vars: `{id}`, `{title}`, `{parent_id}`, `{labels}`. |
+| `commit_template` | `feat(mana-{id}): {title}` | Template for auto-commit messages. Vars: `{id}`, `{title}`, `{parent_id}`, `{labels}`. |
 | `on_close` | — | Hook after close. Vars: `{id}`, `{title}`, `{status}`, `{branch}`. |
 | `on_fail` | — | Hook after verify failure. Vars: `{id}`, `{title}`, `{attempt}`, `{output}`, `{branch}`. |
 | `post_plan` | — | Hook after `mana plan` creates children. |
@@ -486,4 +486,4 @@ Contributions welcome. Fork the repo, create a branch, and open a pull request.
 
 ## License
 
-[Apache 2.0](LICENSE)
+[AGPL-3.0](LICENSE-AGPL) (CLI) / [Apache-2.0](LICENSE-APACHE) (core library)
