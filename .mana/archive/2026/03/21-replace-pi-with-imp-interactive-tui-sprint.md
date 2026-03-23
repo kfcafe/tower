@@ -2,11 +2,14 @@
 id: '21'
 title: Replace pi with imp — interactive TUI sprint
 slug: replace-pi-with-imp-interactive-tui-sprint
-status: open
+status: closed
 priority: 2
 created_at: '2026-03-23T09:05:29.295342Z'
-updated_at: '2026-03-23T09:05:29.295342Z'
+updated_at: '2026-03-23T10:29:22.322882Z'
+closed_at: '2026-03-23T10:29:22.322882Z'
+close_reason: 'Auto-closed: all children completed'
 verify: imp --version && imp --help | grep -q 'login'
+is_archived: true
 ---
 
 Sprint to make imp's TUI mode a complete replacement for pi.

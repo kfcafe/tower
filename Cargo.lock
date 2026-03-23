@@ -1831,6 +1831,7 @@ dependencies = [
  "ratatui",
  "serde_json",
  "syntect",
+ "tempfile",
  "thiserror 2.0.18",
  "tokio",
  "unicode-width 0.2.0",
