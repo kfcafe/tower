@@ -493,7 +493,7 @@ mod tests {
         assert!(result.is_ok());
 
         // Check parent unit was created
-        let index = Index::load_or_rebuild(&mana_dir).unwrap();
+        let index = Index::build(&mana_dir).unwrap();
         let research_units: Vec<_> = index
             .units
             .iter()
