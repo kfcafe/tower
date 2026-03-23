@@ -177,9 +177,16 @@ impl Spawner {
             .try_clone()
             .context("Failed to clone log file handle")?;
 
+        // Set IMP_MODE so headless agents get the right tool restrictions.
+        let imp_mode = match action {
+            AgentAction::Implement => "worker",
+            AgentAction::Plan => "planner",
+        };
+
         // Spawn the process
         let child = match Command::new("sh")
             .args(["-c", &cmd])
+            .env("IMP_MODE", imp_mode)
             .stdout(log_file)
             .stderr(log_stderr)
             .spawn()
