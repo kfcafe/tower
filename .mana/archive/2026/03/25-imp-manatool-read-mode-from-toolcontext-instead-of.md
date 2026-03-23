@@ -2,10 +2,10 @@
 id: '25'
 title: 'imp ManaTool: read mode from ToolContext instead of env var'
 slug: imp-manatool-read-mode-from-toolcontext-instead-of
-status: open
+status: closed
 priority: 2
 created_at: '2026-03-23T19:33:41.390899Z'
-updated_at: '2026-03-23T19:53:49.665938Z'
+updated_at: '2026-03-23T19:58:43.081575Z'
 notes: |-
   ---
   2026-03-23T19:53:49.665926+00:00
@@ -28,9 +28,20 @@ notes: |-
   - Agent ran out of time. Consider increasing the timeout or simplifying the task scope.
 labels:
 - imp
+closed_at: '2026-03-23T19:58:43.081575Z'
 verify: cd /Users/asher/tower && cargo test -p imp-core agent_mode_mana_ctx 2>&1 | grep -E '[1-9][0-9]* passed'
 fail_first: true
 checkpoint: '41a81ab32bbf1bf894422bec1238253733f75e89'
+is_archived: true
+history:
+- attempt: 1
+  started_at: '2026-03-23T19:58:40.817466Z'
+  finished_at: '2026-03-23T19:58:42.928936Z'
+  duration_secs: 2.111
+  result: pass
+  exit_code: 0
+outputs:
+  text: 'test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 350 filtered out; finished in 0.06s'
 attempt_log:
 - num: 1
   outcome: abandoned
