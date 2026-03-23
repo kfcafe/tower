@@ -2323,6 +2323,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "mana-pool"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "mana-core",
+ "sysinfo",
+]
+
+[[package]]
 name = "mana-review"
 version = "0.1.0"
 dependencies = [

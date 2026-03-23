@@ -1,0 +1,12 @@
+[package]
+name = "mana-pool"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+description = "Resource-aware dispatch engine for mana agents"
+license = "AGPL-3.0-or-later"
+
+[dependencies]
+mana-core = { path = "../mana-core" }
+anyhow = "1"
+sysinfo = "0.33"

@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "mana/crates/mana-core",
     "mana/crates/mana-cli",
+    "mana/crates/mana-pool",
     "mana/crates/mana-review",
     "imp/crates/imp-llm",
     "imp/crates/imp-core",
