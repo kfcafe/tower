@@ -4,7 +4,10 @@
 [build]
 # sccache: shared compilation cache across builds and agents.
 # Eliminates redundant recompilation of unchanged dependencies.
-rustc-wrapper = "sccache"
+# Disabled in committed config — sccache isn't available on CI.
+# To enable locally: RUSTC_WRAPPER=sccache cargo build
+# Or uncomment below if sccache is always available on your machine.
+# rustc-wrapper = "sccache"
 
 # Ensure incremental compilation is always on for dev builds.
 incremental = true
