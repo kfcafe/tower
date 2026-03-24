@@ -212,7 +212,6 @@ mana run                    # Dispatch all ready units
 mana run 3                  # Dispatch a specific unit
 mana run -j 8               # Up to 8 parallel agents
 mana run --loop-mode        # Keep dispatching until work is done
-mana run --auto-plan        # Auto-split large units before dispatch
 mana run --review           # Adversarial review after each close
 mana run --dry-run          # Preview dispatch plan
 ```
@@ -377,7 +376,6 @@ mana unarchive <id>
 ```bash
 mana run [id] [-j N]
 mana run --loop-mode
-mana run --auto-plan
 mana run --review
 mana plan <id>
 mana review <id>
@@ -456,7 +454,6 @@ mana config set max_concurrent 4
 | `commit_template` | `feat(mana-{id}): {title}` | Template for auto-commit messages. Vars: `{id}`, `{title}`, `{parent_id}`, `{labels}`. |
 | `on_close` | — | Hook after close. Vars: `{id}`, `{title}`, `{status}`, `{branch}`. |
 | `on_fail` | — | Hook after verify failure. Vars: `{id}`, `{title}`, `{attempt}`, `{output}`, `{branch}`. |
-| `post_plan` | — | Hook after `mana plan` creates children. |
 | `review.run` | — | Review agent command. Falls back to `run`. |
 | `review.max_reopens` | `2` | Max review reopen cycles. |
 
