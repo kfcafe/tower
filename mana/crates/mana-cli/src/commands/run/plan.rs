@@ -56,7 +56,6 @@ pub(super) fn plan_dispatch(
     mana_dir: &Path,
     _config: &Config,
     filter_id: Option<&str>,
-    _auto_plan: bool,
     simulate: bool,
 ) -> Result<DispatchPlan> {
     let index = Index::load_or_rebuild(mana_dir)?;
@@ -301,7 +300,7 @@ mod tests {
         write_config(&mana_dir, Some("echo {id}"));
 
         let config = Config::load_with_extends(&mana_dir).unwrap();
-        let plan = plan_dispatch(&mana_dir, &config, None, false, false).unwrap();
+        let plan = plan_dispatch(&mana_dir, &config, None, false).unwrap();
 
         assert!(plan.waves.is_empty());
         assert!(plan.skipped.is_empty());
@@ -325,7 +324,7 @@ mod tests {
         unit2.to_file(mana_dir.join("2-task-two.md")).unwrap();
 
         let config = Config::load_with_extends(&mana_dir).unwrap();
-        let plan = plan_dispatch(&mana_dir, &config, None, false, false).unwrap();
+        let plan = plan_dispatch(&mana_dir, &config, None, false).unwrap();
 
         assert_eq!(plan.waves.len(), 1);
         assert_eq!(plan.waves[0].units.len(), 2);
@@ -349,7 +348,7 @@ mod tests {
         unit2.to_file(mana_dir.join("2-task-two.md")).unwrap();
 
         let config = Config::load_with_extends(&mana_dir).unwrap();
-        let plan = plan_dispatch(&mana_dir, &config, Some("1"), false, false).unwrap();
+        let plan = plan_dispatch(&mana_dir, &config, Some("1"), false).unwrap();
 
         assert_eq!(plan.waves.len(), 1);
         assert_eq!(plan.waves[0].units.len(), 1);
@@ -367,7 +366,7 @@ mod tests {
         unit.to_file(mana_dir.join("1-task-one.md")).unwrap();
 
         let config = Config::load_with_extends(&mana_dir).unwrap();
-        let plan = plan_dispatch(&mana_dir, &config, Some("1"), false, false).unwrap();
+        let plan = plan_dispatch(&mana_dir, &config, Some("1"), false).unwrap();
 
         assert_eq!(plan.waves.len(), 1);
         assert_eq!(plan.waves[0].units[0].model.as_deref(), Some("opus"));
@@ -396,7 +395,7 @@ mod tests {
         child2.to_file(mana_dir.join("1.2-child-two.md")).unwrap();
 
         let config = Config::load_with_extends(&mana_dir).unwrap();
-        let plan = plan_dispatch(&mana_dir, &config, Some("1"), false, false).unwrap();
+        let plan = plan_dispatch(&mana_dir, &config, Some("1"), false).unwrap();
 
         assert_eq!(plan.waves.len(), 1);
         assert_eq!(plan.waves[0].units.len(), 2);
@@ -420,7 +419,7 @@ mod tests {
         unit.to_file(mana_dir.join("1-oversized.md")).unwrap();
 
         let config = Config::load_with_extends(&mana_dir).unwrap();
-        let plan = plan_dispatch(&mana_dir, &config, None, false, false).unwrap();
+        let plan = plan_dispatch(&mana_dir, &config, None, false).unwrap();
 
         assert_eq!(plan.waves.len(), 1);
         assert_eq!(plan.waves[0].units.len(), 1);
@@ -440,7 +439,7 @@ mod tests {
         unit.to_file(mana_dir.join("1-unscoped.md")).unwrap();
 
         let config = Config::load_with_extends(&mana_dir).unwrap();
-        let plan = plan_dispatch(&mana_dir, &config, None, false, false).unwrap();
+        let plan = plan_dispatch(&mana_dir, &config, None, false).unwrap();
 
         assert_eq!(plan.waves.len(), 1);
         assert_eq!(plan.waves[0].units.len(), 1);
@@ -460,7 +459,7 @@ mod tests {
         unit.to_file(mana_dir.join("1-well-scoped.md")).unwrap();
 
         let config = Config::load_with_extends(&mana_dir).unwrap();
-        let plan = plan_dispatch(&mana_dir, &config, None, false, false).unwrap();
+        let plan = plan_dispatch(&mana_dir, &config, None, false).unwrap();
 
         assert_eq!(plan.waves.len(), 1);
         assert_eq!(plan.waves[0].units.len(), 1);
@@ -501,13 +500,13 @@ mod tests {
 
         // Without simulate: only wave 1 (1.1) is ready
         let config = Config::load_with_extends(&mana_dir).unwrap();
-        let plan = plan_dispatch(&mana_dir, &config, Some("1"), false, false).unwrap();
+        let plan = plan_dispatch(&mana_dir, &config, Some("1"), false).unwrap();
         assert_eq!(plan.waves.len(), 1);
         assert_eq!(plan.waves[0].units.len(), 1);
         assert_eq!(plan.waves[0].units[0].id, "1.1");
 
         // With simulate: all 3 waves shown
-        let plan = plan_dispatch(&mana_dir, &config, Some("1"), false, true).unwrap();
+        let plan = plan_dispatch(&mana_dir, &config, Some("1"), true).unwrap();
         assert_eq!(plan.waves.len(), 3);
         assert_eq!(plan.waves[0].units[0].id, "1.1");
         assert_eq!(plan.waves[1].units[0].id, "1.2");
@@ -539,12 +538,12 @@ mod tests {
 
         // Without simulate: only 1.1 is ready (1.2 blocked on requires)
         let config = Config::load_with_extends(&mana_dir).unwrap();
-        let plan = plan_dispatch(&mana_dir, &config, Some("1"), false, false).unwrap();
+        let plan = plan_dispatch(&mana_dir, &config, Some("1"), false).unwrap();
         assert_eq!(plan.waves.len(), 1);
         assert_eq!(plan.waves[0].units[0].id, "1.1");
 
         // With simulate: both shown in correct wave order
-        let plan = plan_dispatch(&mana_dir, &config, Some("1"), false, true).unwrap();
+        let plan = plan_dispatch(&mana_dir, &config, Some("1"), true).unwrap();
         assert_eq!(plan.waves.len(), 2);
         assert_eq!(plan.waves[0].units[0].id, "1.1");
         assert_eq!(plan.waves[1].units[0].id, "1.2");
@@ -605,7 +604,7 @@ mod tests {
 
         // Simulate dry-run: shows all waves
         let config = Config::load_with_extends(&mana_dir).unwrap();
-        let plan = plan_dispatch(&mana_dir, &config, Some("1"), false, true).unwrap();
+        let plan = plan_dispatch(&mana_dir, &config, Some("1"), true).unwrap();
 
         // Wave 1 should be: B(weight 3), C(weight 2), A(weight 1)
         assert_eq!(plan.waves[0].units.len(), 3);
@@ -636,7 +635,7 @@ mod tests {
         c.to_file(mana_dir.join("3-independent.md")).unwrap();
 
         let config = Config::load_with_extends(&mana_dir).unwrap();
-        let plan = plan_dispatch(&mana_dir, &config, None, false, false).unwrap();
+        let plan = plan_dispatch(&mana_dir, &config, None, false).unwrap();
 
         // All 3 in wave 1 (no deps)
         assert_eq!(plan.waves.len(), 1);
@@ -675,7 +674,7 @@ mod tests {
         b.to_file(mana_dir.join("1.2-step-b.md")).unwrap();
 
         let config = Config::load_with_extends(&mana_dir).unwrap();
-        let plan = plan_dispatch(&mana_dir, &config, Some("1"), false, true).unwrap();
+        let plan = plan_dispatch(&mana_dir, &config, Some("1"), true).unwrap();
 
         // The critical path computed from the plan must include both 1.1 and 1.2
         let critical_path = compute_critical_path(&plan.all_units);
@@ -711,7 +710,7 @@ mod tests {
         b.to_file(mana_dir.join("2-beta.md")).unwrap();
 
         let config = Config::load_with_extends(&mana_dir).unwrap();
-        let plan = plan_dispatch(&mana_dir, &config, None, false, false).unwrap();
+        let plan = plan_dispatch(&mana_dir, &config, None, false).unwrap();
 
         // Both in wave 1; confirm conflict is detected
         assert_eq!(plan.waves.len(), 1);
@@ -744,7 +743,7 @@ mod tests {
         c.to_file(mana_dir.join("3-independent.md")).unwrap();
 
         let config = Config::load_with_extends(&mana_dir).unwrap();
-        let plan = plan_dispatch(&mana_dir, &config, None, false, false).unwrap();
+        let plan = plan_dispatch(&mana_dir, &config, None, false).unwrap();
 
         assert_eq!(plan.waves.len(), 1);
         assert_eq!(plan.waves[0].units.len(), 3);
@@ -777,7 +776,7 @@ mod tests {
         c.to_file(mana_dir.join("3-c.md")).unwrap();
 
         let config = Config::load_with_extends(&mana_dir).unwrap();
-        let plan = plan_dispatch(&mana_dir, &config, None, false, false).unwrap();
+        let plan = plan_dispatch(&mana_dir, &config, None, false).unwrap();
 
         assert_eq!(plan.waves.len(), 1);
         assert_eq!(plan.waves[0].units.len(), 3);

@@ -745,7 +745,6 @@ fn main() -> Result<()> {
             jobs,
             dry_run,
             loop_mode,
-            auto_plan,
             keep_going,
             timeout,
             idle_timeout,
@@ -758,7 +757,6 @@ fn main() -> Result<()> {
                 jobs,
                 dry_run,
                 loop_mode,
-                auto_plan,
                 keep_going,
                 timeout,
                 idle_timeout,
@@ -771,23 +769,16 @@ fn main() -> Result<()> {
             id,
             strategy,
             auto,
-            force,
             dry_run,
         } => {
-            if let Some(ref id_val) = id {
-                validate_unit_id(id_val)?;
-            }
-            let resolved_id = match id {
-                Some(ref id_val) => Some(resolve_unit_id(id_val, &mana_dir)?),
-                None => None,
-            };
+            validate_unit_id(&id)?;
+            let resolved_id = resolve_unit_id(&id, &mana_dir)?;
             cmd_plan(
                 &mana_dir,
                 PlanArgs {
                     id: resolved_id,
                     strategy,
                     auto,
-                    force,
                     dry_run,
                 },
             )

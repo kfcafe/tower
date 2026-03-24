@@ -64,7 +64,6 @@ pub struct RunArgs {
     pub jobs: u32,
     pub dry_run: bool,
     pub loop_mode: bool,
-    pub auto_plan: bool,
     pub keep_going: bool,
     pub timeout: u32,
     pub idle_timeout: u32,
@@ -380,7 +379,6 @@ fn run_once(
         mana_dir,
         config,
         args.id.as_deref(),
-        args.auto_plan,
         args.dry_run,
     )?;
 
@@ -734,7 +732,7 @@ fn run_loop(
             eprintln!("\n--- Loop iteration {} ---\n", iteration + 1);
         }
 
-        let plan = plan_dispatch(mana_dir, config, args.id.as_deref(), args.auto_plan, false)?;
+        let plan = plan_dispatch(mana_dir, config, args.id.as_deref(), false)?;
 
         if plan.waves.is_empty() {
             if !args.json_stream {
@@ -753,7 +751,6 @@ fn run_loop(
             jobs: args.jobs,
             dry_run: false,
             loop_mode: false,
-            auto_plan: args.auto_plan,
             keep_going: args.keep_going,
             timeout: args.timeout,
             idle_timeout: args.idle_timeout,
@@ -882,7 +879,6 @@ mod tests {
             jobs: 4,
             dry_run: false,
             loop_mode: false,
-            auto_plan: false,
             keep_going: false,
             timeout: 30,
             idle_timeout: 5,

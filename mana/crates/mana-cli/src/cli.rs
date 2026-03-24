@@ -760,8 +760,7 @@ Examples:
     /// Agents run the command template from .mana/config.yaml (set via `mana init`).
     ///
     /// Use --loop-mode for continuous dispatch until all work is done — it re-scans
-    /// for newly-ready units after each wave completes. Use --auto-plan to automatically
-    /// break down large units before dispatching.
+    /// for newly-ready units after each wave completes.
     #[command(after_help = "\
 Examples:
   mana run              Dispatch all ready units (up to -j 4 parallel)
@@ -785,9 +784,6 @@ Examples:
         #[arg(long, name = "loop")]
         loop_mode: bool,
 
-        /// Also plan large units autonomously
-        #[arg(long)]
-        auto_plan: bool,
 
         /// Continue past failures
         #[arg(long)]
@@ -810,32 +806,20 @@ Examples:
         review: bool,
     },
 
-    /// Interactively plan a large unit into children, or run project research
+    /// Decompose a unit into smaller children
     ///
-    /// With a unit ID: breaks a large unit into smaller child units with proper
-    /// dependencies. Use when a unit touches too many files or would take a single
-    /// agent too long.
-    ///
-    /// Without a unit ID: enters project-level research mode. Detects the project
-    /// language/stack, runs available linters and test suites, then spawns an agent
-    /// to analyze the codebase for improvements, bugs, missing tests, and code
-    /// health issues. Findings are created as units grouped under a parent.
-    ///
-    /// Configure the research agent in .mana/config.yaml:
-    ///   research: "pi -p 'Analyze this project...'"
-    ///
-    /// Falls back to the plan template if research is not set.
+    /// Breaks a unit into smaller child units with proper dependencies.
+    /// Each child should be completable by a fast, non-thinking model
+    /// in a single pass.
     #[command(after_help = "\
 Examples:
-  mana plan                      Project research mode (analyze codebase)
-  mana plan 5                    Interactive breakdown of unit 5
-  mana plan --auto               Autonomous research (no prompts)
+  mana plan 5                    Decompose unit 5 into children
   mana plan 5 --strategy layer   Suggest layer-based split
-  mana plan --dry-run            Preview research without creating units
+  mana plan 5 --auto             Non-interactive (no prompts)
   mana plan 5 --dry-run          Preview without creating children")]
     Plan {
-        /// Unit ID to plan (omit to pick automatically)
-        id: Option<String>,
+        /// Unit ID to decompose
+        id: String,
 
         /// Suggest a split strategy (feature, layer, phase, file)
         #[arg(long)]
@@ -844,10 +828,6 @@ Examples:
         /// Non-interactive autonomous planning
         #[arg(long)]
         auto: bool,
-
-        /// Force planning even if unit appears small
-        #[arg(long)]
-        force: bool,
 
         /// Show proposed split without creating
         #[arg(long)]
