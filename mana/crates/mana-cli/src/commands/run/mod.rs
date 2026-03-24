@@ -375,12 +375,7 @@ fn run_once(
         return Ok(());
     }
 
-    let plan = plan_dispatch(
-        mana_dir,
-        config,
-        args.id.as_deref(),
-        args.dry_run,
-    )?;
+    let plan = plan_dispatch(mana_dir, config, args.id.as_deref(), args.dry_run)?;
 
     if plan.waves.is_empty() && plan.skipped.is_empty() {
         if args.json_stream {

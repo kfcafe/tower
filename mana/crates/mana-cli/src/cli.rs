@@ -784,7 +784,6 @@ Examples:
         #[arg(long, name = "loop")]
         loop_mode: bool,
 
-
         /// Continue past failures
         #[arg(long)]
         keep_going: bool,
