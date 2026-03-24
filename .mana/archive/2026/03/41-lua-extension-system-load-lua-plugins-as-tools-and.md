@@ -2,10 +2,10 @@
 id: '41'
 title: Lua extension system — load .lua plugins as tools and slash commands
 slug: lua-extension-system-load-lua-plugins-as-tools-and
-status: open
+status: closed
 priority: 1
 created_at: '2026-03-24T08:00:10.698926Z'
-updated_at: '2026-03-24T08:02:14.259916Z'
+updated_at: '2026-03-24T08:30:07.158303Z'
 notes: |-
   ---
   2026-03-24T08:02:14.259559+00:00
@@ -13,7 +13,10 @@ notes: |-
 labels:
 - imp-lua
 - extensions
+closed_at: '2026-03-24T08:30:07.158303Z'
+close_reason: 'Auto-closed: all children completed'
 verify: cd /Users/asher/tower && cargo test -p imp-lua --lib 2>&1 | grep "test result" | grep -v "0 passed" | grep "0 failed"
+is_archived: true
 ---
 
 Build the Lua extension system for imp. This is the parent unit.
