@@ -29,6 +29,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup workspace
+        run: |
+          # The subtree push leaves Cargo.workspace.toml — rename to Cargo.toml
+          if [ -f Cargo.workspace.toml ] && [ ! -f Cargo.toml ]; then
+            mv Cargo.workspace.toml Cargo.toml
+          fi
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -43,14 +50,14 @@ jobs:
           key: ${{ matrix.target }}
 
       - name: Build
-        run: cargo build --release --target ${{ matrix.target }} -p mana-cli
+        run: cargo build --release --target ${{ matrix.target }} -p imp-cli
 
       - name: Package
         run: |
           VERSION=${GITHUB_REF_NAME#v}
-          ARCHIVE="mana-${VERSION}-${{ matrix.target }}"
+          ARCHIVE="imp-${VERSION}-${{ matrix.target }}"
           mkdir "$ARCHIVE"
-          cp "target/${{ matrix.target }}/release/mana" "$ARCHIVE/"
+          cp "target/${{ matrix.target }}/release/imp" "$ARCHIVE/"
           tar czf "${ARCHIVE}.tar.gz" "$ARCHIVE"
           echo "ARCHIVE=${ARCHIVE}.tar.gz" >> $GITHUB_ENV
 
@@ -70,67 +77,69 @@ jobs:
           VERSION=${GITHUB_REF_NAME#v}
           TAG=${{ github.event.release.tag_name }}
 
+          # Download all tarballs and compute SHA256
           for target in aarch64-apple-darwin x86_64-apple-darwin x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu; do
-            ARCHIVE="mana-${VERSION}-${target}.tar.gz"
+            ARCHIVE="imp-${VERSION}-${target}.tar.gz"
             gh release download "$TAG" -R "${{ github.repository }}" -p "$ARCHIVE" -D /tmp
             SHA=$(sha256sum "/tmp/$ARCHIVE" | awk '{print $1}')
             VAR=$(echo "$target" | tr '-' '_')
             eval "SHA_${VAR}=$SHA"
           done
 
-          cat > /tmp/mana.rb << FORMULA
-          class Mana < Formula
-            desc "Coordination substrate for AI coding agents — verified gates, dependency-aware scheduling"
-            homepage "https://github.com/kfcafe/mana"
-            license "AGPL-3.0-or-later"
+          cat > /tmp/imp.rb << FORMULA
+          class Imp < Formula
+            desc "AI agent engine — tools, TUI, multi-provider LLM streaming"
+            homepage "https://github.com/kfcafe/imp"
+            license "Apache-2.0"
             version "${VERSION}"
 
             on_macos do
               on_arm do
-                url "https://github.com/kfcafe/mana/releases/download/${TAG}/mana-${VERSION}-aarch64-apple-darwin.tar.gz"
+                url "https://github.com/kfcafe/imp/releases/download/${TAG}/imp-${VERSION}-aarch64-apple-darwin.tar.gz"
                 sha256 "${SHA_aarch64_apple_darwin}"
               end
               on_intel do
-                url "https://github.com/kfcafe/mana/releases/download/${TAG}/mana-${VERSION}-x86_64-apple-darwin.tar.gz"
+                url "https://github.com/kfcafe/imp/releases/download/${TAG}/imp-${VERSION}-x86_64-apple-darwin.tar.gz"
                 sha256 "${SHA_x86_64_apple_darwin}"
               end
             end
 
             on_linux do
               on_arm do
-                url "https://github.com/kfcafe/mana/releases/download/${TAG}/mana-${VERSION}-aarch64-unknown-linux-gnu.tar.gz"
+                url "https://github.com/kfcafe/imp/releases/download/${TAG}/imp-${VERSION}-aarch64-unknown-linux-gnu.tar.gz"
                 sha256 "${SHA_aarch64_unknown_linux_gnu}"
               end
               on_intel do
-                url "https://github.com/kfcafe/mana/releases/download/${TAG}/mana-${VERSION}-x86_64-unknown-linux-gnu.tar.gz"
+                url "https://github.com/kfcafe/imp/releases/download/${TAG}/imp-${VERSION}-x86_64-unknown-linux-gnu.tar.gz"
                 sha256 "${SHA_x86_64_unknown_linux_gnu}"
               end
             end
 
             def install
-              bin.install "mana"
+              bin.install "imp"
             end
 
             test do
-              assert_match "mana", shell_output("#{bin}/mana --help")
+              assert_match "imp", shell_output("#{bin}/imp --help")
             end
           end
           FORMULA
 
-          sed -i 's/^          //' /tmp/mana.rb
+          # Strip leading whitespace from heredoc
+          sed -i 's/^          //' /tmp/imp.rb
 
       - name: Update homebrew-tap
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh api repos/kfcafe/homebrew-tap/contents/Formula/mana.rb \
+          gh api repos/kfcafe/homebrew-tap/contents/Formula/imp.rb \
             -q '.sha' > /tmp/old_sha.txt
 
-          CONTENT=$(base64 -w0 /tmp/mana.rb)
+          CONTENT=$(base64 -w0 /tmp/imp.rb)
           OLD_SHA=$(cat /tmp/old_sha.txt)
 
-          gh api repos/kfcafe/homebrew-tap/contents/Formula/mana.rb \
+          gh api repos/kfcafe/homebrew-tap/contents/Formula/imp.rb \
             -X PUT \
-            -f message="Update mana to ${GITHUB_REF_NAME}" \
+            -f message="Update imp to ${GITHUB_REF_NAME}" \
             -f content="$CONTENT" \
             -f sha="$OLD_SHA"
