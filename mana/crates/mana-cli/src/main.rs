@@ -407,7 +407,7 @@ fn main() -> Result<()> {
             Ok(())
         }
 
-        Command::Show {
+        Command::Read {
             id,
             json,
             no_json,

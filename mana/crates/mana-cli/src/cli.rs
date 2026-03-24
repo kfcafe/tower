@@ -28,7 +28,7 @@ Commands:
   TASKS
     init         Initialize .mana/ in the current directory
     create       Create a new unit [aliases: new]
-    show         Display full unit details [aliases: view]
+    read         Display full unit details [aliases: show, view]
     list         List/search/filter units [aliases: ls]
     edit         Edit unit in $EDITOR
     update       Update fields, claim, set parent, add deps
@@ -190,8 +190,8 @@ Verify patterns:
     ///
     /// Shows all fields: title, description, verify command, status, dependencies,
     /// history, and notes. Use --short for a one-line summary.
-    #[command(visible_alias = "view", display_order = 4)]
-    Show {
+    #[command(visible_aliases = ["show", "view"], display_order = 4)]
+    Read {
         /// Unit ID
         id: String,
 
