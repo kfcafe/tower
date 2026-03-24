@@ -24,6 +24,19 @@ struct ReleasedUnit {
     reason: String,
 }
 
+/// A record of one unit that was auto-closed because its verify gate passed.
+struct SweptUnit {
+    id: String,
+    title: String,
+}
+
+/// A record of one unit whose verify gate failed during sweep.
+struct SweptFailure {
+    id: String,
+    title: String,
+    reason: String,
+}
+
 /// Format a chrono Duration as a human-readable string like "3 days ago"
 /// or "2 hours ago".
 fn format_duration(duration: chrono::Duration) -> String {
@@ -321,15 +334,97 @@ fn cmd_tidy_inner(
         }
     }
 
-    // Step 5 — Rebuild the index one final time.
-    // After moving files around and releasing stale units, the old index
-    // is stale, so we rebuild from disk. In dry-run mode nothing changed,
-    // but we still rebuild because the user asked to "update the index."
+    // Step 5 — Sweep: verify open units and close those that pass.
+    //
+    // Find every open unit that has a verify command. Run it. If it passes,
+    // close the unit (which archives it, auto-closes parents, etc.).
+    // This catches units that were implemented but never formally closed.
+    let sweep_index = Index::build(mana_dir).context("Failed to rebuild index for sweep")?;
+
+    let verifiable_open: Vec<&crate::index::IndexEntry> = sweep_index
+        .units
+        .iter()
+        .filter(|entry| entry.status == Status::Open && entry.has_verify)
+        .collect();
+
+    let mut swept: Vec<SweptUnit> = Vec::new();
+    let mut sweep_failed: Vec<SweptFailure> = Vec::new();
+
+    for entry in &verifiable_open {
+        if dry_run {
+            // In dry-run, run verify but don't close
+            use mana_core::ops::verify::run_verify;
+            match run_verify(mana_dir, &entry.id) {
+                Ok(Some(result)) if result.passed => {
+                    swept.push(SweptUnit {
+                        id: entry.id.clone(),
+                        title: entry.title.clone(),
+                    });
+                }
+                Ok(Some(result)) => {
+                    let reason = if result.timed_out {
+                        "timed out".to_string()
+                    } else {
+                        format!("exit {}", result.exit_code.unwrap_or(-1))
+                    };
+                    sweep_failed.push(SweptFailure {
+                        id: entry.id.clone(),
+                        title: entry.title.clone(),
+                        reason,
+                    });
+                }
+                _ => {}
+            }
+            continue;
+        }
+
+        use mana_core::ops::close::{self as ops_close, CloseOpts, CloseOutcome};
+        match ops_close::close(
+            mana_dir,
+            &entry.id,
+            CloseOpts {
+                reason: Some("verify passed (tidy sweep)".to_string()),
+                force: false,
+                defer_verify: false,
+            },
+        ) {
+            Ok(CloseOutcome::Closed(result)) => {
+                swept.push(SweptUnit {
+                    id: entry.id.clone(),
+                    title: result.unit.title.clone(),
+                });
+            }
+            Ok(CloseOutcome::VerifyFailed(result)) => {
+                let reason = if result.timed_out {
+                    "timed out".to_string()
+                } else {
+                    format!("exit {}", result.exit_code.unwrap_or(-1))
+                };
+                sweep_failed.push(SweptFailure {
+                    id: entry.id.clone(),
+                    title: entry.title.clone(),
+                    reason,
+                });
+            }
+            Ok(_) => {} // deferred, hook rejected, etc — skip silently
+            Err(e) => {
+                sweep_failed.push(SweptFailure {
+                    id: entry.id.clone(),
+                    title: entry.title.clone(),
+                    reason: e.to_string(),
+                });
+            }
+        }
+    }
+
+    // Step 6 — Rebuild the index one final time.
+    // After moving files around, releasing stale units, and sweeping,
+    // the old index is stale, so we rebuild from disk.
     let final_index = Index::build(mana_dir).context("Failed to rebuild index after tidy")?;
     final_index.save(mana_dir).context("Failed to save index")?;
 
-    // Step 5b — Rebuild the archive index too, since units were moved into archive.
-    if !dry_run && !tidied.is_empty() {
+    // Step 6b — Rebuild the archive index too, since units were moved into archive.
+    if !dry_run && (!tidied.is_empty() || !swept.is_empty()) {
         let archive_index =
             ArchiveIndex::build(mana_dir).context("Failed to rebuild archive index after tidy")?;
         archive_index
@@ -342,7 +437,12 @@ fn cmd_tidy_inner(
     let archive_verb = if dry_run { "Would archive" } else { "Archived" };
     let release_verb = if dry_run { "Would release" } else { "Released" };
 
-    if tidied.is_empty() && skipped_parent_ids.is_empty() && released.is_empty() {
+    if tidied.is_empty()
+        && skipped_parent_ids.is_empty()
+        && released.is_empty()
+        && swept.is_empty()
+        && sweep_failed.is_empty()
+    {
         out.info("Nothing to tidy — all units look good.");
     }
 
@@ -361,6 +461,29 @@ fn cmd_tidy_inner(
         ));
         for r in &released {
             out.info(&format!("  → {}. {} ({})", r.id, r.title, r.reason));
+        }
+    }
+
+    let sweep_verb = if dry_run { "Would close" } else { "Closed" };
+
+    if !swept.is_empty() {
+        out.info(&format!(
+            "{} {} unit(s) (verify passed):",
+            sweep_verb,
+            swept.len()
+        ));
+        for s in &swept {
+            out.info(&format!("  ✓ {}. {}", s.id, s.title));
+        }
+    }
+
+    if !sweep_failed.is_empty() {
+        out.info(&format!(
+            "Verify failed for {} unit(s):",
+            sweep_failed.len()
+        ));
+        for f in &sweep_failed {
+            out.info(&format!("  ✗ {}. {} ({})", f.id, f.title, f.reason));
         }
     }
 
