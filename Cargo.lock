@@ -1609,6 +1609,7 @@ dependencies = [
  "imp-core",
  "imp-llm",
  "ratatui",
+ "serde",
  "serde_json",
  "syntect",
  "tempfile",
