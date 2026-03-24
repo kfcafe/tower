@@ -104,9 +104,11 @@ Two modes:
 
 ### wizard (Rust workspace: wizard-tui + wizard-orch + wiz binary)
 
-The wizard's tower. Your interface to the entire system, plus the automated orchestrator that keeps imps working while you're away.
+The wizard's tower. Your visual interface to the entire system.
 
-**wizard-tui** (ratatui):
+The scheduling intelligence — dependency resolution, priority ordering, resource awareness, budget controls, retry strategy — lives in **mana-pool**, not wizard. Wizard is primarily a GUI and daemon wrapper. This means Familiar gets the same orchestration brain without reimplementing wizard-orch.
+
+**wizard-tui / canvas**:
 - Mana graph visualization — what's ready, running, blocked, done
 - Agent monitoring — stream output from running imps
 - Interactive work — enter a mana unit, summon an imp to work on it with you
@@ -114,12 +116,9 @@ The wizard's tower. Your interface to the entire system, plus the automated orch
 - Skills, prompt templates, slash commands
 
 **wizard-orch** (tokio):
-- **Dispatch** — computes ready units (deps satisfied, not claimed), spawns imp binaries
-- **Supervision** — monitors agent processes, reacts to completion or failure
-- **Backpressure** — concurrency limits, agents pull work at capacity
+- **Daemon** — watches `.mana/`, calls mana-pool for dispatch, forwards events to UI clients over socket
 - **Hooks (orchestration-level)** — event-driven reactions across agents. "When a unit fails 3 times, escalate." "When all children pass, verify parent."
 - **Scheduler** — pulse (periodic awareness) and cron (time-based dispatch)
-- **Budget** — cost tracking, circuit breaker (N consecutive failures → stop dispatching)
 
 **wiz binary**:
 ```
@@ -211,3 +210,4 @@ Facts are *what's true*. Skills are *how to work*.
 - **rig** — Rust LLM library. The LLM plumbing layer for imp.
 - **Familiar** (`~/familiar`) — the platform vision. Informs the long-term direction but not the immediate work.
 - **Stripe Minions** ([Part 1](https://stripe.dev/blog/minions-stripes-one-shot-end-to-end-coding-agents), [Part 2](https://stripe.dev/blog/minions-stripes-one-shot-end-to-end-coding-agents-part-2)) — proved unattended agents at scale (1,300+ PRs/week). Primary influence on Familiar's design. Key ideas that carry forward: isolated cloud environments (devboxes) for parallelizable, predictable agent execution; blueprints that mix deterministic steps with agentic steps (maps to mana's verified work graph); centralized tool management (Toolshed, ~500 MCP tools with curated subsets per agent); entry points where people already are (Slack, web, ticketing); shift-feedback-left iteration (local linting before CI, at most two CI rounds); and the principle that what's good for human developers is good for agents.
+- **Harness Engineering** (OpenAI, Anthropic, Mitchell Hashimoto) — the emerging discipline of building the constraints, tools, and feedback loops that keep agents productive. Tower is a harness engineering platform. Mana provides the structure (work graph, dependencies), verify gates provide the feedback loops, imp provides the constrained execution environment. The industry is converging on what Tower builds as infrastructure.
