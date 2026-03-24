@@ -6,6 +6,24 @@ AI agents today work in isolation. They receive a prompt, execute tools, produce
 
 The missing piece isn't a better LLM or more tools. It's a **coordination substrate** — a shared, structured, verified medium that agents think through, plan with, and communicate over.
 
+## Strategic Position
+
+The agentic ecosystem is fragmenting along three axes: where the agent runs (local vs cloud), who controls the model (user vs vendor), and what the interface looks like. Every product picks a quadrant — local sovereignty, cloud delegation, distribution at scale, brand-trust safety — and builds a product around that bet.
+
+Tower doesn't pick a quadrant. Tower bets on the **substrate**.
+
+Coordination and verification are orthogonal to where agents run, who picks the model, and what the interface looks like. A verified work graph with dependency tracking, failure memory, and structured decomposition works the same whether the agent is local on your machine or hosted in the cloud, whether the work is code or research or operations.
+
+That's the moat. Every other product in the agentic space relies on LLM self-assessment — the agent says "I'm done" and you trust it. Tower replaces trust with verification. Work is done when a verify gate passes, not when the model says so. Failures are structured data that the next attempt learns from, not lost context in a chat window.
+
+The stack covers the full spectrum:
+
+- **Wizard + imp** — local, sovereign, model-agnostic. Your machine, your keys, your data. Competes in the sovereignty quadrant, but with multi-agent coordination and verified results that no local agent framework has.
+- **Familiar** — cloud platform for agent coordination across teams. Same mana substrate, same verify gates, same failure-as-data model, but hosted and multi-user. Competes in the delegation/distribution quadrant.
+- **Mana** — the substrate underneath both. Doesn't care about deployment topology or domain. A team running agents in the cloud through Familiar and a solo builder running agents locally through Wizard are both producing and consuming the same verified work graph.
+
+The products compete in different quadrants. The substrate is the same.
+
 ## The Metaphor
 
 **Wizards orchestrate mana. Imps do the work.**

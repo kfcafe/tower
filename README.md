@@ -11,7 +11,7 @@ It exists for one reason:
 - `mana/` — coordination substrate and CLI
 - `imp/` — worker/agent engine
 - `wizard/` — canvas-native command center, desktop client, and orchestrator
-- `familiar/` — future team platform
+- `familiar/` — cloud platform for agent coordination across teams (future)
 
 ## Why this root exists
 
