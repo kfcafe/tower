@@ -166,11 +166,6 @@ pub struct Config {
     /// Runs asynchronously — failures are logged but don't affect the operation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub on_fail: Option<String>,
-    /// Shell command template to run after `mana plan` creates children.
-    /// Supports template variables: {id}, {parent}, {children}, {branch}.
-    /// Runs asynchronously — failures are logged but don't affect the plan.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub post_plan: Option<String>,
     /// Default timeout in seconds for verify commands (default: None = no limit).
     /// Per-unit `verify_timeout` overrides this value.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -274,7 +269,6 @@ impl Default for Config {
             worktree: false,
             on_close: None,
             on_fail: None,
-            post_plan: None,
             verify_timeout: None,
             review: None,
             user: None,
@@ -380,9 +374,6 @@ impl Config {
             }
             if config.on_fail.is_none() {
                 config.on_fail = parent.on_fail.clone();
-            }
-            if config.post_plan.is_none() {
-                config.post_plan = parent.post_plan.clone();
             }
             if config.verify_timeout.is_none() {
                 config.verify_timeout = parent.verify_timeout;
@@ -623,7 +614,6 @@ mod tests {
             worktree: false,
             on_close: None,
             on_fail: None,
-            post_plan: None,
             verify_timeout: None,
             review: None,
             user: None,
@@ -663,7 +653,6 @@ mod tests {
             worktree: false,
             on_close: None,
             on_fail: None,
-            post_plan: None,
             verify_timeout: None,
             review: None,
             user: None,
@@ -719,7 +708,6 @@ mod tests {
             worktree: false,
             on_close: None,
             on_fail: None,
-            post_plan: None,
             verify_timeout: None,
             review: None,
             user: None,
@@ -774,7 +762,6 @@ mod tests {
             worktree: false,
             on_close: None,
             on_fail: None,
-            post_plan: None,
             verify_timeout: None,
             review: None,
             user: None,
@@ -841,7 +828,6 @@ mod tests {
             worktree: false,
             on_close: None,
             on_fail: None,
-            post_plan: None,
             verify_timeout: None,
             review: None,
             user: None,
@@ -884,7 +870,6 @@ mod tests {
             worktree: false,
             on_close: None,
             on_fail: None,
-            post_plan: None,
             verify_timeout: None,
             review: None,
             user: None,
@@ -937,7 +922,6 @@ mod tests {
             worktree: false,
             on_close: None,
             on_fail: None,
-            post_plan: None,
             verify_timeout: None,
             review: None,
             user: None,
@@ -1164,7 +1148,6 @@ mod tests {
             worktree: false,
             on_close: None,
             on_fail: None,
-            post_plan: None,
             verify_timeout: None,
             review: None,
             user: None,
@@ -1232,7 +1215,6 @@ mod tests {
             worktree: false,
             on_close: None,
             on_fail: None,
-            post_plan: None,
             verify_timeout: None,
             review: None,
             user: None,
@@ -1272,7 +1254,6 @@ mod tests {
             worktree: false,
             on_close: None,
             on_fail: None,
-            post_plan: None,
             verify_timeout: None,
             review: None,
             user: None,
@@ -1325,7 +1306,6 @@ mod tests {
             worktree: false,
             on_close: None,
             on_fail: None,
-            post_plan: None,
             verify_timeout: None,
             review: None,
             user: None,
@@ -1378,7 +1358,6 @@ mod tests {
             worktree: false,
             on_close: None,
             on_fail: None,
-            post_plan: None,
             verify_timeout: None,
             review: None,
             user: None,
@@ -1496,7 +1475,6 @@ mod tests {
             worktree: false,
             on_close: None,
             on_fail: None,
-            post_plan: None,
             verify_timeout: None,
             review: None,
             user: None,

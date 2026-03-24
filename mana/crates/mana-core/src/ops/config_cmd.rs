@@ -30,7 +30,6 @@ pub fn config_get(mana_dir: &Path, key: &str) -> Result<String> {
         "research_model" => config.research_model.unwrap_or_default(),
         "on_close" => config.on_close.unwrap_or_default(),
         "on_fail" => config.on_fail.unwrap_or_default(),
-        "post_plan" => config.post_plan.unwrap_or_default(),
         "memory_reserve_mb" => config.memory_reserve_mb.to_string(),
         "user" => {
             if let Some(user) = config.user {
@@ -176,13 +175,6 @@ pub fn config_set(mana_dir: &Path, key: &str, value: &str) -> Result<()> {
                 config.on_fail = None;
             } else {
                 config.on_fail = Some(value.to_string());
-            }
-        }
-        "post_plan" => {
-            if value.is_empty() || value == "none" || value == "unset" {
-                config.post_plan = None;
-            } else {
-                config.post_plan = Some(value.to_string());
             }
         }
         "memory_reserve_mb" => {

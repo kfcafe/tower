@@ -164,7 +164,6 @@ mod tests {
             worktree: false,
             on_close: None,
             on_fail: None,
-            post_plan: None,
             verify_timeout: None,
             review: None,
             user: None,

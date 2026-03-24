@@ -255,7 +255,7 @@ pub fn revoke_trust(project_dir: &Path) -> Result<()> {
 }
 
 // ---------------------------------------------------------------------------
-// Config-Based Hooks (on_close, on_fail, post_plan)
+// Config-Based Hooks (on_close, on_fail)
 // ---------------------------------------------------------------------------
 
 /// Template variables for config hook expansion.
