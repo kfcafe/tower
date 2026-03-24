@@ -446,8 +446,13 @@ fn main() -> Result<()> {
             no_json,
             ids,
             format,
-            ..
+            search,
         } => {
+            // --search delegates to recall (replaces standalone `mana recall`)
+            if let Some(ref query) = search {
+                return cmd_recall(&mana_dir, query, all, auto_json(json, no_json));
+            }
+
             // --ids and --format are explicit overrides — don't auto-JSON
             let effective_json = if ids || format.is_some() {
                 json // only if explicitly passed
@@ -483,15 +488,68 @@ fn main() -> Result<()> {
             remove_label,
             decisions,
             resolve_decisions,
+            claim,
+            release,
+            by,
+            parent,
+            add_dep,
+            remove_dep,
         } => {
             use mana::commands::stdin::resolve_stdin_opt;
             validate_unit_id(&id)?;
             let resolved_id = resolve_unit_id(&id, &mana_dir)?;
 
+            // Handle --claim / --release (replaces standalone `mana claim`)
+            if claim {
+                cmd_claim(&mana_dir, &resolved_id, by, false)?;
+                return Ok(());
+            }
+            if release {
+                cmd_release(&mana_dir, &resolved_id)?;
+                return Ok(());
+            }
+
+            // Handle --parent (replaces standalone `mana adopt`)
+            if let Some(ref parent_id) = parent {
+                validate_unit_id(parent_id)?;
+                cmd_adopt(&mana_dir, parent_id, std::slice::from_ref(&resolved_id))?;
+            }
+
+            // Handle --add-dep / --remove-dep (replaces standalone `mana dep`)
+            if let Some(ref dep_id) = add_dep {
+                validate_unit_id(dep_id)?;
+                let resolved_dep = resolve_unit_id(dep_id, &mana_dir)?;
+                cmd_dep_add(&mana_dir, &resolved_id, &resolved_dep)?;
+            }
+            if let Some(ref dep_id) = remove_dep {
+                validate_unit_id(dep_id)?;
+                let resolved_dep = resolve_unit_id(dep_id, &mana_dir)?;
+                cmd_dep_remove(&mana_dir, &resolved_id, &resolved_dep)?;
+            }
+
             // Resolve "-" values from stdin
             let description = resolve_stdin_opt(description)?;
             let notes = resolve_stdin_opt(notes)?;
             let acceptance = resolve_stdin_opt(acceptance)?;
+
+            // Skip the regular update if only structural flags were passed
+            let has_field_updates = title.is_some()
+                || description.is_some()
+                || acceptance.is_some()
+                || notes.is_some()
+                || design.is_some()
+                || status.is_some()
+                || priority.is_some()
+                || assignee.is_some()
+                || add_label.is_some()
+                || remove_label.is_some()
+                || !decisions.is_empty()
+                || !resolve_decisions.is_empty();
+
+            if !has_field_updates && (parent.is_some() || add_dep.is_some() || remove_dep.is_some())
+            {
+                return Ok(());
+            }
 
             cmd_update(
                 &mana_dir,
@@ -518,6 +576,7 @@ fn main() -> Result<()> {
             failed,
             defer_verify,
             stdin,
+            check,
         } => {
             let ids = if stdin {
                 mana::commands::stdin::read_ids_from_stdin()?
@@ -528,6 +587,19 @@ fn main() -> Result<()> {
                 validate_unit_id(id)?;
             }
             let resolved_ids = resolve_unit_ids(ids, &mana_dir)?;
+
+            // --check: run verify without closing (replaces standalone `mana verify`)
+            if check {
+                let out = mana::output::Output::new();
+                for id in &resolved_ids {
+                    let passed = cmd_verify(&mana_dir, id, &out)?;
+                    if !passed {
+                        std::process::exit(1);
+                    }
+                }
+                return Ok(());
+            }
+
             // MANA_BATCH_VERIFY=1 auto-defers verify, same as --defer-verify
             let defer = defer_verify || std::env::var("MANA_BATCH_VERIFY").as_deref() == Ok("1");
             if failed {

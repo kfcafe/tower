@@ -28,59 +28,42 @@ Commands:
   TASKS
     init         Initialize .mana/ in the current directory
     create       Create a new unit [aliases: new]
-    quick        Quick-create: create a unit and immediately claim it [aliases: q]
     show         Display full unit details [aliases: view]
-    list         List units with filtering [aliases: ls]
+    list         List/search/filter units [aliases: ls]
     edit         Edit unit in $EDITOR
-    update       Update unit fields
-    claim        Claim a unit for work (sets status to in_progress)
-    close        Close one or more units (runs verify gate first)
-    verify       Run a unit's verify command without closing
-    reopen       Reopen a closed unit
+    update       Update fields, claim, set parent, add deps
+    close        Close units (verify first), or --check to verify only
     delete       Delete a unit and clean up references
-    move         Move units from another .mana/ directory into this project
 
   QUERY
     status       Show project status: claimed, ready, and blocked units
     next         Recommend the best unit to work on next
     tree         Show hierarchical tree of units
-    graph        Display dependency graph
     context      Output context for a unit, or memory context (no args)
-    trace        Walk unit lineage and dependency chain
-
-  MEMORY
-    fact         Create a verified fact (requires --verify)
-    recall       Search units by keyword
-    verify-facts Re-verify all facts, detect staleness
 
   AGENTS
     run          Dispatch ready units to agents
-    plan         Interactively plan a large unit into children
-    review       Adversarial post-close review of an implementation
-    diff         Show git diff of what an agent changed for a unit
-    mutate       Mutation-test a unit's verify gate strength
+    plan         Decompose a unit into smaller children
     agents       Show running and recently completed agents
     logs         View agent output from log files
+    review       Post-close review of an implementation
+    diff         Show git diff of what an agent changed
 
-  MCP
-    mcp          MCP server for IDE integration (Cursor, Windsurf, Claude Desktop, Cline)
-
-  DEPENDENCIES
-    dep          Manage dependencies between units
-    adopt        Adopt existing units as children of a parent
+  MEMORY
+    fact         Create a verified fact (requires --verify)
+    verify-facts Re-verify all facts, detect staleness
 
   MAINTENANCE
-    tidy         Archive closed units, release stale in-progress units
-    sync         Force rebuild index from YAML files
+    tidy         Clean up: archive, release stale claims, close passing units
     doctor       Health check -- orphans, cycles, index freshness
-    stats        Project statistics
     config       Manage project configuration
-    trust        Manage hook trust (enable/disable hook execution)
-    unarchive    Unarchive a unit (move from archive back to main units directory)
-    locks        View and manage file locks for concurrent agents
+    stats        Project statistics
 
-  SHELL
-    completions  Generate shell completions (bash, zsh, fish, powershell)
+  OTHER
+    mcp          MCP server for IDE integration
+    move         Move units between projects
+    onboard      Configure coding agents to use mana
+    completions  Generate shell completions
   help         Print this message or the help of the given subcommand(s)
 
 {options}
@@ -290,6 +273,10 @@ Examples:
         /// Custom output format (e.g. '{id}\t{title}\t{status}')
         #[arg(long, conflicts_with_all = ["json", "ids"])]
         format: Option<String>,
+
+        /// Search titles, descriptions, and notes by keyword
+        #[arg(long)]
+        search: Option<String>,
     },
 
     /// Edit unit in $EDITOR
@@ -364,6 +351,30 @@ Examples:
         /// Resolve a decision by index (0-based) or by text match
         #[arg(long = "resolve-decision")]
         resolve_decisions: Vec<String>,
+
+        /// Claim this unit for work (sets status to in_progress)
+        #[arg(long)]
+        claim: bool,
+
+        /// Release claim on this unit (sets status back to open)
+        #[arg(long, conflicts_with = "claim")]
+        release: bool,
+
+        /// Who is claiming (used with --claim)
+        #[arg(long, requires = "claim")]
+        by: Option<String>,
+
+        /// Set parent unit ID
+        #[arg(long)]
+        parent: Option<String>,
+
+        /// Add a dependency (this unit depends on the given ID)
+        #[arg(long = "add-dep")]
+        add_dep: Option<String>,
+
+        /// Remove a dependency
+        #[arg(long = "remove-dep")]
+        remove_dep: Option<String>,
     },
 
     /// Close one or more units (runs verify gate first)
@@ -411,10 +422,21 @@ Examples:
         /// Read unit IDs from stdin (one per line)
         #[arg(long)]
         stdin: bool,
+
+        /// Run verify without closing (dry-run verify check)
+        #[arg(
+            long,
+            conflicts_with = "force",
+            conflicts_with = "failed",
+            conflicts_with = "defer_verify"
+        )]
+        check: bool,
     },
 
     /// Run a unit's verify command without closing
-    #[command(display_order = 10)]
+    ///
+    /// DEPRECATED: Use `mana close --check <id>` instead.
+    #[command(display_order = 10, hide = true)]
     Verify {
         /// Unit ID
         id: String,
@@ -433,7 +455,9 @@ Examples:
     },
 
     /// Reopen a closed unit
-    #[command(display_order = 11)]
+    ///
+    /// DEPRECATED: Use `mana update <id> --status open` instead.
+    #[command(display_order = 11, hide = true)]
     Reopen {
         /// Unit ID
         id: String,
@@ -448,7 +472,9 @@ Examples:
 
     // -- DEPENDENCIES --
     /// Manage dependencies between units
-    #[command(display_order = 30)]
+    ///
+    /// DEPRECATED: Use `mana update <id> --add-dep/--remove-dep` instead.
+    #[command(display_order = 30, hide = true)]
     Dep {
         #[command(subcommand)]
         command: DepCommand,
@@ -563,7 +589,9 @@ Examples:
 
     // -- MAINTENANCE --
     /// Force rebuild index from YAML files
-    #[command(display_order = 41)]
+    ///
+    /// DEPRECATED: Use `mana tidy` instead (rebuilds index + cleans up state).
+    #[command(display_order = 41, hide = true)]
     Sync,
 
     /// Archive closed units, release stale in-progress units, and rebuild the index
@@ -591,7 +619,9 @@ Examples:
     },
 
     /// Claim a unit for work (sets status to in_progress)
-    #[command(display_order = 8)]
+    ///
+    /// DEPRECATED: Use `mana update <id> --claim` instead.
+    #[command(display_order = 8, hide = true)]
     Claim {
         /// Unit ID
         id: String,
@@ -646,11 +676,11 @@ Examples:
 
     /// Quick-create: create a unit and immediately claim it
     ///
-    /// Use when you'll work on the unit yourself rather than dispatching to an agent.
-    /// Equivalent to `mana create "..." --claim`. For agent dispatch, use `mana create` instead.
+    /// DEPRECATED: Use `mana create --claim` instead.
     #[command(
         visible_alias = "q",
         display_order = 3,
+        hide = true,
         after_help = "\
 Examples:
   mana quick \"fix typo in README\" --verify \"grep -q 'correct text' README.md\"
@@ -743,7 +773,9 @@ Examples:
     },
 
     /// Adopt existing units as children of a parent
-    #[command(display_order = 31)]
+    ///
+    /// DEPRECATED: Use `mana update <child> --parent <parent>` instead.
+    #[command(display_order = 31, hide = true)]
     Adopt {
         /// Parent unit ID
         parent: String,
@@ -929,9 +961,10 @@ Examples:
 
     /// Search units by keyword
     ///
-    /// Searches titles, descriptions, and notes. Use --all to include closed/archived units.
+    /// DEPRECATED: Use `mana list --search <query>` instead.
     #[command(
         display_order = 51,
+        hide = true,
         after_help = "\
 Examples:
   mana recall \"auth\"           Search open units
