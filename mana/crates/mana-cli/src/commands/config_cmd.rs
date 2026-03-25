@@ -4,6 +4,9 @@ use anyhow::{anyhow, Result};
 
 use crate::config::{Config, GlobalConfig, DEFAULT_COMMIT_TEMPLATE};
 
+const CONFIG_KEY_HELP: &str = "Available keys: project, next_id, auto_close_parent, run, plan, research, run_model, plan_model, review_model, research_model, max_concurrent, poll_interval, rules_file, auto_commit, commit_template, on_close, on_fail, memory_reserve_mb, user, user.email";
+const MODEL_KEY_HELP: &str = "Model keys: run_model = mana run, plan_model = mana plan, review_model = AI review, research_model = project research/planning";
+
 /// Get a configuration value by key
 pub fn cmd_config_get(mana_dir: &Path, key: &str) -> Result<()> {
     let config = Config::load(mana_dir)?;
@@ -47,7 +50,14 @@ pub fn cmd_config_get(mana_dir: &Path, key: &str) -> Result<()> {
                 String::new()
             }
         }
-        _ => return Err(anyhow!("Unknown config key: {}", key)),
+        _ => {
+            return Err(anyhow!(
+                "Unknown config key: {}\n{}\n{}",
+                key,
+                CONFIG_KEY_HELP,
+                MODEL_KEY_HELP
+            ))
+        }
     };
 
     println!("{}", value);
@@ -198,12 +208,32 @@ pub fn cmd_config_set(mana_dir: &Path, key: &str, value: &str) -> Result<()> {
                 config.user_email = Some(value.to_string());
             }
         }
-        _ => return Err(anyhow!("Unknown config key: {}", key)),
+        _ => {
+            return Err(anyhow!(
+                "Unknown config key: {}\n{}\n{}",
+                key,
+                CONFIG_KEY_HELP,
+                MODEL_KEY_HELP
+            ))
+        }
     }
 
     config.save(mana_dir)?;
     println!("Set {} = {}", key, value);
+    if let Some(scope) = model_key_scope(key) {
+        println!("Applies to: {}", scope);
+    }
     Ok(())
+}
+
+fn model_key_scope(key: &str) -> Option<&'static str> {
+    match key {
+        "run_model" => Some("mana run"),
+        "plan_model" => Some("mana plan"),
+        "review_model" => Some("AI review flows"),
+        "research_model" => Some("project research/planning"),
+        _ => None,
+    }
 }
 
 #[cfg(test)]

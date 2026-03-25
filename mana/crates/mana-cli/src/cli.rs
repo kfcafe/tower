@@ -905,7 +905,10 @@ Examples:
 
     // -- AGENTS --
     /// Manage project configuration
-    #[command(display_order = 35)]
+    #[command(
+        display_order = 35,
+        after_help = "Examples:\n  mana config get run_model\n  mana config set run_model gpt-5.3-codex\n  mana config set plan_model claude-sonnet-4-6\n  mana config set review_model haiku\n  mana config set research_model gpt-5.4\n\nModel keys:\n  run_model       Default model for mana run\n  plan_model      Default model for mana plan\n  review_model    Default model for AI review flows\n  research_model  Default model for project-level research/planning"
+    )]
     Config {
         #[command(subcommand)]
         command: ConfigCommand,
@@ -1210,13 +1213,13 @@ pub enum DepCommand {
 pub enum ConfigCommand {
     /// Get a configuration value
     Get {
-        /// Config key (run, plan, research, run_model, plan_model, review_model, research_model, max_concurrent, poll_interval, auto_close_parent, max_loops, rules_file, file_locking, verify_timeout, extends, on_close, on_fail, review.run, review.max_reopens)
+        /// Config key. Model keys: run_model (mana run), plan_model (mana plan), review_model (AI review), research_model (project research/planning).
         key: String,
     },
 
     /// Set a configuration value
     Set {
-        /// Config key (run, plan, research, run_model, plan_model, review_model, research_model, max_concurrent, poll_interval, auto_close_parent, max_loops, rules_file, file_locking, verify_timeout, extends, on_close, on_fail, review.run, review.max_reopens)
+        /// Config key. Model keys: run_model (mana run), plan_model (mana plan), review_model (AI review), research_model (project research/planning).
         key: String,
 
         /// New value

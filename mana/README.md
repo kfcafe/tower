@@ -434,13 +434,27 @@ Project configuration lives in `.mana/config.yaml`.
 ```bash
 mana config set run "claude -p 'read unit {id}, implement it, then run mana close {id}'"
 mana config set plan "claude -p 'read unit {id} and split it into subtasks'"
+mana config set run_model gpt-5.3-codex
+mana config set plan_model claude-sonnet-4-6
+mana config set review_model haiku
+mana config set research_model gpt-5.4
 mana config set max_concurrent 4
 ```
+
+Model settings let you pick different defaults for different kinds of agent work:
+- `run_model` powers `mana run`
+- `plan_model` powers `mana plan`
+- `review_model` powers AI review flows
+- `research_model` powers project-level research/planning
 
 | Key | Default | Description |
 |-----|---------|-------------|
 | `run` | — | Command template for agent dispatch. `{id}` = unit ID. |
 | `plan` | — | Command template to split large units. |
+| `run_model` | — | Default model for `mana run`. |
+| `plan_model` | — | Default model for `mana plan`. |
+| `review_model` | — | Default model for AI review flows. |
+| `research_model` | — | Default model for project-level research/planning. |
 | `max_concurrent` | `4` | Max parallel agents. |
 | `max_loops` | `10` | Max agent loops before stopping (`0` = unlimited). |
 | `poll_interval` | `30` | Seconds between loop mode cycles. |
