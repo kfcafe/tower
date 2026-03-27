@@ -42,7 +42,7 @@ pub fn cmd_mutate(mana_dir: &Path, args: MutateArgs) -> Result<()> {
         .ok_or_else(|| anyhow!("Cannot determine project root from .mana/ dir"))?;
 
     // Determine timeout
-    let config = Config::load(mana_dir).ok();
+    let config = Config::load_with_extends(mana_dir).ok();
     let timeout = args
         .timeout
         .or_else(|| unit.effective_verify_timeout(config.as_ref().and_then(|c| c.verify_timeout)));

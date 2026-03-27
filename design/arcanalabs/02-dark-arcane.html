@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arcana Labs — Dark Arcane</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+      :root {
+        --font-display: "Fraunces", serif;
+        --font-body: "Manrope", sans-serif;
+        --font-mono: "IBM Plex Mono", monospace;
+        --space-2: 8px;
+        --space-3: 12px;
+        --space-4: 16px;
+        --space-5: 20px;
+        --space-6: 24px;
+        --space-8: 32px;
+        --space-10: 40px;
+        --space-12: 48px;
+        --space-16: 64px;
+        --space-20: 80px;
+        --radius-sm: 16px;
+        --radius-md: 24px;
+        --shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+      }
+
+      :root[data-theme="dark"] {
+        color-scheme: dark;
+        --bg: #0d0910;
+        --bg-elevated: rgba(31, 21, 32, 0.85);
+        --bg-panel: linear-gradient(180deg, rgba(36, 25, 37, 0.92), rgba(21, 14, 22, 0.96));
+        --text: #efe7ea;
+        --text-muted: #bcaeb6;
+        --border: rgba(212, 174, 197, 0.18);
+        --border-strong: rgba(212, 174, 197, 0.34);
+        --accent: #d3aec5;
+        --accent-strong: #94617f;
+        --signal: #d1b77f;
+        --wash: rgba(148, 97, 127, 0.18);
+        --glow: rgba(209, 183, 127, 0.12);
+      }
+
+      :root[data-theme="light"] {
+        color-scheme: light;
+        --bg: #f7f1ed;
+        --bg-elevated: rgba(255, 252, 249, 0.92);
+        --bg-panel: linear-gradient(180deg, rgba(255, 252, 249, 0.98), rgba(247, 239, 235, 0.98));
+        --text: #21161f;
+        --text-muted: #5a4b55;
+        --border: rgba(90, 64, 82, 0.15);
+        --border-strong: rgba(110, 69, 95, 0.3);
+        --accent: #6e455f;
+        --accent-strong: #4a283f;
+        --signal: #9a7626;
+        --wash: rgba(110, 69, 95, 0.12);
+        --glow: rgba(154, 118, 38, 0.12);
+      }
+
+      * { box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
+      body {
+        margin: 0;
+        font: 500 16px/1.65 var(--font-body);
+        color: var(--text);
+        background:
+          radial-gradient(circle at 12% 12%, var(--wash), transparent 24%),
+          radial-gradient(circle at 86% 16%, var(--glow), transparent 20%),
+          radial-gradient(circle at 78% 84%, var(--wash), transparent 24%),
+          var(--bg);
+      }
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        background-image: radial-gradient(var(--border) 1px, transparent 1px);
+        background-size: 24px 24px;
+        mask-image: linear-gradient(180deg, black, transparent 70%);
+      }
+      a { color: inherit; text-decoration: none; }
+      button { font: inherit; }
+      .wrap { width: min(1140px, calc(100% - 32px)); margin: 0 auto; }
+      .header {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        backdrop-filter: blur(18px);
+        background: color-mix(in srgb, var(--bg) 82%, transparent);
+        border-bottom: 1px solid var(--border);
+      }
+      .header .wrap {
+        min-height: 76px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--space-4);
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: var(--space-3);
+      }
+      .sigil {
+        position: relative;
+        width: 20px;
+        height: 20px;
+        border: 1.5px solid var(--accent);
+        transform: rotate(45deg);
+        border-radius: 4px;
+      }
+      .sigil::before,
+      .sigil::after {
+        content: "";
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+      }
+      .sigil::before {
+        width: 8px;
+        height: 8px;
+        border: 1px solid rgba(255,255,255,0.25);
+      }
+      .sigil::after {
+        width: 4px;
+        height: 4px;
+        border-radius: 999px;
+        background: var(--signal);
+      }
+      .brand-copy { display: grid; gap: 2px; }
+      .brand-copy strong {
+        font-family: var(--font-display);
+        font-size: 1.15rem;
+        letter-spacing: -0.03em;
+      }
+      .brand-copy span {
+        color: var(--text-muted);
+        font: 500 0.72rem/1 var(--font-mono);
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
+      .nav {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+      }
+      .nav a,
+      .toggle {
+        padding: 10px 14px;
+        border-radius: 999px;
+      }
+      .nav a { color: var(--text-muted); }
+      .nav a:hover { background: var(--wash); color: var(--text); }
+      .toggle {
+        border: 1px solid var(--border);
+        background: var(--bg-elevated);
+        color: var(--text-muted);
+        cursor: pointer;
+      }
+      .hero {
+        padding: clamp(52px, 9vw, 100px) 0 var(--space-16);
+      }
+      .hero-grid {
+        display: grid;
+        grid-template-columns: 1.12fr 0.88fr;
+        gap: var(--space-8);
+        align-items: start;
+      }
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--space-3);
+        margin-bottom: var(--space-5);
+        color: var(--text-muted);
+        font: 500 0.76rem/1 var(--font-mono);
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
+      .eyebrow::before {
+        content: "";
+        width: 32px;
+        height: 1px;
+        background: var(--signal);
+      }
+      h1, h2, h3, p { margin: 0; }
+      h1 {
+        max-width: 11ch;
+        font-family: var(--font-display);
+        font-size: clamp(3.4rem, 7vw, 6.9rem);
+        line-height: 0.92;
+        letter-spacing: -0.06em;
+      }
+      .accent { color: var(--accent); }
+      .lede {
+        max-width: 58ch;
+        margin-top: var(--space-6);
+        color: var(--text-muted);
+        font-size: clamp(1.05rem, 1rem + 0.45vw, 1.28rem);
+      }
+      .hero-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-3);
+        margin-top: var(--space-8);
+      }
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 48px;
+        padding: 0 20px;
+        border-radius: 999px;
+        border: 1px solid transparent;
+      }
+      .button-primary {
+        background: linear-gradient(180deg, color-mix(in srgb, var(--accent-strong) 78%, white), var(--accent-strong));
+        color: white;
+      }
+      .button-secondary {
+        border-color: var(--border);
+        background: color-mix(in srgb, var(--bg-elevated) 88%, transparent);
+      }
+      .panel {
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius-md);
+        background: var(--bg-panel);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+      .panel::before {
+        content: "";
+        display: block;
+        height: 1px;
+        background: linear-gradient(90deg, var(--signal), transparent 60%);
+      }
+      .panel-inner {
+        padding: var(--space-8);
+        display: grid;
+        gap: var(--space-5);
+      }
+      .panel-label {
+        color: var(--text-muted);
+        font: 500 0.72rem/1 var(--font-mono);
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+      }
+      .panel-grid {
+        display: grid;
+        gap: var(--space-4);
+      }
+      .mini {
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        background: color-mix(in srgb, var(--bg-elevated) 78%, transparent);
+        padding: var(--space-5);
+      }
+      .mini h3 {
+        font-family: var(--font-display);
+        font-size: 1.5rem;
+        letter-spacing: -0.04em;
+        margin-bottom: 8px;
+      }
+      .mini p {
+        color: var(--text-muted);
+        margin-bottom: var(--space-4);
+      }
+      .mini ul {
+        padding: 0;
+        margin: 0;
+        list-style: none;
+        display: grid;
+        gap: 10px;
+      }
+      .mini li {
+        display: flex;
+        justify-content: space-between;
+        gap: var(--space-4);
+        color: var(--text-muted);
+        font-size: 0.95rem;
+      }
+      .mini strong { color: var(--text); }
+      .status {
+        padding: 5px 8px;
+        border-radius: 999px;
+        background: var(--wash);
+        border: 1px solid var(--border);
+        color: var(--text);
+        font: 600 0.67rem/1 var(--font-mono);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .section {
+        padding: var(--space-16) 0;
+      }
+      .section-header {
+        display: grid;
+        gap: var(--space-4);
+        margin-bottom: var(--space-8);
+      }
+      .section-kicker {
+        color: var(--text-muted);
+        font: 500 0.74rem/1 var(--font-mono);
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+      }
+      .section h2 {
+        max-width: 12ch;
+        font-family: var(--font-display);
+        font-size: clamp(2.1rem, 4vw, 3.8rem);
+        line-height: 0.98;
+        letter-spacing: -0.05em;
+      }
+      .section-copy {
+        max-width: 62ch;
+        color: var(--text-muted);
+      }
+      .split,
+      .products,
+      .contact {
+        display: grid;
+        gap: var(--space-5);
+      }
+      .split { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .essay,
+      .card,
+      .contact-card {
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        background: color-mix(in srgb, var(--bg-elevated) 90%, transparent);
+        padding: var(--space-6);
+      }
+      .essay h3,
+      .contact-card h3 {
+        font-family: var(--font-display);
+        font-size: 1.95rem;
+        letter-spacing: -0.04em;
+        margin-bottom: var(--space-3);
+      }
+      .essay p,
+      .contact-card p,
+      .card p { color: var(--text-muted); }
+      .essay ul {
+        padding: 0;
+        margin: var(--space-5) 0 0;
+        list-style: none;
+        display: grid;
+        gap: var(--space-3);
+      }
+      .essay li {
+        border-top: 1px solid var(--border);
+        padding-top: var(--space-3);
+        color: var(--text-muted);
+      }
+      .essay li strong { display: block; color: var(--text); margin-bottom: 4px; }
+      .products { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .card {
+        display: grid;
+        gap: var(--space-4);
+      }
+      .card-head {
+        display: flex;
+        align-items: start;
+        justify-content: space-between;
+        gap: var(--space-4);
+      }
+      .card-label {
+        color: var(--text-muted);
+        font: 500 0.72rem/1 var(--font-mono);
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+      }
+      .card h3 {
+        font-family: var(--font-display);
+        font-size: 1.72rem;
+        letter-spacing: -0.04em;
+      }
+      .contact { grid-template-columns: 1.1fr 0.9fr; }
+      .footer {
+        padding: var(--space-10) 0 var(--space-12);
+        color: var(--text-muted);
+        border-top: 1px solid var(--border);
+      }
+      .footer .wrap {
+        display: flex;
+        justify-content: space-between;
+        gap: var(--space-4);
+      }
+      @media (max-width: 940px) {
+        .hero-grid, .split, .products, .contact { grid-template-columns: 1fr; }
+      }
+      @media (max-width: 720px) {
+        .nav a { display: none; }
+        .hero-actions { flex-direction: column; }
+        .button { width: 100%; }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="header">
+      <div class="wrap">
+        <a class="brand" href="#top">
+          <span class="sigil" aria-hidden="true"></span>
+          <span class="brand-copy">
+            <strong>Arcana Labs</strong>
+            <span>dark arcane concept</span>
+          </span>
+        </a>
+        <nav class="nav">
+          <a href="#products">Products</a>
+          <a href="#consulting">Consulting</a>
+          <a href="#contact">Contact</a>
+          <button class="toggle" id="toggle">Dark</button>
+        </nav>
+      </div>
+    </header>
+
+    <main id="top">
+      <section class="hero">
+        <div class="wrap hero-grid">
+          <div>
+            <div class="eyebrow">Dark arcane direction</div>
+            <h1>
+              A darker,
+              <span class="accent">more atmospheric</span>
+              Arcana Labs.
+            </h1>
+            <p class="lede">
+              This version leans into the name. It keeps the interface professional, but adds more
+              mood, more texture, and a stronger sense that Arcana is building systems with depth,
+              ritual, and operator control rather than generic AI output machines.
+            </p>
+            <div class="hero-actions">
+              <a class="button button-primary" href="#products">See the stack</a>
+              <a class="button button-secondary" href="#consulting">See consulting</a>
+            </div>
+          </div>
+
+          <aside class="panel">
+            <div class="panel-inner">
+              <div class="panel-label">What this version is testing</div>
+              <div class="panel-grid">
+                <section class="mini">
+                  <h3>The stack</h3>
+                  <p>Open infrastructure below. Paid products above.</p>
+                  <ul>
+                    <li><strong>imp</strong><span class="status">Runtime</span></li>
+                    <li><strong>mana</strong><span class="status">Substrate</span></li>
+                    <li><strong>Wizard</strong><span class="status">Local app</span></li>
+                    <li><strong>Familiar</strong><span class="status">Platform</span></li>
+                  </ul>
+                </section>
+                <section class="mini">
+                  <h3>Consulting</h3>
+                  <p>For teams building real agent systems, not just wrappers.</p>
+                  <ul>
+                    <li><strong>Strategy</strong><span>what to automate and why</span></li>
+                    <li><strong>Architecture</strong><span>review, verification, control</span></li>
+                    <li><strong>Build</strong><span>implementation and polish</span></li>
+                  </ul>
+                </section>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="section" id="consulting">
+        <div class="wrap">
+          <div class="section-header">
+            <div class="section-kicker">Products and practice</div>
+            <h2>Products and consulting, both treated as first-class.</h2>
+            <p class="section-copy">
+              This version is the boldest. If the editorial page is quieter, this one is more
+              memorable and more branded. The question is whether it feels distinct in a good way or
+              too theatrical for the work you want to attract.
+            </p>
+          </div>
+          <div class="split">
+            <article class="essay">
+              <div class="section-kicker">Products</div>
+              <h3>Use the system directly.</h3>
+              <p>Open components, then more complete command surfaces on top.</p>
+              <ul>
+                <li><strong>imp + mana</strong>The open execution and coordination layer.</li>
+                <li><strong>Wizard</strong>The local control center for supervised agent work.</li>
+                <li><strong>Familiar</strong>The hosted team system with approvals and policy.</li>
+              </ul>
+            </article>
+            <article class="essay">
+              <div class="section-kicker">Consulting</div>
+              <h3>Bring Arcana in when the workflow matters.</h3>
+              <p>Product direction, architecture, and implementation for teams building serious agent systems.</p>
+              <ul>
+                <li><strong>Design partner work</strong>Direction and system shape before the wrong thing ships.</li>
+                <li><strong>Applied architecture</strong>Review loops, failure handling, and operator tooling.</li>
+                <li><strong>Hands-on delivery</strong>Prototype, polish, and production hardening.</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="products">
+        <div class="wrap">
+          <div class="section-header">
+            <div class="section-kicker">The stack</div>
+            <h2>A product ladder with stronger atmosphere.</h2>
+          </div>
+          <div class="products">
+            <article class="card">
+              <div class="card-head">
+                <div>
+                  <div class="card-label">Runtime</div>
+                  <h3>imp</h3>
+                </div>
+                <span class="status">OSS</span>
+              </div>
+              <p>The worker runtime for sessions, tools, approvals, memory, and execution.</p>
+            </article>
+            <article class="card">
+              <div class="card-head">
+                <div>
+                  <div class="card-label">Substrate</div>
+                  <h3>mana</h3>
+                </div>
+                <span class="status">OSS</span>
+              </div>
+              <p>The work graph, verification layer, and durable state for coordinated runs.</p>
+            </article>
+            <article class="card">
+              <div class="card-head">
+                <div>
+                  <div class="card-label">Local command center</div>
+                  <h3>Wizard</h3>
+                </div>
+                <span class="status">Build</span>
+              </div>
+              <p>The local interface for supervising, reviewing, and steering multi-agent work.</p>
+            </article>
+            <article class="card">
+              <div class="card-head">
+                <div>
+                  <div class="card-label">Team platform</div>
+                  <h3>Familiar</h3>
+                </div>
+                <span class="status">Next</span>
+              </div>
+              <p>The team layer for approvals, policies, isolated execution, and auditability.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="contact">
+        <div class="wrap contact">
+          <article class="contact-card">
+            <div class="section-kicker">Contact</div>
+            <h3>Use this direction if you want Arcana to feel more distinct and ownable.</h3>
+            <p>
+              This version is meant to be memorable. If it works, we can still simplify it later.
+              If it feels too dark or too branded, we can pull it back.
+            </p>
+          </article>
+          <article class="contact-card">
+            <div class="section-kicker">Question</div>
+            <p>
+              Does this make Arcana feel like a stronger company name, or does it push too hard into
+              the theme? That is the main signal I would want from you on this concept.
+            </p>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="wrap">
+        <div>Arcana Labs — dark arcane concept</div>
+        <div>02 / 03</div>
+      </div>
+    </footer>
+
+    <script>
+      const root = document.documentElement;
+      const button = document.getElementById('toggle');
+      const key = 'arcana-theme-arcane';
+      const applyTheme = (theme, persist = true) => {
+        root.dataset.theme = theme;
+        button.textContent = theme === 'dark' ? 'Dark' : 'Light';
+        button.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
+        if (persist) localStorage.setItem(key, theme);
+      };
+      const stored = localStorage.getItem(key);
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      applyTheme(stored || (prefersDark ? 'dark' : 'light'), false);
+      button.addEventListener('click', () => applyTheme(root.dataset.theme === 'dark' ? 'light' : 'dark'));
+    </script>
+  </body>
+</html>

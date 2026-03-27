@@ -87,7 +87,7 @@ fn pgrep_running(pattern: &str) -> bool {
 /// command is configured.
 fn has_running_agents() -> bool {
     // If a run command is configured, extract the binary name and search for it
-    if let Ok(config) = crate::config::Config::load(std::path::Path::new(".mana")) {
+    if let Ok(config) = crate::config::Config::load_with_extends(std::path::Path::new(".mana")) {
         if let Some(ref run_cmd) = config.run {
             // Extract the first word (binary name) from the run template
             if let Some(binary) = run_cmd.split_whitespace().next() {

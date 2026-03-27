@@ -777,6 +777,8 @@ pub fn reopen_unit(mana_dir: &Path, id: &str) -> Result<crate::ops::reopen::Reop
 /// If `params.force` is false and the unit has a verify command with
 /// `fail_first: true`, the verify command is run first. If it already passes,
 /// the claim is rejected (nothing to do). This enforces fail-first/TDD semantics.
+/// Any claimed unit with a verify command also records a checkpoint SHA so
+/// later diff/review/close flows can compare against the claim baseline.
 ///
 /// # Errors
 /// - [`anyhow::Error`] — unit not found, not open, or verify pre-check failed

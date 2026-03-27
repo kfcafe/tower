@@ -35,8 +35,9 @@ use anyhow::Result;
 
 use crate::commands::review::{cmd_review, ReviewArgs};
 use crate::config::Config;
+use crate::index::ArchiveIndex;
 use crate::stream::{self, StreamEvent};
-use crate::unit::Unit;
+use crate::unit::{AttemptOutcome, Status, Unit};
 
 use plan::{plan_dispatch, print_plan, print_plan_json};
 use ready_queue::run_ready_queue_direct;
@@ -101,6 +102,107 @@ struct AgentResult {
     tool_count: usize,
     turns: usize,
     failure_summary: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum UnitOutcome {
+    Closed,
+    Failed,
+    Abandoned,
+    AwaitingVerify,
+}
+
+impl UnitOutcome {
+    fn is_closed(self) -> bool {
+        matches!(self, Self::Closed)
+    }
+
+    fn is_failure(self) -> bool {
+        matches!(self, Self::Failed | Self::Abandoned)
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+struct OutcomeCounts {
+    closed: u32,
+    failed: u32,
+    abandoned: u32,
+    awaiting_verify: u32,
+    skipped: u32,
+}
+
+impl OutcomeCounts {
+    fn record(&mut self, outcome: UnitOutcome) {
+        match outcome {
+            UnitOutcome::Closed => self.closed += 1,
+            UnitOutcome::Failed => self.failed += 1,
+            UnitOutcome::Abandoned => self.abandoned += 1,
+            UnitOutcome::AwaitingVerify => self.awaiting_verify += 1,
+        }
+    }
+
+    fn total_failed_for_legacy_stream(self) -> usize {
+        (self.failed + self.abandoned) as usize
+    }
+
+    fn has_failures(self) -> bool {
+        self.failed > 0 || self.abandoned > 0
+    }
+}
+
+pub(super) fn inspect_unit_outcome(mana_dir: &Path, unit_id: &str) -> UnitOutcome {
+    if let Ok(unit_path) = crate::discovery::find_unit_file(mana_dir, unit_id) {
+        if let Ok(unit) = Unit::from_file(&unit_path) {
+            return match unit.status {
+                Status::Closed => UnitOutcome::Closed,
+                Status::AwaitingVerify => UnitOutcome::AwaitingVerify,
+                Status::Open | Status::InProgress => {
+                    if unit
+                        .attempt_log
+                        .last()
+                        .map(|attempt| attempt.outcome == AttemptOutcome::Abandoned)
+                        .unwrap_or(false)
+                    {
+                        UnitOutcome::Abandoned
+                    } else {
+                        UnitOutcome::Failed
+                    }
+                }
+            };
+        }
+    }
+
+    let archived = ArchiveIndex::load_or_rebuild(mana_dir)
+        .map(|archive| archive.units.iter().any(|entry| entry.id == unit_id))
+        .unwrap_or(false);
+
+    if archived {
+        UnitOutcome::Closed
+    } else {
+        UnitOutcome::Failed
+    }
+}
+
+fn collect_outcome_counts(
+    mana_dir: &Path,
+    results: &[AgentResult],
+    skipped_count: usize,
+) -> (OutcomeCounts, Vec<String>) {
+    let mut counts = OutcomeCounts {
+        skipped: skipped_count as u32,
+        ..OutcomeCounts::default()
+    };
+    let mut closed_ids = Vec::new();
+
+    for result in results {
+        let outcome = inspect_unit_outcome(mana_dir, &result.id);
+        counts.record(outcome);
+        if outcome.is_closed() {
+            closed_ids.push(result.id.clone());
+        }
+    }
+
+    (counts, closed_ids)
 }
 
 // ---------------------------------------------------------------------------
@@ -317,6 +419,15 @@ pub fn cmd_run(mana_dir: &Path, args: RunArgs) -> Result<()> {
     {
         // Validate template exists (kept for backward compat error message)
         let _ = run_template;
+
+        if let Some(ref run_model) = config.run_model {
+            if !run_template.contains("{model}") {
+                eprintln!(
+                    "Warning: run_model is set to `{}`, but the run template does not include `{{model}}`, so the model override will be ignored.\nUpdate the template (for example: `imp --model {{model}} run {{id}} && mana close {{id}}`) or remove `run` to use direct mode.",
+                    run_model
+                );
+            }
+        }
     }
 
     if args.loop_mode {
@@ -390,7 +501,7 @@ fn run_once(
         if args.json_stream {
             print_plan_json(&plan, args.id.as_deref());
         } else {
-            print_plan(&plan);
+            print_plan(&plan, config.run_model.as_deref());
         }
         return Ok(());
     }
@@ -448,13 +559,12 @@ fn run_once(
         memory_reserve_mb: config.memory_reserve_mb,
     };
     let run_start = Instant::now();
-    let total_done;
-    let mut total_failed;
-    let mut any_failed;
+    let outcome_counts;
+    let any_failed;
     let mut total_tokens: u64 = 0;
     let mut total_cost: f64 = 0.0;
     // Collect IDs of successfully closed units for --review post-processing
-    let mut successful_ids: Vec<String> = Vec::new();
+    let successful_ids: Vec<String>;
 
     match spawn_mode {
         SpawnMode::Direct => {
@@ -472,65 +582,38 @@ fn run_once(
                 args.keep_going,
             )?;
 
-            let mut done = 0u32;
-            let mut failed = 0u32;
             for result in &results {
                 total_tokens += result.total_tokens.unwrap_or(0);
                 total_cost += result.total_cost.unwrap_or(0.0);
-                if result.success {
-                    if args.json_stream {
-                        stream::emit(&StreamEvent::UnitDone {
-                            id: result.id.clone(),
-                            success: true,
-                            duration_secs: result.duration.as_secs(),
-                            error: None,
-                            total_tokens: result.total_tokens,
-                            total_cost: result.total_cost,
-                            tool_count: Some(result.tool_count),
-                            turns: Some(result.turns),
-                            failure_summary: None,
-                        });
-                    }
-                    done += 1;
-                    successful_ids.push(result.id.clone());
-                } else {
-                    if args.json_stream {
-                        stream::emit(&StreamEvent::UnitDone {
-                            id: result.id.clone(),
-                            success: false,
-                            duration_secs: result.duration.as_secs(),
-                            error: result.error.clone(),
-                            total_tokens: result.total_tokens,
-                            total_cost: result.total_cost,
-                            tool_count: Some(result.tool_count),
-                            turns: Some(result.turns),
-                            failure_summary: result.failure_summary.clone(),
-                        });
-                    }
-                    failed += 1;
+                if args.json_stream {
+                    stream::emit(&StreamEvent::UnitDone {
+                        id: result.id.clone(),
+                        success: result.success,
+                        duration_secs: result.duration.as_secs(),
+                        error: if result.success {
+                            None
+                        } else {
+                            result.error.clone()
+                        },
+                        total_tokens: result.total_tokens,
+                        total_cost: result.total_cost,
+                        tool_count: Some(result.tool_count),
+                        turns: Some(result.turns),
+                        failure_summary: if result.success {
+                            None
+                        } else {
+                            result.failure_summary.clone()
+                        },
+                    });
                 }
             }
-            total_done = done;
-            total_failed = failed;
-            any_failed = had_failure;
+            let mut branch_any_failed = had_failure;
 
             // After all agents complete, run batch verification if enabled.
             // Each agent exits with AwaitingVerify status; the runner now resolves them.
             if run_cfg.batch_verify {
                 match mana_core::ops::batch_verify::batch_verify(mana_dir) {
                     Ok(bv) => {
-                        // Promote agent successes that passed verify into successful_ids
-                        for id in &bv.passed {
-                            if !successful_ids.contains(id) {
-                                successful_ids.push(id.clone());
-                            }
-                        }
-                        // Failures from batch verify count as failed units
-                        total_failed += bv.failed.len() as u32;
-                        if !bv.failed.is_empty() {
-                            any_failed = true;
-                        }
-
                         if args.json_stream {
                             stream::emit(&StreamEvent::BatchVerify {
                                 commands_run: bv.commands_run,
@@ -543,16 +626,21 @@ fn run_once(
                     }
                     Err(e) => {
                         eprintln!("Batch verify error: {}", e);
-                        any_failed = true;
+                        branch_any_failed = true;
                     }
                 }
             }
+
+            let (counts, closed_ids) =
+                collect_outcome_counts(mana_dir, &results, plan.skipped.len());
+            outcome_counts = counts;
+            successful_ids = closed_ids;
+            any_failed = branch_any_failed || outcome_counts.has_failures();
         }
 
         SpawnMode::Template { .. } => {
             // Template mode: wave-based execution (legacy)
-            let mut done = 0u32;
-            let mut failed = 0u32;
+            let mut template_results = Vec::new();
             let mut had_failure = false;
 
             for (wave_idx, wave) in plan.waves.iter().enumerate() {
@@ -582,6 +670,8 @@ fn run_once(
 
                 for result in &results {
                     let duration = format_duration(result.duration);
+                    total_tokens += result.total_tokens.unwrap_or(0);
+                    total_cost += result.total_cost.unwrap_or(0.0);
                     if result.success {
                         if args.json_stream {
                             stream::emit(&StreamEvent::UnitDone {
@@ -598,9 +688,7 @@ fn run_once(
                         } else {
                             eprintln!("  ✓ {}  {}  {}", result.id, result.title, duration);
                         }
-                        done += 1;
                         wave_success += 1;
-                        successful_ids.push(result.id.clone());
                     } else {
                         if args.json_stream {
                             stream::emit(&StreamEvent::UnitDone {
@@ -621,11 +709,12 @@ fn run_once(
                                 result.id, result.title, duration, err
                             );
                         }
-                        failed += 1;
                         wave_failed += 1;
                         had_failure = true;
                     }
                 }
+
+                template_results.extend(results);
 
                 if args.json_stream {
                     stream::emit(&StreamEvent::RoundEnd {
@@ -640,9 +729,11 @@ fn run_once(
                 }
             }
 
-            total_done = done;
-            total_failed = failed;
-            any_failed = had_failure;
+            let (counts, closed_ids) =
+                collect_outcome_counts(mana_dir, &template_results, plan.skipped.len());
+            outcome_counts = counts;
+            successful_ids = closed_ids;
+            any_failed = had_failure || outcome_counts.has_failures();
         }
     }
 
@@ -668,17 +759,23 @@ fn run_once(
 
     if args.json_stream {
         stream::emit(&StreamEvent::RunEnd {
-            total_success: total_done as usize,
-            total_failed: total_failed as usize,
+            total_success: outcome_counts.closed as usize,
+            total_closed: outcome_counts.closed as usize,
+            total_failed: outcome_counts.total_failed_for_legacy_stream(),
+            total_abandoned: outcome_counts.abandoned as usize,
+            total_awaiting_verify: outcome_counts.awaiting_verify as usize,
+            total_skipped: outcome_counts.skipped as usize,
             duration_secs: run_start.elapsed().as_secs(),
         });
     } else {
         let elapsed = format_duration(run_start.elapsed());
         let mut summary = format!(
-            "\nDone: {} succeeded, {} failed, {} skipped  ({})",
-            total_done,
-            total_failed,
-            plan.skipped.len(),
+            "\nDone: {} closed, {} failed, {} abandoned, {} awaiting verify, {} skipped  ({})",
+            outcome_counts.closed,
+            outcome_counts.failed,
+            outcome_counts.abandoned,
+            outcome_counts.awaiting_verify,
+            outcome_counts.skipped,
             elapsed,
         );
         if total_tokens > 0 || total_cost > 0.0 {
@@ -1153,5 +1250,129 @@ mod tests {
         unregister_child_pid(5678);
         let count = CHILD_PIDS.lock().unwrap().len();
         assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn run_summary_counts_only_closed_units_as_success() {
+        let (_dir, mana_dir) = make_mana_dir();
+        write_config(&mana_dir, Some("echo {id}"));
+
+        let mut closed = crate::unit::Unit::new("1", "Closed");
+        closed.verify = Some("echo ok".to_string());
+        closed.status = Status::Closed;
+        closed.to_file(mana_dir.join("1-closed.md")).unwrap();
+
+        let mut failed = crate::unit::Unit::new("2", "Failed");
+        failed.verify = Some("echo ok".to_string());
+        failed.to_file(mana_dir.join("2-failed.md")).unwrap();
+
+        let mut abandoned = crate::unit::Unit::new("3", "Abandoned");
+        abandoned.verify = Some("echo ok".to_string());
+        abandoned.attempt_log.push(crate::unit::AttemptRecord {
+            num: 1,
+            outcome: AttemptOutcome::Abandoned,
+            notes: None,
+            agent: None,
+            started_at: None,
+            finished_at: None,
+        });
+        abandoned.to_file(mana_dir.join("3-abandoned.md")).unwrap();
+
+        let mut awaiting_verify = crate::unit::Unit::new("4", "Awaiting verify");
+        awaiting_verify.verify = Some("echo ok".to_string());
+        awaiting_verify.status = Status::AwaitingVerify;
+        awaiting_verify
+            .to_file(mana_dir.join("4-awaiting-verify.md"))
+            .unwrap();
+
+        let make_result = |id: &str| AgentResult {
+            id: id.to_string(),
+            title: format!("Unit {id}"),
+            action: UnitAction::Implement,
+            success: true,
+            duration: Duration::from_secs(1),
+            total_tokens: None,
+            total_cost: None,
+            error: None,
+            tool_count: 0,
+            turns: 0,
+            failure_summary: None,
+        };
+
+        let results = vec![
+            make_result("1"),
+            make_result("2"),
+            make_result("3"),
+            make_result("4"),
+        ];
+
+        let (counts, closed_ids) = collect_outcome_counts(&mana_dir, &results, 2);
+        assert_eq!(counts.closed, 1);
+        assert_eq!(counts.failed, 1);
+        assert_eq!(counts.abandoned, 1);
+        assert_eq!(counts.awaiting_verify, 1);
+        assert_eq!(counts.skipped, 2);
+        assert_eq!(closed_ids, vec!["1".to_string()]);
+    }
+
+    #[test]
+    fn run_loop_target_subtree_drains_ready_descendants() {
+        let (_dir, mana_dir) = make_mana_dir();
+        let run = format!(
+            "python3 -c 'from pathlib import Path; p = next(Path(\"{}\").glob(\"{{id}}-*.md\")); text = p.read_text(); p.write_text(text.replace(\"status: open\", \"status: closed\", 1))'",
+            mana_dir.display()
+        );
+        let yaml_run = run.replace('\\', "\\\\").replace('"', "\\\"");
+        fs::write(
+            mana_dir.join("config.yaml"),
+            format!(
+                "project: test\nnext_id: 1\nmax_loops: 10\nrun: \"{}\"\n",
+                yaml_run
+            ),
+        )
+        .unwrap();
+
+        let parent = crate::unit::Unit::new("1", "Parent");
+        parent.to_file(mana_dir.join("1-parent.md")).unwrap();
+
+        let mut intermediate = crate::unit::Unit::new("1.1", "Intermediate");
+        intermediate.parent = Some("1".to_string());
+        intermediate.verify = Some("echo ok".to_string());
+        intermediate
+            .to_file(mana_dir.join("1.1-intermediate.md"))
+            .unwrap();
+
+        let mut nested_leaf = crate::unit::Unit::new("1.1.1", "Nested leaf");
+        nested_leaf.parent = Some("1.1".to_string());
+        nested_leaf.verify = Some("echo ok".to_string());
+        nested_leaf
+            .to_file(mana_dir.join("1.1.1-nested-leaf.md"))
+            .unwrap();
+
+        let mut sibling_leaf = crate::unit::Unit::new("1.2", "Sibling leaf");
+        sibling_leaf.parent = Some("1".to_string());
+        sibling_leaf.verify = Some("echo ok".to_string());
+        sibling_leaf
+            .to_file(mana_dir.join("1.2-sibling-leaf.md"))
+            .unwrap();
+
+        let config = Config::load_with_extends(&mana_dir).unwrap();
+        let args = RunArgs {
+            id: Some("1".to_string()),
+            loop_mode: true,
+            ..default_args()
+        };
+
+        run_loop(&mana_dir, &config, &args, &determine_spawn_mode(&config)).unwrap();
+
+        let intermediate = Unit::from_file(&mana_dir.join("1.1-intermediate.md")).unwrap();
+        let nested_leaf = Unit::from_file(&mana_dir.join("1.1.1-nested-leaf.md")).unwrap();
+        let sibling_leaf = Unit::from_file(&mana_dir.join("1.2-sibling-leaf.md")).unwrap();
+        let parent = Unit::from_file(&mana_dir.join("1-parent.md")).unwrap();
+
+        assert_eq!(nested_leaf.status, Status::Closed);
+        assert_eq!(sibling_leaf.status, Status::Closed);
+        assert_eq!(intermediate.status, Status::Closed);
+        assert_eq!(parent.status, Status::Open);
     }
 }

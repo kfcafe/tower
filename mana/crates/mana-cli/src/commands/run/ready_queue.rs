@@ -101,8 +101,8 @@ fn format_tokens(tokens: u64) -> String {
     }
 }
 
-/// Print a single-line completion result for a unit (success or failure).
-fn print_result_line(result: &AgentResult) {
+/// Print a single-line completion result for a unit using the real unit outcome.
+fn print_result_line(result: &AgentResult, outcome: super::UnitOutcome) {
     let duration = format_duration(result.duration);
 
     // Build optional stats suffix: "42 tools, 15k tokens, $0.03"
@@ -123,17 +123,26 @@ fn print_result_line(result: &AgentResult) {
         format!("  ({})", stats.join(", "))
     };
 
-    if result.success {
-        eprintln!(
-            "  ✓ {}  {}  {}{}",
-            result.id, result.title, duration, stats_str
-        );
-    } else {
-        let err = result.error.as_deref().unwrap_or("failed");
-        eprintln!(
-            "  ✗ {}  {}  {} ({}){}",
-            result.id, result.title, duration, err, stats_str
-        );
+    match outcome {
+        super::UnitOutcome::Closed => {
+            eprintln!(
+                "  ✓ {}  {}  {}{}",
+                result.id, result.title, duration, stats_str
+            );
+        }
+        super::UnitOutcome::AwaitingVerify => {
+            eprintln!(
+                "  … {}  {}  {} (awaiting verify){}",
+                result.id, result.title, duration, stats_str
+            );
+        }
+        super::UnitOutcome::Failed | super::UnitOutcome::Abandoned => {
+            let err = result.error.as_deref().unwrap_or("failed");
+            eprintln!(
+                "  ✗ {}  {}  {} ({}){}",
+                result.id, result.title, duration, err, stats_str
+            );
+        }
     }
 }
 
@@ -264,6 +273,13 @@ pub(super) fn run_ready_queue_direct(
             running_unit_paths.insert(sb.id.clone(), sb.paths.clone());
 
             let round = wave_map.get(&sb.id).copied().unwrap_or(1);
+            let agent = detect_direct_agent().unwrap_or(DirectAgent::Pi);
+            let effective_model = sb.model.as_deref().or(cfg.run_model.as_deref());
+            let agent_label = match agent {
+                DirectAgent::Imp => "imp",
+                DirectAgent::Pi => "pi",
+            };
+            let model_label = effective_model.unwrap_or("default");
 
             if json_stream {
                 stream::emit(&StreamEvent::UnitStart {
@@ -275,7 +291,10 @@ pub(super) fn run_ready_queue_direct(
                     priority: None,
                 });
             } else {
-                eprintln!("  ▸ {}  {}", sb.id, sb.title);
+                eprintln!(
+                    "  ▸ {}  {}  [{} · model: {}]",
+                    sb.id, sb.title, agent_label, model_label
+                );
             }
 
             let mana_dir = mana_dir.to_path_buf();
@@ -351,7 +370,8 @@ pub(super) fn run_ready_queue_direct(
                             Ok(r) => {
                                 running_count -= 1;
                                 if !json_stream {
-                                    print_result_line(&r);
+                                    let outcome = super::inspect_unit_outcome(mana_dir, &r.id);
+                                    print_result_line(&r, outcome);
                                 }
                                 results.push(r);
                             }
@@ -381,17 +401,17 @@ pub(super) fn run_ready_queue_direct(
                 }
             }
 
-            let success = result.success;
+            let outcome = super::inspect_unit_outcome(mana_dir, &result.id);
             let unit_id = result.id.clone();
 
             // Print real-time completion for CLI users
             if !json_stream {
-                print_result_line(&result);
+                print_result_line(&result, outcome);
             }
 
-            if success {
+            if outcome.is_closed() {
                 completed.insert(unit_id.clone());
-            } else {
+            } else if outcome.is_failure() {
                 any_failed = true;
                 // If not keep_going, drain remaining and stop spawning
                 if !keep_going {
@@ -401,7 +421,8 @@ pub(super) fn run_ready_queue_direct(
                         if let Ok(r) = rx.recv() {
                             running_count -= 1;
                             if !json_stream {
-                                print_result_line(&r);
+                                let outcome = super::inspect_unit_outcome(mana_dir, &r.id);
+                                print_result_line(&r, outcome);
                             }
                             results.push(r);
                         }

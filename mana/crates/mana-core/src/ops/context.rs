@@ -112,7 +112,7 @@ pub fn assemble_agent_context(mana_dir: &Path, id: &str) -> Result<AgentContext>
 ///
 /// Returns `None` if the file doesn't exist or is empty.
 pub fn load_rules(mana_dir: &Path) -> Option<String> {
-    let config = Config::load(mana_dir).ok()?;
+    let config = Config::load_with_extends(mana_dir).ok()?;
     let rules_path = config.rules_path(mana_dir);
 
     let content = std::fs::read_to_string(&rules_path).ok()?;

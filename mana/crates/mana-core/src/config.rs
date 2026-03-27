@@ -306,10 +306,6 @@ impl Config {
     pub fn load_with_extends(mana_dir: &Path) -> Result<Self> {
         let mut config = Self::load(mana_dir)?;
 
-        if config.extends.is_empty() {
-            return Ok(config);
-        }
-
         let mut seen = HashSet::new();
         let mut stack: Vec<String> = config.extends.clone();
         let mut parents: Vec<Config> = Vec::new();
@@ -411,6 +407,10 @@ impl Config {
             // Never inherit: project, next_id, extends
         }
 
+        if let Ok(global) = GlobalConfig::load() {
+            global.apply_defaults_to_config(&mut config);
+        }
+
         Ok(config)
     }
 
@@ -465,14 +465,64 @@ impl Config {
 // Global config (~/.config/mana/config.yaml)
 // ---------------------------------------------------------------------------
 
-/// Minimal global config stored at `~/.config/mana/config.yaml`.
-/// Only holds user identity fields — project-level config has everything else.
-#[derive(Debug, Default, Serialize, Deserialize)]
+/// Global default config stored at `~/.config/mana/config.yaml`.
+///
+/// This is a sparse defaults layer: project `.mana/config.yaml` remains the
+/// source of project identity (`project`, `next_id`) while global config can
+/// provide default operational settings that projects inherit unless they
+/// override them locally.
+#[derive(Debug, Default, Serialize, Deserialize, PartialEq, Clone)]
 pub struct GlobalConfig {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_close_parent: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub run: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plan: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_loops: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_concurrent: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub poll_interval: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rules_file: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub file_locking: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub worktree: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub on_close: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub on_fail: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub verify_timeout: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub review: Option<ReviewConfig>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub user: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub user_email: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_commit: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub commit_template: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub research: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub run_model: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plan_model: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub review_model: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub research_model: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub batch_verify: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub memory_reserve_mb: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub notify: Option<NotifyConfig>,
 }
 
 impl GlobalConfig {
@@ -537,6 +587,102 @@ impl GlobalConfig {
             .with_context(|| format!("Failed to write global config at {}", path.display()))?;
         Ok(())
     }
+
+    fn apply_defaults_to_config(&self, config: &mut Config) {
+        if config.run.is_none() {
+            config.run = self.run.clone();
+        }
+        if config.plan.is_none() {
+            config.plan = self.plan.clone();
+        }
+        if config.max_loops == default_max_loops() {
+            if let Some(max_loops) = self.max_loops {
+                config.max_loops = max_loops;
+            }
+        }
+        if config.max_concurrent == default_max_concurrent() {
+            if let Some(max_concurrent) = self.max_concurrent {
+                config.max_concurrent = max_concurrent;
+            }
+        }
+        if config.poll_interval == default_poll_interval() {
+            if let Some(poll_interval) = self.poll_interval {
+                config.poll_interval = poll_interval;
+            }
+        }
+        if config.auto_close_parent == default_auto_close_parent() {
+            if let Some(auto_close_parent) = self.auto_close_parent {
+                config.auto_close_parent = auto_close_parent;
+            }
+        }
+        if config.rules_file.is_none() {
+            config.rules_file = self.rules_file.clone();
+        }
+        if !config.file_locking {
+            if let Some(file_locking) = self.file_locking {
+                config.file_locking = file_locking;
+            }
+        }
+        if !config.worktree {
+            if let Some(worktree) = self.worktree {
+                config.worktree = worktree;
+            }
+        }
+        if config.on_close.is_none() {
+            config.on_close = self.on_close.clone();
+        }
+        if config.on_fail.is_none() {
+            config.on_fail = self.on_fail.clone();
+        }
+        if config.verify_timeout.is_none() {
+            config.verify_timeout = self.verify_timeout;
+        }
+        if config.review.is_none() {
+            config.review = self.review.clone();
+        }
+        if config.user.is_none() {
+            config.user = self.user.clone();
+        }
+        if config.user_email.is_none() {
+            config.user_email = self.user_email.clone();
+        }
+        if !config.auto_commit {
+            if let Some(auto_commit) = self.auto_commit {
+                config.auto_commit = auto_commit;
+            }
+        }
+        if config.commit_template.is_none() {
+            config.commit_template = self.commit_template.clone();
+        }
+        if config.research.is_none() {
+            config.research = self.research.clone();
+        }
+        if config.run_model.is_none() {
+            config.run_model = self.run_model.clone();
+        }
+        if config.plan_model.is_none() {
+            config.plan_model = self.plan_model.clone();
+        }
+        if config.review_model.is_none() {
+            config.review_model = self.review_model.clone();
+        }
+        if config.research_model.is_none() {
+            config.research_model = self.research_model.clone();
+        }
+        if !config.batch_verify {
+            if let Some(batch_verify) = self.batch_verify {
+                config.batch_verify = batch_verify;
+            }
+        }
+        if config.memory_reserve_mb == 0 {
+            if let Some(memory_reserve_mb) = self.memory_reserve_mb {
+                config.memory_reserve_mb = memory_reserve_mb;
+            }
+        }
+        if config.notify.is_none() {
+            config.notify = self.notify.clone();
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -552,8 +698,8 @@ impl GlobalConfig {
 ///
 /// Returns `None` only if all sources fail.
 pub fn resolve_identity(mana_dir: &Path) -> Option<String> {
-    // 1. Project config
-    if let Ok(config) = Config::load(mana_dir) {
+    // 1. Effective config (project overrides + extends + global defaults)
+    if let Ok(config) = Config::load_with_extends(mana_dir) {
         if let Some(ref user) = config.user {
             if !user.is_empty() {
                 return Some(user.clone());
@@ -561,7 +707,7 @@ pub fn resolve_identity(mana_dir: &Path) -> Option<String> {
         }
     }
 
-    // 2. Global config
+    // 2. Raw global config as a fallback if project config is missing/broken
     if let Ok(global) = GlobalConfig::load() {
         if let Some(ref user) = global.user {
             if !user.is_empty() {
@@ -1538,5 +1684,76 @@ mod tests {
         loaded.save(dir.path()).unwrap();
         let contents = fs::read_to_string(dir.path().join("config.yaml")).unwrap();
         assert!(!contents.contains("batch_verify"));
+    }
+
+    fn with_temp_home<T>(f: impl FnOnce(&std::path::Path) -> T) -> T {
+        use std::sync::{Mutex, OnceLock};
+
+        static HOME_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        let guard = HOME_LOCK.get_or_init(|| Mutex::new(())).lock().unwrap();
+
+        let home = tempfile::tempdir().unwrap();
+        let old_home = std::env::var_os("HOME");
+        std::env::set_var("HOME", home.path());
+        let result = f(home.path());
+        if let Some(old_home) = old_home {
+            std::env::set_var("HOME", old_home);
+        } else {
+            std::env::remove_var("HOME");
+        }
+        drop(guard);
+        result
+    }
+
+    #[test]
+    fn load_with_extends_inherits_global_defaults() {
+        with_temp_home(|home| {
+            let global_dir = home.join(".config").join("mana");
+            fs::create_dir_all(&global_dir).unwrap();
+            fs::write(
+                global_dir.join("config.yaml"),
+                "run: \"imp run {id} && mana close {id}\"\nrun_model: gpt-5.4\nmax_concurrent: 12\n",
+            )
+            .unwrap();
+
+            let dir = tempfile::tempdir().unwrap();
+            let mana_dir = dir.path().join(".mana");
+            fs::create_dir_all(&mana_dir).unwrap();
+            write_local_config(&mana_dir, &[], "");
+
+            let config = Config::load_with_extends(&mana_dir).unwrap();
+            assert_eq!(
+                config.run.as_deref(),
+                Some("imp run {id} && mana close {id}")
+            );
+            assert_eq!(config.run_model.as_deref(), Some("gpt-5.4"));
+            assert_eq!(config.max_concurrent, 12);
+        });
+    }
+
+    #[test]
+    fn load_with_extends_prefers_project_over_global_defaults() {
+        with_temp_home(|home| {
+            let global_dir = home.join(".config").join("mana");
+            fs::create_dir_all(&global_dir).unwrap();
+            fs::write(
+                global_dir.join("config.yaml"),
+                "run: \"imp run {id} && mana close {id}\"\nrun_model: gpt-5.4\n",
+            )
+            .unwrap();
+
+            let dir = tempfile::tempdir().unwrap();
+            let mana_dir = dir.path().join(".mana");
+            fs::create_dir_all(&mana_dir).unwrap();
+            write_local_config(
+                &mana_dir,
+                &[],
+                "run: \"local-run {id}\"\nrun_model: sonnet\n",
+            );
+
+            let config = Config::load_with_extends(&mana_dir).unwrap();
+            assert_eq!(config.run.as_deref(), Some("local-run {id}"));
+            assert_eq!(config.run_model.as_deref(), Some("sonnet"));
+        });
     }
 }

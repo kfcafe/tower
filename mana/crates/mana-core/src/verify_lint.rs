@@ -66,26 +66,26 @@ pub fn lint_verify(cmd: &str) -> Vec<VerifyLintResult> {
     }
 
     if is_bare_cargo_test(target_segment) {
-        findings.push(VerifyLintResult::warning(
-            "Bare `cargo test` is too broad and may pass without proving this unit. Prefer a focused filter like `cargo test auth::login`.",
+        findings.push(VerifyLintResult::error(
+            "Bare `cargo test` runs the entire suite — it can pass without proving this unit. Use a targeted filter like `cargo test auth::login`.",
         ));
     }
 
     if is_npm_test_without_filter(target_segment) {
-        findings.push(VerifyLintResult::warning(
-            "Bare `npm test` is too broad. Prefer `npm test -- --grep login` or `npm test -- -t login`.",
+        findings.push(VerifyLintResult::error(
+            "Bare `npm test` runs the entire suite. Use `npm test -- --grep login` or `npm test -- -t login`.",
         ));
     }
 
     if is_pytest_without_filter(target_segment) {
-        findings.push(VerifyLintResult::warning(
-            "Bare `pytest` is too broad. Prefer `pytest -k login` and pair it with a grep existence check.",
+        findings.push(VerifyLintResult::error(
+            "Bare `pytest` runs the entire suite. Use `pytest -k login` and pair it with a grep existence check.",
         ));
     }
 
     if is_go_test_without_run(target_segment) {
-        findings.push(VerifyLintResult::warning(
-            "Bare `go test` without `-run` is too broad. Prefer `go test ./... -run TestLogin`.",
+        findings.push(VerifyLintResult::error(
+            "Bare `go test` without `-run` runs the entire suite. Use `go test ./... -run TestLogin`.",
         ));
     }
 
@@ -267,21 +267,37 @@ mod tests {
     }
 
     #[test]
-    fn verify_lint_warns_on_bare_test_runners() {
+    fn verify_lint_rejects_bare_test_runners() {
         let cargo = lint_verify("cargo test");
         assert!(cargo.iter().any(|finding| {
-            finding.level == VerifyLintLevel::Warning && finding.message.contains("cargo test")
+            finding.level == VerifyLintLevel::Error && finding.message.contains("cargo test")
         }));
 
         let pytest = lint_verify("pytest");
         assert!(pytest.iter().any(|finding| {
-            finding.level == VerifyLintLevel::Warning && finding.message.contains("pytest")
+            finding.level == VerifyLintLevel::Error && finding.message.contains("pytest")
         }));
 
         let go = lint_verify("go test ./...");
         assert!(go.iter().any(|finding| {
-            finding.level == VerifyLintLevel::Warning && finding.message.contains("go test")
+            finding.level == VerifyLintLevel::Error && finding.message.contains("go test")
         }));
+    }
+
+    #[test]
+    fn verify_lint_accepts_targeted_test_commands() {
+        // Targeted commands should not produce errors
+        let cargo = lint_verify("cargo test auth::login");
+        assert!(!cargo.iter().any(|f| f.level == VerifyLintLevel::Error));
+
+        let cargo_p = lint_verify("cargo test -p mana-core verify_lint");
+        assert!(!cargo_p.iter().any(|f| f.level == VerifyLintLevel::Error));
+
+        let pytest = lint_verify("pytest -k test_login");
+        assert!(!pytest.iter().any(|f| f.level == VerifyLintLevel::Error));
+
+        let go = lint_verify("go test ./... -run TestLogin");
+        assert!(!go.iter().any(|f| f.level == VerifyLintLevel::Error));
     }
 
     #[test]

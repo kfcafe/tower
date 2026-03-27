@@ -229,7 +229,7 @@ mod tests {
 
         let mut child = Unit::new("2", "Child task");
         child.slug = Some("child-task".to_string());
-        child.verify = Some("cargo test".to_string());
+        child.verify = Some("cargo test unit::check".to_string());
         child.to_file(mana_dir.join("2-child-task.md")).unwrap();
 
         let result = adopt(&mana_dir, "1", &["2".to_string()]).unwrap();

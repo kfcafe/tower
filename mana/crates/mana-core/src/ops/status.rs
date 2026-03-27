@@ -116,7 +116,7 @@ mod tests {
 
         // Open unit with verify -> ready
         let mut ready_unit = Unit::new("1", "Ready task");
-        ready_unit.verify = Some("cargo test".to_string());
+        ready_unit.verify = Some("cargo test unit::check".to_string());
         write_unit(&mana_dir, &ready_unit);
 
         // Open unit without verify -> goals
@@ -197,7 +197,7 @@ mod tests {
         let (_dir, mana_dir) = setup();
 
         let mut unit = Unit::new("1", "Awaiting verify task");
-        unit.verify = Some("cargo test".to_string());
+        unit.verify = Some("cargo test unit::check".to_string());
         unit.status = Status::AwaitingVerify;
         write_unit(&mana_dir, &unit);
 

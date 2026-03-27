@@ -3,6 +3,7 @@ use std::process::Command as ShellCommand;
 
 use anyhow::{anyhow, Context, Result};
 use chrono::Utc;
+use sha2::{Digest, Sha256};
 
 use crate::config::resolve_identity;
 use crate::discovery::find_unit_file;
@@ -66,9 +67,10 @@ fn run_verify_check(verify_cmd: &str, project_root: &Path) -> Result<bool> {
 /// The unit must be in Open status to be claimed.
 ///
 /// If the unit has a verify command and `force` is false, the verify command
-/// is run first. If it already passes, the claim is rejected (nothing to do).
-/// If it fails, the claim is granted with `fail_first: true` and the current
-/// git HEAD SHA is stored as `checkpoint`.
+/// is run first for fail-first units. If it already passes, the claim is
+/// rejected (nothing to do). The current git HEAD SHA is stored as
+/// `checkpoint` for any claimed unit with a verify command so later review/
+/// diff flows can compare against the attempt baseline.
 pub fn claim(mana_dir: &Path, id: &str, params: ClaimParams) -> Result<ClaimResult> {
     let unit_path = find_unit_file(mana_dir, id).map_err(|_| anyhow!("Unit not found: {}", id))?;
     let mut unit =
@@ -84,13 +86,13 @@ pub fn claim(mana_dir: &Path, id: &str, params: ClaimParams) -> Result<ClaimResu
 
     let has_verify = unit.verify.as_ref().is_some_and(|v| !v.trim().is_empty());
     let is_goal = !has_verify;
+    let project_root = mana_dir
+        .parent()
+        .ok_or_else(|| anyhow!("Cannot determine project root from units dir"))?;
 
     // Verify-on-claim: run verify before granting claim (TDD enforcement)
     // Skip when fail_first is false (unit created with -p / pass-ok)
     if has_verify && !params.force && unit.fail_first {
-        let project_root = mana_dir
-            .parent()
-            .ok_or_else(|| anyhow!("Cannot determine project root from units dir"))?;
         let verify_cmd = unit.verify.as_ref().unwrap();
 
         let passed = run_verify_check(verify_cmd, project_root)?;
@@ -107,7 +109,17 @@ pub fn claim(mana_dir: &Path, id: &str, params: ClaimParams) -> Result<ClaimResu
 
         // Verify failed — good, this proves the test is meaningful
         unit.fail_first = true;
+    }
+
+    if has_verify {
         unit.checkpoint = git_head_sha(project_root);
+
+        // Freeze the judge: hash the verify command so we can detect changes at close time.
+        if let Some(ref verify_cmd) = unit.verify {
+            let mut hasher = Sha256::new();
+            hasher.update(verify_cmd.as_bytes());
+            unit.verify_hash = Some(format!("{:x}", hasher.finalize()));
+        }
     }
 
     // Resolve identity: explicit --by > resolved identity > "anonymous"
@@ -359,7 +371,7 @@ mod tests {
     fn claim_unit_with_verify_is_not_goal() {
         let (_dir, bd) = setup();
         let mut params = minimal_params("Task");
-        params.verify = Some("cargo test".to_string());
+        params.verify = Some("cargo test auth::login".to_string());
         create::create(&bd, params).unwrap();
 
         let result = claim(&bd, "1", force_params(Some("alice"))).unwrap();
@@ -451,6 +463,35 @@ mod tests {
         let sha = result.unit.checkpoint.unwrap();
         assert_eq!(sha.len(), 40);
         assert!(sha.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    #[test]
+    fn pass_ok_claim_also_stores_checkpoint_sha() {
+        let (_dir, bd) = setup();
+        let mut params = minimal_params("Checkpoint without fail-first");
+        params.verify = Some("grep -q 'project: test' .mana/config.yaml".to_string());
+        params.fail_first = false;
+        create::create(&bd, params).unwrap();
+
+        let project_root = bd.parent().unwrap();
+        ShellCommand::new("git")
+            .args(["init"])
+            .current_dir(project_root)
+            .output()
+            .unwrap();
+        ShellCommand::new("git")
+            .args(["commit", "-m", "init", "--allow-empty"])
+            .current_dir(project_root)
+            .env("GIT_AUTHOR_NAME", "test")
+            .env("GIT_AUTHOR_EMAIL", "test@test.com")
+            .env("GIT_COMMITTER_NAME", "test")
+            .env("GIT_COMMITTER_EMAIL", "test@test.com")
+            .output()
+            .unwrap();
+
+        let result = claim(&bd, "1", strict_params(Some("alice"))).unwrap();
+        assert!(result.unit.checkpoint.is_some());
+        assert_eq!(result.unit.status, Status::InProgress);
     }
 
     #[test]

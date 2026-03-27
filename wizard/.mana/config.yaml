@@ -1,8 +1,2 @@
 project: wizard
 next_id: 7
-auto_close_parent: true
-run: '../target/debug/imp run {id} && mana close {id}'
-max_loops: 10
-max_concurrent: 4
-poll_interval: 30
-verify_timeout: 300

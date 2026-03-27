@@ -78,8 +78,14 @@ pub enum StreamEvent {
         failed_count: usize,
     },
     RunEnd {
+        /// Backward-compatible alias for `total_closed`.
         total_success: usize,
+        total_closed: usize,
+        /// Backward-compatible aggregate: failed + abandoned.
         total_failed: usize,
+        total_abandoned: usize,
+        total_awaiting_verify: usize,
+        total_skipped: usize,
         duration_secs: u64,
     },
     BatchVerify {
@@ -219,6 +225,27 @@ mod tests {
         let json: serde_json::Value = serde_json::to_value(&event).unwrap();
         assert_eq!(json["type"], "error");
         assert_eq!(json["message"], "something broke");
+    }
+
+    #[test]
+    fn run_end_serializes_closed_failed_abandoned_counts() {
+        let event = StreamEvent::RunEnd {
+            total_success: 2,
+            total_closed: 2,
+            total_failed: 3,
+            total_abandoned: 1,
+            total_awaiting_verify: 4,
+            total_skipped: 5,
+            duration_secs: 42,
+        };
+        let json: serde_json::Value = serde_json::to_value(&event).unwrap();
+        assert_eq!(json["type"], "run_end");
+        assert_eq!(json["total_success"], 2);
+        assert_eq!(json["total_closed"], 2);
+        assert_eq!(json["total_failed"], 3);
+        assert_eq!(json["total_abandoned"], 1);
+        assert_eq!(json["total_awaiting_verify"], 4);
+        assert_eq!(json["total_skipped"], 5);
     }
 
     #[test]

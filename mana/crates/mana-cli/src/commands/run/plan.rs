@@ -51,6 +51,34 @@ pub struct DispatchPlan {
     pub index: Index,
 }
 
+fn parent_id_for(index: &Index, unit_id: &str) -> Option<String> {
+    index
+        .units
+        .iter()
+        .find(|entry| entry.id == unit_id)
+        .and_then(|entry| entry.parent.clone())
+}
+
+fn is_descendant_of(index: &Index, unit_id: &str, ancestor_id: &str) -> bool {
+    let mut current = parent_id_for(index, unit_id);
+
+    while let Some(parent_id) = current {
+        if parent_id == ancestor_id {
+            return true;
+        }
+        current = parent_id_for(index, &parent_id);
+    }
+
+    false
+}
+
+fn has_open_descendants(index: &Index, unit_id: &str) -> bool {
+    index
+        .units
+        .iter()
+        .any(|entry| entry.status != Status::Closed && is_descendant_of(index, &entry.id, unit_id))
+}
+
 /// Plan dispatch: get ready units, filter by scope, compute waves.
 pub(super) fn plan_dispatch(
     mana_dir: &Path,
@@ -78,13 +106,15 @@ pub(super) fn plan_dispatch(
 
     // Filter by ID if provided
     if let Some(filter_id) = filter_id {
-        // Check if it's a parent — if so, get its ready children
-        let is_parent = index
-            .units
-            .iter()
-            .any(|e| e.parent.as_deref() == Some(filter_id));
-        if is_parent {
-            candidate_entries.retain(|e| e.parent.as_deref() == Some(filter_id));
+        let target_has_open_descendants = index.units.iter().any(|entry| {
+            entry.status != Status::Closed && is_descendant_of(&index, &entry.id, filter_id)
+        });
+
+        if target_has_open_descendants {
+            candidate_entries.retain(|entry| {
+                is_descendant_of(&index, &entry.id, filter_id)
+                    && !has_open_descendants(&index, &entry.id)
+            });
         } else {
             candidate_entries.retain(|e| e.id == filter_id);
         }
@@ -143,7 +173,7 @@ pub(super) fn plan_dispatch(
 }
 
 /// Print the dispatch plan without executing.
-pub(super) fn print_plan(plan: &DispatchPlan) {
+pub(super) fn print_plan(plan: &DispatchPlan, config_run_model: Option<&str>) {
     let weights = compute_downstream_weights(&plan.all_units);
     let critical_path = compute_critical_path(&plan.all_units);
     let critical_set: std::collections::HashSet<&str> =
@@ -211,9 +241,22 @@ pub(super) fn print_plan(plan: &DispatchPlan) {
                 .find(|(id, _)| id == &sb.id)
                 .map(|(_, w)| format!("  ⚠ {}", w))
                 .unwrap_or_default();
+            let model_note = sb
+                .model
+                .as_deref()
+                .or(config_run_model)
+                .map(|model| format!("  [model: {}]", model))
+                .unwrap_or_default();
             println!(
-                "  {}  {}  {}{}{}{}{}",
-                sb.id, sb.title, sb.action, weight_note, critical_note, conflict_str, warning
+                "  {}  {}  {}{}{}{}{}{}",
+                sb.id,
+                sb.title,
+                sb.action,
+                model_note,
+                weight_note,
+                critical_note,
+                conflict_str,
+                warning
             );
         }
     }
@@ -399,6 +442,50 @@ mod tests {
 
         assert_eq!(plan.waves.len(), 1);
         assert_eq!(plan.waves[0].units.len(), 2);
+    }
+
+    #[test]
+    fn plan_dispatch_target_parent_recurses_to_ready_leaf_descendants() {
+        let (_dir, mana_dir) = make_mana_dir();
+        write_config(&mana_dir, Some("echo {id}"));
+
+        let parent = crate::unit::Unit::new("1", "Parent");
+        parent.to_file(mana_dir.join("1-parent.md")).unwrap();
+
+        let mut intermediate = crate::unit::Unit::new("1.1", "Intermediate parent");
+        intermediate.parent = Some("1".to_string());
+        intermediate.verify = Some("echo ok".to_string());
+        intermediate.paths = vec!["src/intermediate.rs".to_string()];
+        intermediate
+            .to_file(mana_dir.join("1.1-intermediate-parent.md"))
+            .unwrap();
+
+        let mut nested_leaf = crate::unit::Unit::new("1.1.1", "Nested leaf");
+        nested_leaf.parent = Some("1.1".to_string());
+        nested_leaf.verify = Some("echo ok".to_string());
+        nested_leaf.paths = vec!["src/nested.rs".to_string()];
+        nested_leaf
+            .to_file(mana_dir.join("1.1.1-nested-leaf.md"))
+            .unwrap();
+
+        let mut sibling_leaf = crate::unit::Unit::new("1.2", "Sibling leaf");
+        sibling_leaf.parent = Some("1".to_string());
+        sibling_leaf.verify = Some("echo ok".to_string());
+        sibling_leaf.paths = vec!["src/sibling.rs".to_string()];
+        sibling_leaf
+            .to_file(mana_dir.join("1.2-sibling-leaf.md"))
+            .unwrap();
+
+        let config = Config::load_with_extends(&mana_dir).unwrap();
+        let plan = plan_dispatch(&mana_dir, &config, Some("1"), false).unwrap();
+
+        assert_eq!(plan.waves.len(), 1);
+        let dispatched_ids: Vec<&str> = plan.waves[0]
+            .units
+            .iter()
+            .map(|unit| unit.id.as_str())
+            .collect();
+        assert_eq!(dispatched_ids, vec!["1.1.1", "1.2"]);
     }
 
     #[test]

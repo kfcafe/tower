@@ -4,6 +4,7 @@ use std::path::Path;
 
 use anyhow::Result;
 
+use crate::commands::config_cmd::collect_doctor_findings;
 use crate::graph;
 use crate::index::{count_unit_formats, Index};
 use crate::unit::Unit;
@@ -37,6 +38,10 @@ enum Issue {
     },
     Cycle {
         path: Vec<String>,
+    },
+    ConfigFinding {
+        summary: String,
+        details: String,
     },
 }
 
@@ -89,6 +94,9 @@ impl Issue {
             }
             Issue::Cycle { path } => {
                 format!("[!] Dependency cycle detected: {}", path.join(" -> "))
+            }
+            Issue::ConfigFinding { summary, details } => {
+                format!("[!] Config: {}\n    {}", summary, details)
             }
         }
     }
@@ -176,10 +184,7 @@ fn collect_archived_ids(mana_dir: &Path) -> Result<Vec<String>> {
     Ok(archived.into_iter().map(|e| e.id).collect())
 }
 
-/// Health check: detect orphaned dependencies, missing parent refs, cycles, stale index,
-/// duplicate IDs, archived parent refs, and stale index entries.
-/// With --fix, automatically resolves fixable issues.
-pub fn cmd_doctor(mana_dir: &Path, fix: bool) -> Result<()> {
+fn collect_issues(mana_dir: &Path, fix: bool) -> Result<Vec<Issue>> {
     let mut issues: Vec<Issue> = Vec::new();
 
     // Check 1: Index freshness
@@ -282,6 +287,23 @@ pub fn cmd_doctor(mana_dir: &Path, fix: bool) -> Result<()> {
         issues.push(Issue::Cycle { path: cycle });
     }
 
+    // Check 9: Config drift / legacy templates / ignored model settings
+    for finding in collect_doctor_findings(mana_dir)? {
+        issues.push(Issue::ConfigFinding {
+            summary: finding.summary,
+            details: finding.details,
+        });
+    }
+
+    Ok(issues)
+}
+
+/// Health check: detect orphaned dependencies, missing parent refs, cycles, stale index,
+/// duplicate IDs, archived parent refs, stale index entries, and stale/misleading config.
+/// With `mana doctor fix`, automatically resolves fixable issues.
+pub fn cmd_doctor(mana_dir: &Path, fix: bool) -> Result<()> {
+    let issues = collect_issues(mana_dir, fix)?;
+
     // Display issues
     if issues.is_empty() {
         println!("All clear.");
@@ -339,7 +361,7 @@ pub fn cmd_doctor(mana_dir: &Path, fix: bool) -> Result<()> {
         }
     } else {
         println!(
-            "Found {} issue(s). Run `mana doctor --fix` to resolve fixable issues.",
+            "Found {} issue(s). Run `mana doctor fix` to resolve fixable issues.",
             issues.len()
         );
     }
@@ -377,6 +399,26 @@ mod tests {
         let (_dir, mana_dir) = setup_clean_project();
         let result = cmd_doctor(&mana_dir, false);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn doctor_detects_legacy_config_template() {
+        let (_dir, mana_dir) = setup_clean_project();
+        fs::write(
+            mana_dir.join("config.yaml"),
+            "project: test\nnext_id: 3\nrun: '../target/debug/imp run {id}'\nrun_model: gpt-5.4\n",
+        )
+        .unwrap();
+
+        let issues = collect_issues(&mana_dir, false).unwrap();
+        assert!(issues.iter().any(|issue| matches!(
+            issue,
+            Issue::ConfigFinding { summary, .. } if summary.contains("Run template")
+        )));
+        assert!(issues.iter().any(|issue| matches!(
+            issue,
+            Issue::ConfigFinding { summary, .. } if summary.contains("run_model")
+        )));
     }
 
     #[test]
@@ -556,7 +598,7 @@ mod tests {
         // Verify index is stale
         assert!(Index::is_stale(&mana_dir).unwrap());
 
-        // Run doctor with --fix
+        // Run doctor fix mode
         let result = cmd_doctor(&mana_dir, true);
         assert!(result.is_ok());
 

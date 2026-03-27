@@ -46,7 +46,7 @@ pub fn cmd_diff(mana_dir: &Path, id: &str, output: DiffOutput, no_color: bool) -
         return show_commit_diff(project_root, &tagged_commits, &output, no_color);
     }
 
-    // Strategy 2: Use checkpoint SHA if available (from fail-first claim)
+    // Strategy 2: Use checkpoint SHA if available (recorded at claim time)
     if let Some(ref checkpoint) = unit.checkpoint {
         let end_ref = resolve_end_ref(&unit, project_root)?;
         return show_range_diff(project_root, checkpoint, &end_ref, &output, no_color);

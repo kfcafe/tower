@@ -53,6 +53,12 @@ fn print_close_warnings(unit_id: &str, warnings: &[CloseWarning]) {
                     unit_id, message
                 );
             }
+            CloseWarning::VerifyChanged => {
+                eprintln!(
+                    "⚠ Warning: verify command was changed since claim for unit {} (--force overrode)",
+                    unit_id
+                );
+            }
         }
     }
 }
@@ -141,6 +147,44 @@ pub fn cmd_close(
             CloseOutcome::Closed(result) => {
                 println!("Closed unit {}: {}", id, result.unit.title);
                 any_closed = true;
+
+                // Risk scoring from close evidence
+                if let Some(ref evidence) = result.evidence {
+                    let file_changes: Vec<mana_review::types::FileChange> = evidence
+                        .changed_files
+                        .iter()
+                        .map(|path| mana_review::types::FileChange {
+                            path: path.clone(),
+                            change_type: mana_review::types::ChangeType::Modified,
+                            additions: 0,
+                            deletions: 0,
+                        })
+                        .collect();
+
+                    let (risk_level, risk_flags) =
+                        mana_review::risk::score(&result.unit, &file_changes);
+
+                    if risk_level >= mana_review::types::RiskLevel::High {
+                        eprintln!(
+                            "\n⚠ RISK: {} — consider reviewing before merging:",
+                            risk_level
+                        );
+                        for flag in &risk_flags {
+                            eprintln!("  • {} {}", flag.kind, flag.message);
+                        }
+                        eprintln!("  Run: mana review {}", result.unit.id);
+                    }
+
+                    if evidence.only_mana_changes {
+                        eprintln!("⚠ Only .mana/ files changed — no implementation detected");
+                    }
+                    if evidence.no_path_overlap && !result.unit.paths.is_empty() {
+                        eprintln!(
+                            "⚠ No changed files overlap with unit paths: {:?}",
+                            result.unit.paths
+                        );
+                    }
+                }
 
                 print_on_close_results(&result.unit.id, &result.on_close_results);
                 print_close_warnings(&result.unit.id, &result.warnings);
@@ -301,6 +345,15 @@ pub fn cmd_close(
                     "Deferred verify for unit {} — status set to awaiting_verify",
                     unit_id
                 );
+            }
+            CloseOutcome::VerifyFrozenViolation { unit_id, warnings } => {
+                print_close_warnings(&unit_id, &warnings);
+                eprintln!(
+                    "✕ Unit {} verify command was changed since claim — judge integrity violated",
+                    unit_id
+                );
+                eprintln!("  The verify command must not change after work begins.");
+                eprintln!("  Use --force to override (will be flagged for review).");
             }
         }
     }

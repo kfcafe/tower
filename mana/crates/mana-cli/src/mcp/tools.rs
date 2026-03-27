@@ -532,7 +532,7 @@ fn handle_close_unit(args: &Value, mana_dir: &Path) -> Result<String> {
 
     // Check auto-close parent
     if let Some(parent_id) = &unit.parent {
-        let auto_close = Config::load(mana_dir)
+        let auto_close = Config::load_with_extends(mana_dir)
             .map(|c| c.auto_close_parent)
             .unwrap_or(true);
         if auto_close {

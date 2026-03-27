@@ -8,10 +8,10 @@ use mana_core::ops::claim as ops_claim;
 /// Sets status to InProgress, records who claimed it and when.
 /// The unit must be in Open status to be claimed.
 ///
-/// If the unit has a verify command and `force` is false, the verify command
-/// is run first. If it already passes, the claim is rejected (nothing to do).
-/// If it fails, the claim is granted with `fail_first: true` and the current
-/// git HEAD SHA is stored as `checkpoint`.
+/// If the unit has a verify command and `force` is false, fail-first units run
+/// verify before claim. If it already passes, the claim is rejected (nothing to do).
+/// Units with verify commands also record the current git HEAD SHA as
+/// `checkpoint` so diff/review flows can compare against the claim baseline.
 pub fn cmd_claim(mana_dir: &Path, id: &str, by: Option<String>, force: bool) -> Result<()> {
     let result = ops_claim::claim(mana_dir, id, ops_claim::ClaimParams { by, force })?;
 

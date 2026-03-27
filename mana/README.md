@@ -409,10 +409,16 @@ mana verify-facts
 
 ```bash
 mana tidy
-mana doctor [--fix]
+mana doctor              # graph/index health + stale config checks
+mana doctor fix          # apply safe, deterministic fixes
 mana sync
 mana locks [--clear]
-mana config get/set <key> [value]
+mana config get <key>
+mana config get-project <key>
+mana config get-global <key>
+mana config set <key> <value>
+mana config set-project <key> <value>
+mana config set-global <key> <value>
 mana mcp serve
 mana completions <shell>
 ```
@@ -432,16 +438,28 @@ mana list --format '{id}\t{status}\t{title}'
 Project configuration lives in `.mana/config.yaml`.
 
 ```bash
-mana config set run "claude -p 'read unit {id}, implement it, then run mana close {id}'"
-mana config set plan "claude -p 'read unit {id} and split it into subtasks'"
-mana config set run_model gpt-5.3-codex
-mana config set plan_model claude-sonnet-4-6
-mana config set review_model haiku
-mana config set research_model gpt-5.4
-mana config set max_concurrent 4
+mana config set-project run "claude -p 'read unit {id}, implement it, then run mana close {id}'"
+mana config set-project plan "claude -p 'read unit {id} and split it into subtasks'"
+mana config set-global run "imp --model {model} run {id}"
+mana config set-global run_model gpt-5.4
+mana config set-global plan_model gpt-5.4
+mana config set-project max_concurrent 4
+mana config get run_model
+mana config get-project run
+mana config get-global run
+mana config inspect
+mana config inspect run_model
+mana config doctor
 ```
 
 Model settings let you pick different defaults for different kinds of agent work:
+- `mana config get` returns the effective merged value
+- `mana config get-project` and `mana config get-global` show raw scoped values
+- `mana config inspect` shows effective values and whether they come from project config, global config, or built-in defaults
+- `mana config doctor` focuses just on config drift and inheritance issues
+- `mana doctor` now includes those config checks alongside graph/index health
+- `mana doctor fix` applies safe, deterministic fixes like index rebuilds
+
 - `run_model` powers `mana run`
 - `plan_model` powers `mana plan`
 - `review_model` powers AI review flows

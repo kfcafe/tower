@@ -8,6 +8,14 @@ use anyhow::{Context, Result};
 
 use crate::config::Config;
 
+fn format_config_value_for_display(local: Option<&str>, effective: Option<&str>) -> String {
+    match (local, effective) {
+        (Some(value), _) => value.to_string(),
+        (None, Some(value)) => format!("{} (inherited)", value),
+        (None, None) => "(not configured)".to_string(),
+    }
+}
+
 /// Known agent presets with their run/plan templates and detection info.
 #[derive(Debug, Clone)]
 struct AgentPreset {
@@ -220,18 +228,39 @@ pub fn cmd_init(path: Option<&Path>, args: InitArgs) -> Result<()> {
     let mana_dir = cwd.join(".mana");
     let already_exists = mana_dir.exists() && mana_dir.is_dir();
 
-    // Re-init without --setup: show current config and hint
+    // Re-init without --setup: show current/effective config and hint
     if already_exists && !args.setup && args.agent.is_none() && args.run.is_none() {
         if let Ok(config) = Config::load(&mana_dir) {
+            let effective = Config::load_with_extends(&mana_dir).ok();
             eprintln!("Project: {}", config.project);
-            match &config.run {
-                Some(run) => eprintln!("Run: {}", run),
-                None => eprintln!("Run: (not configured)"),
-            }
-            match &config.plan {
-                Some(plan) => eprintln!("Plan: {}", plan),
-                None => eprintln!("Plan: (not configured)"),
-            }
+            eprintln!(
+                "Run: {}",
+                format_config_value_for_display(
+                    config.run.as_deref(),
+                    effective.as_ref().and_then(|c| c.run.as_deref())
+                )
+            );
+            eprintln!(
+                "Plan: {}",
+                format_config_value_for_display(
+                    config.plan.as_deref(),
+                    effective.as_ref().and_then(|c| c.plan.as_deref())
+                )
+            );
+            eprintln!(
+                "Run model: {}",
+                format_config_value_for_display(
+                    config.run_model.as_deref(),
+                    effective.as_ref().and_then(|c| c.run_model.as_deref())
+                )
+            );
+            eprintln!(
+                "Plan model: {}",
+                format_config_value_for_display(
+                    config.plan_model.as_deref(),
+                    effective.as_ref().and_then(|c| c.plan_model.as_deref())
+                )
+            );
             eprintln!();
             eprintln!("To reconfigure: mana init --setup");
             return Ok(());
@@ -352,8 +381,9 @@ pub fn cmd_init(path: Option<&Path>, args: InitArgs) -> Result<()> {
         eprintln!("Initialized units in .mana/");
     }
 
-    // Print next steps
-    if config.run.is_some() {
+    // Print next steps based on effective config, not just local overrides.
+    let effective_config = Config::load_with_extends(&mana_dir).unwrap_or(config);
+    if effective_config.run.is_some() {
         eprintln!();
         eprintln!("Next steps:");
         eprintln!("  mana create \"my first task\" --verify \"test command\"");
@@ -440,6 +470,22 @@ mod tests {
             setup: false,
             no_agent: true, // Skip interactive in tests
         }
+    }
+
+    #[test]
+    fn format_config_value_for_display_marks_inherited_values() {
+        assert_eq!(
+            format_config_value_for_display(None, Some("imp --model {model} run {id}")),
+            "imp --model {model} run {id} (inherited)"
+        );
+        assert_eq!(
+            format_config_value_for_display(Some("pi run {id}"), Some("imp run {id}")),
+            "pi run {id}"
+        );
+        assert_eq!(
+            format_config_value_for_display(None, None),
+            "(not configured)"
+        );
     }
 
     #[test]

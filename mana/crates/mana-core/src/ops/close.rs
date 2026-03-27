@@ -3,6 +3,8 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use chrono::Utc;
 
+use sha2::{Digest, Sha256};
+
 use crate::config::{Config, DEFAULT_COMMIT_TEMPLATE};
 use crate::discovery::{archive_path_for_unit, find_archived_unit, find_unit_file};
 use crate::graph;
@@ -79,6 +81,23 @@ pub enum CloseWarning {
     PostCloseHookError { message: String },
     /// Worktree cleanup failed after a successful close.
     WorktreeCleanupFailed { message: String },
+    /// The verify command was changed since claim (--force overrode the block).
+    VerifyChanged,
+}
+
+/// Evidence collected at close time from the diff since claim checkpoint.
+#[derive(Debug, Default)]
+pub struct CloseEvidence {
+    /// Files changed since checkpoint.
+    pub changed_files: Vec<String>,
+    /// Total lines added across all files.
+    pub additions: u32,
+    /// Total lines deleted across all files.
+    pub deletions: u32,
+    /// Whether only .mana/ files changed (suspicious for code tasks).
+    pub only_mana_changes: bool,
+    /// Whether no changed file overlaps with unit.paths (suspicious).
+    pub no_path_overlap: bool,
 }
 
 /// Result of an auto-commit attempt after close.
@@ -121,6 +140,11 @@ pub enum CloseOutcome {
     /// Emitted when `CloseOpts::defer_verify` is true. The runner is expected to
     /// run verify later and transition the unit to Closed or back to Open.
     DeferredVerify { unit_id: String },
+    /// The verify command was changed after claim — judge integrity violated.
+    VerifyFrozenViolation {
+        unit_id: String,
+        warnings: Vec<CloseWarning>,
+    },
 }
 
 /// Details of a successful close.
@@ -132,6 +156,8 @@ pub struct CloseResult {
     pub on_close_results: Vec<OnCloseActionResult>,
     pub warnings: Vec<CloseWarning>,
     pub auto_commit_result: Option<AutoCommitResult>,
+    /// Diff evidence from claim checkpoint, if available.
+    pub evidence: Option<CloseEvidence>,
 }
 
 /// Result of one on_close action execution.
@@ -182,6 +208,107 @@ enum WorktreeMergeStatus {
 /// Maximum stdout size to capture as outputs (64 KB).
 const MAX_OUTPUT_BYTES: usize = 64 * 1024;
 
+/// Compute close-time evidence: diff from checkpoint, changed files, stats.
+fn compute_close_evidence(
+    project_root: &Path,
+    checkpoint: Option<&str>,
+    unit_paths: &[String],
+) -> Option<CloseEvidence> {
+    let checkpoint = checkpoint?;
+
+    let name_output = std::process::Command::new("git")
+        .args(["diff", "--name-only", checkpoint, "HEAD"])
+        .current_dir(project_root)
+        .output()
+        .ok()?;
+
+    if !name_output.status.success() {
+        return None;
+    }
+
+    let changed_files: Vec<String> = String::from_utf8_lossy(&name_output.stdout)
+        .lines()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(String::from)
+        .collect();
+
+    let numstat_output = std::process::Command::new("git")
+        .args(["diff", "--numstat", checkpoint, "HEAD"])
+        .current_dir(project_root)
+        .output()
+        .ok();
+
+    let (mut additions, mut deletions) = (0u32, 0u32);
+    if let Some(ref out) = numstat_output {
+        for line in String::from_utf8_lossy(&out.stdout).lines() {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() >= 2 {
+                additions += parts[0].parse::<u32>().unwrap_or(0);
+                deletions += parts[1].parse::<u32>().unwrap_or(0);
+            }
+        }
+    }
+
+    let only_mana_changes = !changed_files.is_empty()
+        && changed_files
+            .iter()
+            .all(|f| f.starts_with(".mana/") || f.starts_with(".mana\\"));
+
+    let no_path_overlap = if unit_paths.is_empty() {
+        false
+    } else {
+        !changed_files.iter().any(|changed| {
+            unit_paths
+                .iter()
+                .any(|expected| changed == expected || changed.starts_with(expected))
+        })
+    };
+
+    Some(CloseEvidence {
+        changed_files,
+        additions,
+        deletions,
+        only_mana_changes,
+        no_path_overlap,
+    })
+}
+
+fn has_non_mana_changes_since_checkpoint(project_root: &Path, checkpoint: &str) -> Result<bool> {
+    let diff_output = std::process::Command::new("git")
+        .args(["diff", "--name-only", checkpoint, "--"])
+        .current_dir(project_root)
+        .output()
+        .context("Failed to compare working tree against checkpoint")?;
+
+    if !diff_output.status.success() {
+        return Ok(true);
+    }
+
+    let tracked_changed = String::from_utf8_lossy(&diff_output.stdout)
+        .lines()
+        .map(str::trim)
+        .any(|path| !path.is_empty() && !path.starts_with(".mana/"));
+    if tracked_changed {
+        return Ok(true);
+    }
+
+    let untracked_output = std::process::Command::new("git")
+        .args(["ls-files", "--others", "--exclude-standard"])
+        .current_dir(project_root)
+        .output()
+        .context("Failed to list untracked files")?;
+
+    if !untracked_output.status.success() {
+        return Ok(true);
+    }
+
+    Ok(String::from_utf8_lossy(&untracked_output.stdout)
+        .lines()
+        .map(str::trim)
+        .any(|path| !path.is_empty() && !path.starts_with(".mana/")))
+}
+
 // ---------------------------------------------------------------------------
 // Core close lifecycle
 // ---------------------------------------------------------------------------
@@ -198,7 +325,7 @@ pub fn close(mana_dir: &Path, id: &str, opts: CloseOpts) -> Result<CloseOutcome>
         .parent()
         .ok_or_else(|| anyhow::anyhow!("Cannot determine project root from units dir"))?;
 
-    let config = Config::load(mana_dir).ok();
+    let config = Config::load_with_extends(mana_dir).ok();
 
     let unit_path =
         find_unit_file(mana_dir, id).with_context(|| format!("Unit not found: {}", id))?;
@@ -231,6 +358,24 @@ pub fn close(mana_dir: &Path, id: &str, opts: CloseOpts) -> Result<CloseOutcome>
         return Ok(CloseOutcome::DeferredVerify {
             unit_id: id.to_string(),
         });
+    }
+
+    // 1c. Verify freeze check — was the judge changed since claim?
+    if let Some(ref stored_hash) = unit.verify_hash {
+        if let Some(ref verify_cmd) = unit.verify {
+            let mut hasher = Sha256::new();
+            hasher.update(verify_cmd.as_bytes());
+            let current_hash = format!("{:x}", hasher.finalize());
+            if current_hash != *stored_hash {
+                if !opts.force {
+                    return Ok(CloseOutcome::VerifyFrozenViolation {
+                        unit_id: id.to_string(),
+                        warnings,
+                    });
+                }
+                warnings.push(CloseWarning::VerifyChanged);
+            }
+        }
     }
 
     // 2. Verify (if applicable and not force)
@@ -324,6 +469,17 @@ pub fn close(mana_dir: &Path, id: &str, opts: CloseOpts) -> Result<CloseOutcome>
                 }));
             }
 
+            if !unit.fail_first {
+                if let Some(checkpoint) = unit.checkpoint.as_deref() {
+                    if !has_non_mana_changes_since_checkpoint(project_root, checkpoint)? {
+                        anyhow::bail!(
+                            "Cannot close unit {}: verify already passed when work began and no non-.mana changes were detected since claim.\n\nUse --force to override, or add acceptance criteria / a failing verify gate for this kind of work.",
+                            id
+                        );
+                    }
+                }
+            }
+
             // Record success in history
             unit.history.push(RunRecord {
                 attempt: unit.attempts + 1,
@@ -365,6 +521,9 @@ pub fn close(mana_dir: &Path, id: &str, opts: CloseOpts) -> Result<CloseOutcome>
             });
         }
     }
+
+    // 4b. Compute close evidence from diff
+    let evidence = compute_close_evidence(project_root, unit.checkpoint.as_deref(), &unit.paths);
 
     // 5. Mark the unit closed
     let now = Utc::now();
@@ -452,6 +611,7 @@ pub fn close(mana_dir: &Path, id: &str, opts: CloseOpts) -> Result<CloseOutcome>
         on_close_results: post_close.on_close_results,
         warnings,
         auto_commit_result,
+        evidence,
     }))
 }
 
@@ -1394,6 +1554,124 @@ mod tests {
                 assert_eq!(r.unit.history.len(), 1);
                 assert_eq!(r.unit.history[0].result, RunResult::Pass);
             }
+            _ => panic!("Expected Closed outcome"),
+        }
+    }
+
+    #[test]
+    fn close_rejects_pass_ok_unit_with_no_non_mana_changes() {
+        let config = Config {
+            project: "test".to_string(),
+            next_id: 100,
+            auto_close_parent: true,
+            run: None,
+            plan: None,
+            max_loops: 10,
+            max_concurrent: 4,
+            poll_interval: 30,
+            extends: vec![],
+            rules_file: None,
+            file_locking: false,
+            worktree: false,
+            on_close: None,
+            on_fail: None,
+            verify_timeout: None,
+            review: None,
+            user: None,
+            user_email: None,
+            auto_commit: false,
+            commit_template: None,
+            research: None,
+            run_model: None,
+            plan_model: None,
+            review_model: None,
+            research_model: None,
+            batch_verify: false,
+            memory_reserve_mb: 0,
+            notify: None,
+        };
+        let (dir, mana_dir) = setup_git_mana_dir_with_config(config);
+        let checkpoint = git_stdout(dir.path(), &["rev-parse", "HEAD"])
+            .trim()
+            .to_string();
+
+        let mut unit = Unit::new("1", "Pass-ok no-op");
+        unit.status = Status::InProgress;
+        unit.verify = Some("true".to_string());
+        unit.checkpoint = Some(checkpoint);
+        write_unit(&mana_dir, &unit);
+
+        let result = close(
+            &mana_dir,
+            "1",
+            CloseOpts {
+                reason: None,
+                force: false,
+                defer_verify: false,
+            },
+        );
+
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("no non-.mana changes were detected since claim"));
+    }
+
+    #[test]
+    fn close_allows_pass_ok_unit_when_non_mana_changes_exist() {
+        let config = Config {
+            project: "test".to_string(),
+            next_id: 100,
+            auto_close_parent: true,
+            run: None,
+            plan: None,
+            max_loops: 10,
+            max_concurrent: 4,
+            poll_interval: 30,
+            extends: vec![],
+            rules_file: None,
+            file_locking: false,
+            worktree: false,
+            on_close: None,
+            on_fail: None,
+            verify_timeout: None,
+            review: None,
+            user: None,
+            user_email: None,
+            auto_commit: false,
+            commit_template: None,
+            research: None,
+            run_model: None,
+            plan_model: None,
+            review_model: None,
+            research_model: None,
+            batch_verify: false,
+            memory_reserve_mb: 0,
+            notify: None,
+        };
+        let (dir, mana_dir) = setup_git_mana_dir_with_config(config);
+        let checkpoint = git_stdout(dir.path(), &["rev-parse", "HEAD"])
+            .trim()
+            .to_string();
+        fs::write(dir.path().join("feature.txt"), "changed").unwrap();
+
+        let mut unit = Unit::new("1", "Pass-ok with changes");
+        unit.status = Status::InProgress;
+        unit.verify = Some("true".to_string());
+        unit.checkpoint = Some(checkpoint);
+        write_unit(&mana_dir, &unit);
+
+        let result = close(
+            &mana_dir,
+            "1",
+            CloseOpts {
+                reason: None,
+                force: false,
+                defer_verify: false,
+            },
+        )
+        .unwrap();
+
+        match result {
+            CloseOutcome::Closed(r) => assert_eq!(r.unit.status, Status::Closed),
             _ => panic!("Expected Closed outcome"),
         }
     }

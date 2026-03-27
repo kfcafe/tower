@@ -1,0 +1,1236 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arcana Labs — Draft Homepage</title>
+    <meta
+      name="description"
+      content="Arcana Labs by Asher — agent systems, product engineering, open source tools, and select consulting work."
+    >
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    >
+    <style>
+      :root {
+        --font-display: "Fraunces", serif;
+        --font-body: "Manrope", sans-serif;
+        --font-mono: "IBM Plex Mono", monospace;
+
+        --space-1: 4px;
+        --space-2: 8px;
+        --space-3: 12px;
+        --space-4: 16px;
+        --space-5: 20px;
+        --space-6: 24px;
+        --space-8: 32px;
+        --space-10: 40px;
+        --space-12: 48px;
+        --space-16: 64px;
+        --space-20: 80px;
+        --space-24: 96px;
+
+        --radius-sm: 10px;
+        --radius-md: 18px;
+        --radius-lg: 28px;
+        --radius-full: 999px;
+
+        --shadow-sm: 0 12px 32px oklch(0% 0 0 / 0.08);
+        --shadow-md: 0 24px 60px oklch(0% 0 0 / 0.14);
+
+        --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+        --ease-in: cubic-bezier(0.4, 0, 1, 1);
+        --duration-fast: 180ms;
+        --duration-normal: 280ms;
+      }
+
+      :root[data-theme="dark"] {
+        color-scheme: dark;
+        --bg: #0f0c12;
+        --bg-elevated: oklch(20% 0.02 325);
+        --bg-panel: linear-gradient(180deg, oklch(24% 0.025 326), oklch(19% 0.02 326));
+        --bg-soft: oklch(26% 0.02 326 / 0.58);
+        --text: oklch(92% 0.01 95);
+        --text-muted: oklch(77% 0.015 85);
+        --text-subtle: oklch(64% 0.015 85);
+        --border: oklch(40% 0.03 327 / 0.45);
+        --border-strong: oklch(54% 0.05 332 / 0.58);
+        --accent: #d3aec5;
+        --accent-strong: #bb8fac;
+        --accent-deep: #7e4e6f;
+        --accent-soft: oklch(38% 0.07 338 / 0.18);
+        --signal: #d1b77f;
+        --signal-soft: oklch(70% 0.08 95 / 0.18);
+        --grid: oklch(66% 0.02 330 / 0.1);
+      }
+
+      :root[data-theme="light"] {
+        color-scheme: light;
+        --bg: #f7f3ef;
+        --bg-elevated: oklch(99% 0.005 95);
+        --bg-panel: linear-gradient(180deg, oklch(98% 0.01 25), oklch(95% 0.01 25));
+        --bg-soft: oklch(94% 0.015 330 / 0.85);
+        --text: oklch(25% 0.02 330);
+        --text-muted: oklch(42% 0.018 330);
+        --text-subtle: oklch(56% 0.015 330);
+        --border: oklch(83% 0.02 330 / 0.75);
+        --border-strong: oklch(73% 0.04 336 / 0.82);
+        --accent: #7e4e6f;
+        --accent-strong: #5f3452;
+        --accent-deep: #2a0f23;
+        --accent-soft: oklch(78% 0.06 339 / 0.2);
+        --signal: #9c7711;
+        --signal-soft: oklch(86% 0.07 95 / 0.3);
+        --grid: oklch(47% 0.02 330 / 0.08);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font: 500 16px/1.6 var(--font-body);
+        background:
+          radial-gradient(circle at top right, var(--accent-soft), transparent 26%),
+          radial-gradient(circle at bottom left, var(--signal-soft), transparent 24%),
+          var(--bg);
+        color: var(--text);
+        transition:
+          background var(--duration-normal) var(--ease-out),
+          color var(--duration-fast) var(--ease-out);
+      }
+
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        background-image: radial-gradient(var(--grid) 1px, transparent 1px);
+        background-size: 22px 22px;
+        mask-image: linear-gradient(180deg, black, transparent 75%);
+        opacity: 0.85;
+      }
+
+      body::after {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        background:
+          linear-gradient(90deg, transparent, oklch(100% 0 0 / 0.02), transparent),
+          linear-gradient(180deg, transparent, oklch(0% 0 0 / 0.02), transparent);
+        mix-blend-mode: overlay;
+        opacity: 0.45;
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      button,
+      a,
+      input {
+        font: inherit;
+      }
+
+      img {
+        max-width: 100%;
+        display: block;
+      }
+
+      .wrap {
+        width: min(1140px, calc(100% - 32px));
+        margin: 0 auto;
+      }
+
+      .site-header {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        backdrop-filter: blur(18px);
+        background: color-mix(in oklch, var(--bg) 76%, transparent);
+        border-bottom: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+      }
+
+      .site-header .wrap {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--space-4);
+        min-height: 76px;
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--space-3);
+      }
+
+      .brand-mark {
+        position: relative;
+        width: 18px;
+        height: 18px;
+        border: 1.5px solid var(--accent-strong);
+        border-radius: 4px;
+        transform: rotate(45deg);
+        box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--signal) 35%, transparent);
+      }
+
+      .brand-mark::before,
+      .brand-mark::after {
+        content: "";
+        position: absolute;
+        inset: 3px;
+        border: 1px solid color-mix(in oklch, var(--text) 24%, transparent);
+        border-radius: 2px;
+      }
+
+      .brand-mark::after {
+        inset: auto;
+        width: 4px;
+        height: 4px;
+        border: 0;
+        border-radius: 999px;
+        background: var(--signal);
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+      }
+
+      .brand-copy {
+        display: grid;
+        gap: 2px;
+      }
+
+      .brand-name {
+        font-family: var(--font-display);
+        font-size: 1.1rem;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+      }
+
+      .brand-subtitle {
+        color: var(--text-subtle);
+        font: 500 0.72rem/1.2 var(--font-mono);
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+      }
+
+      .site-nav {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+      }
+
+      .site-nav a {
+        padding: 10px 14px;
+        border-radius: var(--radius-full);
+        color: var(--text-muted);
+        transition:
+          color var(--duration-fast) var(--ease-out),
+          background var(--duration-fast) var(--ease-out);
+      }
+
+      .site-nav a:hover,
+      .site-nav a:focus-visible {
+        background: color-mix(in oklch, var(--accent-soft) 55%, transparent);
+        color: var(--text);
+        outline: none;
+      }
+
+      .theme-toggle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--space-4);
+        min-width: 118px;
+        padding: 7px 9px 7px 14px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-full);
+        background: color-mix(in oklch, var(--bg-elevated) 92%, transparent);
+        color: var(--text);
+        cursor: pointer;
+        transition:
+          border-color var(--duration-fast) var(--ease-out),
+          background var(--duration-fast) var(--ease-out),
+          transform var(--duration-fast) var(--ease-out);
+      }
+
+      .theme-toggle:hover,
+      .theme-toggle:focus-visible {
+        border-color: var(--border-strong);
+        background: color-mix(in oklch, var(--bg-elevated) 100%, transparent);
+        transform: translateY(-1px);
+        outline: none;
+      }
+
+      .theme-toggle-track {
+        position: relative;
+        width: 48px;
+        height: 28px;
+        border-radius: 999px;
+        background: color-mix(in oklch, var(--accent-soft) 75%, var(--bg));
+        border: 1px solid color-mix(in oklch, var(--border-strong) 75%, transparent);
+      }
+
+      .theme-toggle-thumb {
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 20px;
+        height: 20px;
+        border-radius: 999px;
+        background: linear-gradient(180deg, var(--signal), color-mix(in oklch, var(--signal) 70%, black));
+        box-shadow: 0 2px 8px oklch(0% 0 0 / 0.18);
+        transition: transform var(--duration-normal) var(--ease-out);
+      }
+
+      :root[data-theme="light"] .theme-toggle-thumb {
+        transform: translateX(20px);
+      }
+
+      .theme-toggle-label {
+        font: 600 0.75rem/1 var(--font-mono);
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--text-subtle);
+      }
+
+      main {
+        position: relative;
+        isolation: isolate;
+      }
+
+      .hero {
+        padding: clamp(56px, 10vw, 104px) 0 var(--space-20);
+      }
+
+      .hero-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.9fr);
+        gap: var(--space-8);
+        align-items: start;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--space-3);
+        margin-bottom: var(--space-6);
+        color: var(--text-subtle);
+        font: 500 0.78rem/1 var(--font-mono);
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
+
+      .eyebrow::before {
+        content: "";
+        width: 34px;
+        height: 1px;
+        background: color-mix(in oklch, var(--signal) 70%, transparent);
+      }
+
+      h1,
+      h2,
+      h3,
+      h4,
+      p {
+        margin: 0;
+      }
+
+      .hero h1 {
+        max-width: 11ch;
+        font-family: var(--font-display);
+        font-size: clamp(3.4rem, 7.2vw, 7rem);
+        line-height: 0.95;
+        letter-spacing: -0.05em;
+        text-wrap: balance;
+      }
+
+      .hero-accent {
+        color: var(--accent);
+      }
+
+      .hero-copy {
+        display: grid;
+        gap: var(--space-6);
+      }
+
+      .lede {
+        max-width: 62ch;
+        color: var(--text-muted);
+        font-size: clamp(1.05rem, 1rem + 0.55vw, 1.32rem);
+        line-height: 1.7;
+      }
+
+      .hero-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-3);
+      }
+
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        min-height: 48px;
+        padding: 0 20px;
+        border-radius: var(--radius-full);
+        border: 1px solid transparent;
+        transition:
+          transform var(--duration-fast) var(--ease-out),
+          border-color var(--duration-fast) var(--ease-out),
+          background var(--duration-fast) var(--ease-out),
+          color var(--duration-fast) var(--ease-out),
+          box-shadow var(--duration-fast) var(--ease-out);
+      }
+
+      .button:hover,
+      .button:focus-visible {
+        transform: translateY(-1px);
+        outline: none;
+      }
+
+      .button-primary {
+        background: linear-gradient(180deg, color-mix(in oklch, var(--accent-strong) 92%, white 8%), var(--accent-deep));
+        color: white;
+        box-shadow: var(--shadow-sm);
+      }
+
+      .button-primary:hover,
+      .button-primary:focus-visible {
+        box-shadow: var(--shadow-md);
+      }
+
+      .button-secondary {
+        border-color: var(--border);
+        background: color-mix(in oklch, var(--bg-elevated) 94%, transparent);
+        color: var(--text);
+      }
+
+      .button-secondary:hover,
+      .button-secondary:focus-visible {
+        border-color: var(--border-strong);
+        background: color-mix(in oklch, var(--accent-soft) 40%, var(--bg-elevated));
+      }
+
+      .hero-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-4);
+        padding-top: var(--space-2);
+        color: var(--text-subtle);
+        font-size: 0.95rem;
+      }
+
+      .hero-meta span {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .hero-meta span::before {
+        content: "";
+        width: 6px;
+        height: 6px;
+        border-radius: 999px;
+        background: var(--signal);
+      }
+
+      .hero-panel {
+        position: relative;
+        overflow: hidden;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        background: var(--bg-panel);
+        box-shadow: var(--shadow-md);
+      }
+
+      .hero-panel::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background:
+          linear-gradient(135deg, color-mix(in oklch, var(--accent-soft) 90%, transparent), transparent 48%),
+          linear-gradient(0deg, color-mix(in oklch, var(--signal-soft) 95%, transparent), transparent 44%);
+        opacity: 0.7;
+        pointer-events: none;
+      }
+
+      .hero-panel-inner {
+        position: relative;
+        display: grid;
+        gap: var(--space-6);
+        padding: var(--space-8);
+      }
+
+      .panel-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--space-4);
+      }
+
+      .panel-kicker {
+        color: var(--text-subtle);
+        font: 500 0.75rem/1 var(--font-mono);
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      .panel-badge {
+        padding: 6px 10px;
+        border-radius: var(--radius-full);
+        border: 1px solid color-mix(in oklch, var(--signal) 45%, transparent);
+        background: color-mix(in oklch, var(--signal-soft) 90%, transparent);
+        color: var(--text);
+        font: 600 0.72rem/1 var(--font-mono);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .duo-grid {
+        display: grid;
+        gap: var(--space-4);
+      }
+
+      .mini-panel {
+        padding: var(--space-5);
+        border-radius: var(--radius-md);
+        background: color-mix(in oklch, var(--bg-elevated) 72%, transparent);
+        border: 1px solid color-mix(in oklch, var(--border) 82%, transparent);
+      }
+
+      .mini-panel h3 {
+        margin-bottom: var(--space-2);
+        font-family: var(--font-display);
+        font-size: 1.45rem;
+        letter-spacing: -0.03em;
+      }
+
+      .mini-panel p {
+        color: var(--text-muted);
+        margin-bottom: var(--space-4);
+      }
+
+      .mini-list {
+        display: grid;
+        gap: 10px;
+        padding: 0;
+        margin: 0;
+        list-style: none;
+      }
+
+      .mini-list li {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--space-4);
+        color: var(--text-muted);
+        font-size: 0.95rem;
+      }
+
+      .mini-list strong {
+        color: var(--text);
+        font-weight: 700;
+      }
+
+      .status {
+        padding: 4px 9px;
+        border-radius: var(--radius-full);
+        border: 1px solid color-mix(in oklch, var(--border-strong) 70%, transparent);
+        background: color-mix(in oklch, var(--accent-soft) 70%, transparent);
+        color: var(--text);
+        font: 600 0.68rem/1 var(--font-mono);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+
+      .section {
+        padding: var(--space-20) 0;
+      }
+
+      .section-header {
+        display: grid;
+        gap: var(--space-4);
+        margin-bottom: var(--space-8);
+      }
+
+      .section-kicker {
+        color: var(--text-subtle);
+        font: 500 0.74rem/1 var(--font-mono);
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+      }
+
+      .section-title {
+        max-width: 12ch;
+        font-family: var(--font-display);
+        font-size: clamp(2rem, 4vw, 3.5rem);
+        line-height: 1;
+        letter-spacing: -0.04em;
+      }
+
+      .section-copy {
+        max-width: 62ch;
+        color: var(--text-muted);
+        font-size: 1.06rem;
+      }
+
+      .split-grid,
+      .cards,
+      .approach-grid,
+      .contact-grid {
+        display: grid;
+        gap: var(--space-5);
+      }
+
+      .split-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .split-card,
+      .product-card,
+      .approach-card,
+      .contact-card {
+        position: relative;
+        overflow: hidden;
+        padding: var(--space-6);
+        border-radius: var(--radius-lg);
+        border: 1px solid var(--border);
+        background: color-mix(in oklch, var(--bg-elevated) 90%, transparent);
+        box-shadow: var(--shadow-sm);
+      }
+
+      .split-card::before,
+      .product-card::before,
+      .approach-card::before,
+      .contact-card::before {
+        content: "";
+        position: absolute;
+        inset: 0 auto auto 0;
+        width: 100%;
+        height: 1px;
+        background: linear-gradient(90deg, var(--signal), transparent 58%);
+        opacity: 0.55;
+      }
+
+      .card-label {
+        margin-bottom: var(--space-4);
+        color: var(--text-subtle);
+        font: 500 0.74rem/1 var(--font-mono);
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+      }
+
+      .split-card h3,
+      .contact-card h3 {
+        font-family: var(--font-display);
+        font-size: 1.9rem;
+        line-height: 1.05;
+        letter-spacing: -0.03em;
+        margin-bottom: var(--space-3);
+      }
+
+      .split-card p,
+      .contact-card p {
+        color: var(--text-muted);
+      }
+
+      .detail-list {
+        display: grid;
+        gap: var(--space-3);
+        padding: 0;
+        margin: var(--space-6) 0 0;
+        list-style: none;
+      }
+
+      .detail-list li {
+        padding-top: var(--space-3);
+        border-top: 1px solid color-mix(in oklch, var(--border) 80%, transparent);
+      }
+
+      .detail-list strong {
+        display: block;
+        margin-bottom: 4px;
+        color: var(--text);
+      }
+
+      .detail-list span {
+        color: var(--text-muted);
+      }
+
+      .cards {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .product-card {
+        display: grid;
+        gap: var(--space-4);
+      }
+
+      .product-head {
+        display: flex;
+        align-items: start;
+        justify-content: space-between;
+        gap: var(--space-4);
+      }
+
+      .product-name {
+        font-family: var(--font-display);
+        font-size: 1.8rem;
+        letter-spacing: -0.03em;
+      }
+
+      .product-card p {
+        color: var(--text-muted);
+      }
+
+      .product-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-2);
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        min-height: 30px;
+        padding: 0 10px;
+        border-radius: var(--radius-full);
+        border: 1px solid color-mix(in oklch, var(--border-strong) 55%, transparent);
+        background: color-mix(in oklch, var(--accent-soft) 45%, transparent);
+        color: var(--text-muted);
+        font: 600 0.72rem/1 var(--font-mono);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .approach-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .approach-card {
+        display: grid;
+        gap: var(--space-4);
+        min-height: 100%;
+      }
+
+      .step {
+        color: var(--signal);
+        font: 600 0.84rem/1 var(--font-mono);
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      .approach-card h3 {
+        font-family: var(--font-display);
+        font-size: 1.55rem;
+        line-height: 1.08;
+        letter-spacing: -0.03em;
+      }
+
+      .approach-card p {
+        color: var(--text-muted);
+      }
+
+      .contact-grid {
+        grid-template-columns: 1.15fr 0.85fr;
+        align-items: stretch;
+      }
+
+      .contact-card {
+        display: grid;
+        gap: var(--space-4);
+      }
+
+      .contact-card .button {
+        justify-self: start;
+      }
+
+      .footer {
+        padding: var(--space-10) 0 var(--space-12);
+        color: var(--text-subtle);
+        font-size: 0.95rem;
+      }
+
+      .footer .wrap {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--space-4);
+        border-top: 1px solid color-mix(in oklch, var(--border) 75%, transparent);
+        padding-top: var(--space-6);
+      }
+
+      .footer-links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-4);
+      }
+
+      .footer-links a:hover,
+      .footer-links a:focus-visible {
+        color: var(--text);
+        outline: none;
+      }
+
+      .reveal {
+        animation: fade-up 700ms var(--ease-out) both;
+      }
+
+      .reveal:nth-child(2) {
+        animation-delay: 80ms;
+      }
+
+      .reveal:nth-child(3) {
+        animation-delay: 160ms;
+      }
+
+      @keyframes fade-up {
+        from {
+          opacity: 0;
+          transform: translateY(18px);
+        }
+
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @media (max-width: 980px) {
+        .site-nav {
+          display: none;
+        }
+
+        .hero-grid,
+        .split-grid,
+        .contact-grid,
+        .approach-grid,
+        .cards {
+          grid-template-columns: 1fr;
+        }
+
+        .hero h1,
+        .section-title {
+          max-width: none;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .site-header .wrap {
+          min-height: 70px;
+        }
+
+        .wrap {
+          width: min(100% - 20px, 1140px);
+        }
+
+        .hero {
+          padding-top: 40px;
+        }
+
+        .hero-panel-inner,
+        .split-card,
+        .product-card,
+        .approach-card,
+        .contact-card {
+          padding: var(--space-5);
+        }
+
+        .theme-toggle {
+          min-width: auto;
+          padding-inline: 10px;
+        }
+
+        .theme-toggle-label {
+          display: none;
+        }
+
+        .hero-actions {
+          flex-direction: column;
+          align-items: stretch;
+        }
+
+        .button {
+          width: 100%;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+          scroll-behavior: auto !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="wrap">
+        <a class="brand" href="#top" aria-label="Arcana Labs home">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span class="brand-copy">
+            <span class="brand-name">Arcana Labs</span>
+            <span class="brand-subtitle">by Asher</span>
+          </span>
+        </a>
+
+        <nav class="site-nav" aria-label="Primary">
+          <a href="#products">Products</a>
+          <a href="#consulting">Consulting</a>
+          <a href="#approach">Approach</a>
+          <a href="#contact">Contact</a>
+        </nav>
+
+        <button class="theme-toggle" id="theme-toggle" type="button" aria-live="polite">
+          <span class="theme-toggle-label" id="theme-label">Dark</span>
+          <span class="theme-toggle-track" aria-hidden="true">
+            <span class="theme-toggle-thumb"></span>
+          </span>
+        </button>
+      </div>
+    </header>
+
+    <main id="top">
+      <section class="hero">
+        <div class="wrap hero-grid">
+          <div class="hero-copy reveal">
+            <span class="eyebrow">Arcana Labs — studio, lab, and product stack</span>
+            <h1>
+              Agent systems,
+              <span class="hero-accent">product engineering,</span>
+              and the tools behind them.
+            </h1>
+            <p class="lede">
+              Arcana Labs is my home for AI-native developer tools, verified agent workflows, and
+              select consulting work. I build the stack in public, then help teams apply the same
+              ideas to products they can actually ship and trust.
+            </p>
+            <div class="hero-actions">
+              <a class="button button-primary" href="#products">Explore the stack</a>
+              <a class="button button-secondary" href="#consulting">Work with me</a>
+            </div>
+            <div class="hero-meta" aria-label="Arcana focus areas">
+              <span>Open source runtimes and orchestration</span>
+              <span>Local tools now, team platform next</span>
+              <span>Available for select design partner work</span>
+            </div>
+          </div>
+
+          <aside class="hero-panel reveal" aria-label="Products and consulting overview">
+            <div class="hero-panel-inner">
+              <div class="panel-header">
+                <div>
+                  <div class="panel-kicker">Current shape</div>
+                </div>
+                <div class="panel-badge">Draft direction</div>
+              </div>
+
+              <div class="duo-grid">
+                <section class="mini-panel">
+                  <h3>The stack</h3>
+                  <p>Open primitives below, polished products above.</p>
+                  <ul class="mini-list">
+                    <li><strong>imp</strong><span class="status">OSS runtime</span></li>
+                    <li><strong>mana</strong><span class="status">OSS substrate</span></li>
+                    <li><strong>Wizard</strong><span class="status">Local app</span></li>
+                    <li><strong>Familiar</strong><span class="status">Team platform</span></li>
+                  </ul>
+                </section>
+
+                <section class="mini-panel">
+                  <h3>Consulting</h3>
+                  <p>For teams building agent products, internal systems, or workflow tooling.</p>
+                  <ul class="mini-list">
+                    <li><strong>Strategy</strong><span>scope, product shape, go-to-market</span></li>
+                    <li><strong>Architecture</strong><span>orchestration, review, verification</span></li>
+                    <li><strong>Build</strong><span>prototypes, implementation, polish</span></li>
+                  </ul>
+                </section>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="section" id="consulting">
+        <div class="wrap">
+          <div class="section-header reveal">
+            <div class="section-kicker">Products and practice</div>
+            <h2 class="section-title">Two ways to work with Arcana.</h2>
+            <p class="section-copy">
+              I want the site to carry both halves equally: the products I am building and the
+              consulting work I do with teams who want similar systems. This section keeps those
+              offers side by side instead of hiding one behind the other.
+            </p>
+          </div>
+
+          <div class="split-grid">
+            <article class="split-card reveal">
+              <div class="card-label">Products</div>
+              <h3>Use the stack directly.</h3>
+              <p>
+                Arcana products are aimed at developers and teams who want open primitives with a
+                more polished path upward: runtime, substrate, local command center, then team
+                platform.
+              </p>
+              <ul class="detail-list">
+                <li>
+                  <strong>Open core foundations</strong>
+                  <span>imp and mana stay free and composable.</span>
+                </li>
+                <li>
+                  <strong>Convenience products on top</strong>
+                  <span>Wizard and Familiar package the workflow into something easier to adopt.</span>
+                </li>
+                <li>
+                  <strong>Trust through verification</strong>
+                  <span>Review, explicit gates, and durable work state are part of the story.</span>
+                </li>
+              </ul>
+            </article>
+
+            <article class="split-card reveal">
+              <div class="card-label">Consulting</div>
+              <h3>Work with me on the hard parts.</h3>
+              <p>
+                I help teams shape agent products, developer tools, and AI-native workflows without
+                hand-wavy demos or generic automation theater. Strategy, architecture, and hands-on
+                implementation can all live under the same engagement.
+              </p>
+              <ul class="detail-list">
+                <li>
+                  <strong>Design partner work</strong>
+                  <span>Early product shaping, positioning, architecture, and technical direction.</span>
+                </li>
+                <li>
+                  <strong>Applied agent systems</strong>
+                  <span>Execution loops, review surfaces, verification, safety, and operator tools.</span>
+                </li>
+                <li>
+                  <strong>Shipping support</strong>
+                  <span>From draft concept to working prototype to production-hardening.</span>
+                </li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="products">
+        <div class="wrap">
+          <div class="section-header reveal">
+            <div class="section-kicker">The stack</div>
+            <h2 class="section-title">Open primitives, then products people can live in.</h2>
+            <p class="section-copy">
+              This draft frames the ecosystem as a ladder: <strong>imp</strong> as the runtime,
+              <strong>mana</strong> as the verified substrate, <strong>Wizard</strong> as the local
+              command center, and <strong>Familiar</strong> as the team platform.
+            </p>
+          </div>
+
+          <div class="cards">
+            <article class="product-card reveal">
+              <div class="product-head">
+                <div>
+                  <div class="card-label">Runtime</div>
+                  <h3 class="product-name">imp</h3>
+                </div>
+                <span class="status">Open source</span>
+              </div>
+              <p>
+                The worker runtime: sessions, tools, approvals, memory, compaction, extension
+                points, and the execution loop underneath the rest of the system.
+              </p>
+              <div class="product-meta">
+                <span class="pill">Agent runtime</span>
+                <span class="pill">CLI + TUI</span>
+              </div>
+            </article>
+
+            <article class="product-card reveal">
+              <div class="product-head">
+                <div>
+                  <div class="card-label">Substrate</div>
+                  <h3 class="product-name">mana</h3>
+                </div>
+                <span class="status">Open source</span>
+              </div>
+              <p>
+                The coordination layer: units, dependencies, facts, verify gates, review, and the
+                durable work graph that makes autonomous work inspectable instead of magical.
+              </p>
+              <div class="product-meta">
+                <span class="pill">Work graph</span>
+                <span class="pill">Verification</span>
+              </div>
+            </article>
+
+            <article class="product-card reveal">
+              <div class="product-head">
+                <div>
+                  <div class="card-label">Local command center</div>
+                  <h3 class="product-name">Wizard</h3>
+                </div>
+                <span class="status">In development</span>
+              </div>
+              <p>
+                The local surface for supervising runs, reviewing diffs, understanding blockers, and
+                keeping multiple agents legible without turning the workflow into a spreadsheet.
+              </p>
+              <div class="product-meta">
+                <span class="pill">Desktop app</span>
+                <span class="pill">Review cockpit</span>
+              </div>
+            </article>
+
+            <article class="product-card reveal">
+              <div class="product-head">
+                <div>
+                  <div class="card-label">Team platform</div>
+                  <h3 class="product-name">Familiar</h3>
+                </div>
+                <span class="status">Planned platform</span>
+              </div>
+              <p>
+                The hosted layer for teams: dispatch, approvals, isolated execution, PR creation,
+                policies, budgets, audit trails, and the operational side of working with agents.
+              </p>
+              <div class="product-meta">
+                <span class="pill">GitHub + Slack</span>
+                <span class="pill">Teams</span>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="approach">
+        <div class="wrap">
+          <div class="section-header reveal">
+            <div class="section-kicker">How I work</div>
+            <h2 class="section-title">Technical, opinionated, and close to the code.</h2>
+            <p class="section-copy">
+              The consulting side should feel like an extension of the product work: pragmatic,
+              architecture-aware, and willing to get specific. Not generic AI transformation copy.
+            </p>
+          </div>
+
+          <div class="approach-grid">
+            <article class="approach-card reveal">
+              <div class="step">01 — Shape</div>
+              <h3>Find the real product surface.</h3>
+              <p>
+                Clarify what needs to be automated, what must stay supervised, and which workflow is
+                actually worth turning into a product instead of a one-off demo.
+              </p>
+            </article>
+
+            <article class="approach-card reveal">
+              <div class="step">02 — Build</div>
+              <h3>Design for trust, not just output.</h3>
+              <p>
+                Agent loops need review, explicit gates, recovery paths, and operator visibility. I
+                care as much about failure modes and control surfaces as I do about generation.
+              </p>
+            </article>
+
+            <article class="approach-card reveal">
+              <div class="step">03 — Ship</div>
+              <h3>Turn prototypes into systems people can live with.</h3>
+              <p>
+                That means stronger interfaces, better defaults, clearer product framing, and enough
+                engineering quality that the result survives contact with real users.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="contact">
+        <div class="wrap contact-grid">
+          <article class="contact-card reveal">
+            <div class="card-label">Work together</div>
+            <h3>Arcana Labs is available for select consulting and design partner work.</h3>
+            <p>
+              If you are building agent products, internal coding systems, or developer tools and
+              want help shaping the architecture and product around them, this is the lane.
+            </p>
+            <a class="button button-primary" href="mailto:hello@arcanalabs.org">hello@arcanalabs.org</a>
+          </article>
+
+          <article class="contact-card reveal">
+            <div class="card-label">Notes for iteration</div>
+            <p>
+              This first draft intentionally blends three directions: editorial typography, darker
+              atmospheric color, and a cleaner Swiss-like grid. If the tone is right, we can make it
+              sharper. If it feels too moody or too polished, we can push it in either direction.
+            </p>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="wrap">
+        <div>Arcana Labs by Asher — draft homepage direction</div>
+        <div class="footer-links">
+          <a href="#products">Products</a>
+          <a href="#consulting">Consulting</a>
+          <a href="#contact">Contact</a>
+        </div>
+      </div>
+    </footer>
+
+    <script>
+      const root = document.documentElement;
+      const toggleButton = document.getElementById("theme-toggle");
+      const themeLabel = document.getElementById("theme-label");
+      const storageKey = "arcana-theme";
+
+      const applyTheme = (theme, persist = true) => {
+        root.dataset.theme = theme;
+        themeLabel.textContent = theme === "dark" ? "Dark" : "Light";
+        toggleButton.setAttribute(
+          "aria-label",
+          theme === "dark" ? "Switch to light mode" : "Switch to dark mode"
+        );
+
+        if (persist) {
+          window.localStorage.setItem(storageKey, theme);
+        }
+      };
+
+      const storedTheme = window.localStorage.getItem(storageKey);
+      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      applyTheme(storedTheme || (prefersDark ? "dark" : "light"), false);
+
+      toggleButton.addEventListener("click", () => {
+        const nextTheme = root.dataset.theme === "dark" ? "light" : "dark";
+        applyTheme(nextTheme);
+      });
+    </script>
+  </body>
+</html>

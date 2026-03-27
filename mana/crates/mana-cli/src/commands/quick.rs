@@ -12,6 +12,18 @@ use crate::project::suggest_verify_command;
 use crate::unit::{validate_priority, OnFailAction, Status, Unit};
 use crate::util::{find_similar_titles, title_to_slug, DEFAULT_SIMILARITY_THRESHOLD};
 
+fn git_head_sha(working_dir: &Path) -> Option<String> {
+    ShellCommand::new("git")
+        .args(["rev-parse", "HEAD"])
+        .current_dir(working_dir)
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
 /// Arguments for quick-create command.
 pub struct QuickArgs {
     pub title: String,
@@ -185,6 +197,10 @@ pub fn cmd_quick(mana_dir: &Path, args: QuickArgs) -> Result<()> {
         .parent()
         .ok_or_else(|| anyhow!("Failed to determine project directory"))?;
 
+    if has_verify {
+        unit.checkpoint = git_head_sha(project_dir);
+    }
+
     // Call pre-create hook (blocking - abort if it fails)
     let pre_passed = execute_hook(HookEvent::PreCreate, &unit, project_dir, None)
         .context("Pre-create hook execution failed")?;
@@ -229,6 +245,7 @@ pub fn cmd_quick(mana_dir: &Path, args: QuickArgs) -> Result<()> {
 mod tests {
     use super::*;
     use std::fs;
+    use std::process::Command;
     use tempfile::TempDir;
 
     fn setup_mana_dir_with_config() -> (TempDir, std::path::PathBuf) {
@@ -267,6 +284,31 @@ mod tests {
             notify: None,
         };
         config.save(&mana_dir).unwrap();
+
+        (dir, mana_dir)
+    }
+
+    fn setup_git_mana_dir_with_config() -> (TempDir, std::path::PathBuf) {
+        let (dir, mana_dir) = setup_mana_dir_with_config();
+        let project_root = dir.path();
+
+        let init = Command::new("git")
+            .args(["init"])
+            .current_dir(project_root)
+            .output()
+            .unwrap();
+        assert!(init.status.success());
+
+        let commit = Command::new("git")
+            .args(["commit", "-m", "init", "--allow-empty"])
+            .current_dir(project_root)
+            .env("GIT_AUTHOR_NAME", "test")
+            .env("GIT_AUTHOR_EMAIL", "test@test.com")
+            .env("GIT_COMMITTER_NAME", "test")
+            .env("GIT_COMMITTER_EMAIL", "test@test.com")
+            .output()
+            .unwrap();
+        assert!(commit.status.success());
 
         (dir, mana_dir)
     }
@@ -316,7 +358,7 @@ mod tests {
             description: None,
             acceptance: None,
             notes: None,
-            verify: Some("cargo test".to_string()),
+            verify: Some("cargo test unit::check".to_string()),
             priority: None,
             by: None,
             produces: None,
@@ -335,6 +377,34 @@ mod tests {
         assert_eq!(unit.status, Status::InProgress);
         assert_eq!(unit.claimed_by, None);
         assert!(unit.claimed_at.is_some());
+    }
+
+    #[test]
+    fn quick_sets_checkpoint_when_verify_present() {
+        let (_dir, mana_dir) = setup_git_mana_dir_with_config();
+
+        let args = QuickArgs {
+            title: "Checkpointed task".to_string(),
+            description: None,
+            acceptance: None,
+            notes: None,
+            verify: Some("grep -q 'project: test' .mana/config.yaml".to_string()),
+            priority: None,
+            by: None,
+            produces: None,
+            requires: None,
+            parent: None,
+            on_fail: None,
+            pass_ok: true,
+            verify_timeout: None,
+            force: false,
+        };
+
+        cmd_quick(&mana_dir, args).unwrap();
+
+        let unit_path = mana_dir.join("1-checkpointed-task.md");
+        let unit = Unit::from_file(&unit_path).unwrap();
+        assert!(unit.checkpoint.is_some());
     }
 
     #[test]
@@ -453,7 +523,7 @@ mod tests {
             description: Some("A description".to_string()),
             acceptance: Some("All tests pass".to_string()),
             notes: Some("Some notes".to_string()),
-            verify: Some("cargo test".to_string()),
+            verify: Some("cargo test unit::check".to_string()),
             priority: Some(1),
             by: Some("agent-x".to_string()),
             produces: Some("FooStruct,bar_function".to_string()),
@@ -472,7 +542,7 @@ mod tests {
         assert_eq!(unit.description, Some("A description".to_string()));
         assert_eq!(unit.acceptance, Some("All tests pass".to_string()));
         assert_eq!(unit.notes, Some("Some notes".to_string()));
-        assert_eq!(unit.verify, Some("cargo test".to_string()));
+        assert_eq!(unit.verify, Some("cargo test unit::check".to_string()));
         assert_eq!(unit.priority, 1);
         assert_eq!(unit.status, Status::InProgress);
         assert_eq!(unit.claimed_by, Some("agent-x".to_string()));

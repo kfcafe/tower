@@ -1,18 +1,25 @@
 # Familiar — Plan
 
 **Domain:** getfamiliar.dev
-**Engine:** imp (Elixir agent engine, `~/imp`)
 
-An open source agent platform for engineering teams. Agents run unattended — coding tasks with verify gates in isolated environments, service tasks through brokered actions with permission controls. Slack is the front door. The dashboard provides visibility and control. Teams extend the agent with their own tools via MCP in any language.
+An open source agent platform that operates in two modes: as the **internal operations engine** for running agent-powered businesses at scale, and as an **external product** that engineering teams buy to manage their own agents.
 
-The coding agent with verify gates is the wedge — concrete, demonstrable, clear ROI. The platform underneath supports much more. Once a team trusts Familiar for coding tasks, they connect services: "monitor Sentry for new errors and file tasks," "triage Linear tickets and draft responses," "keep dependencies up to date."
+The coding agent with verify gates is the wedge. The platform underneath supports much more. Once a team trusts Familiar for coding tasks, they connect services: "monitor Sentry for new errors and file tasks," "triage Linear tickets and draft responses," "keep dependencies up to date."
+
+Internally, Familiar coordinates thousands of agents across hundreds of client projects — powering products like Wurk where customers describe what they want and agents deliver it. The customer never sees Familiar. They see results.
+
+---
 
 ## Table of Contents
 
-- [Vision & Positioning](#vision--positioning)
-- [Target Audience](#target-audience)
+- [Vision & Strategic Position](#vision--strategic-position)
+- [Two Modes](#two-modes)
+- [The Funnel](#the-funnel)
+- [Target Audiences](#target-audiences)
 - [How It Works](#how-it-works)
 - [Architecture Overview](#architecture-overview)
+- [Agency Mode](#agency-mode)
+- [Platform Mode](#platform-mode)
 - [Task System](#task-system)
 - [Agent Runtime](#agent-runtime)
 - [Isolated Environments](#isolated-environments)
@@ -22,65 +29,148 @@ The coding agent with verify gates is the wedge — concrete, demonstrable, clea
 - [GitHub Integration](#github-integration)
 - [Slack Integration](#slack-integration)
 - [Dashboard](#dashboard)
+- [Agent Fleet Economics](#agent-fleet-economics)
 - [Team Management](#team-management)
 - [LLM Gateway](#llm-gateway)
 - [Memory & Context](#memory--context)
 - [Security & Threat Model](#security--threat-model)
 - [Infrastructure](#infrastructure)
 - [Pricing](#pricing)
-- [v0.1 Scope](#v01-scope)
+- [Phased Scope](#phased-scope)
 - [Go-to-Market](#go-to-market)
+- [The Portfolio Strategy](#the-portfolio-strategy)
+- [Revenue Projections](#revenue-projections)
+- [Open Source Strategy](#open-source-strategy)
 - [Open Questions](#open-questions)
+- [Influences](#influences)
 
 ---
 
-## Vision & Positioning
+## Vision & Strategic Position
 
-Stripe built internal coding agents ("Minions") that produce over 1,000 PRs per week — entirely unattended, from Slack message to merged pull request. They had to build everything: a fork of Goose, isolated devboxes, a central MCP tool server with 400+ tools, feedback loops with linting and CI, monitoring, and a dedicated "Leverage team" to maintain it all.
+Stripe built internal coding agents ("Minions") that produce over 1,000 PRs per week — entirely unattended, from Slack message to merged pull request. They needed a dedicated team, months of infrastructure, a fork of Goose, isolated devboxes, 400+ MCP tools, and a "Leverage team" to maintain it all.
 
-Every engineering team that wants this has to do the same. There's no off-the-shelf product that does what Stripe built.
+Every engineering team that wants this has to rebuild the same stack. There's no off-the-shelf product that does what Stripe built — let alone extends it to service tasks.
 
-Familiar is that product — and more. Not just coding agents, but a full agent platform that integrates with the services teams already use, through a security model that means agents can act on your behalf without you handing them the keys. Open source, self-hostable, or managed — teams choose the deployment model that fits their trust boundary.
+Familiar is that product. But it's also something more.
 
-| | Stripe Minions (internal) | Familiar |
+### The insight that changes everything
+
+Most companies building in the agent space are selling tools: "here's an AI coding agent" or "here's a platform to manage agents." They're selling picks and shovels.
+
+Familiar operates at two levels simultaneously:
+
+1. **Sell the infrastructure** — engineering teams buy Familiar to manage their own agents (the platform)
+2. **Use the infrastructure** — we run Familiar internally to coordinate thousands of agents that power our own products and services (the agency)
+
+This is the AWS playbook. Amazon built cloud infrastructure for their own retail business, then realized other companies would pay for it. We build Familiar to run Wurk and our agency products, then sell access to teams who want to run their own agents.
+
+The agency generates revenue immediately through outcomes. The platform generates revenue over time through subscriptions. Both improve the same system. The agency stress-tests the platform. The platform subsidizes the agency.
+
+### Why not just one or the other?
+
+**Agency-only** caps out. You're limited by how many clients one human can oversee, even with agents doing the work. Eventually you need to sell the platform to scale beyond what a single operator can manage.
+
+**Platform-only** is slow. Developer tools take years to reach meaningful adoption. You burn runway waiting for product-market fit while the agency model could be generating revenue from day one.
+
+Both together compound. Agency revenue funds platform development. Platform reliability improves agency operations. Platform customers validate the infrastructure. Agency operations provide case studies that sell the platform.
+
+---
+
+## Two Modes
+
+### Agency Mode (internal operations)
+
+One operator (you) manages thousands of agents across hundreds of client projects. Clients interact through product frontends — Wurk for software development, future products for content, operations, support. Clients never see Familiar. They see outcomes.
+
+```
+Client → Product Frontend (Wurk, etc.) → Familiar API → Agent Fleet → Results → Client
+```
+
+In this mode, Familiar is the nervous system. It handles:
+- Multi-tenant project isolation
+- Agent dispatch and scheduling across all clients
+- Cost tracking and margin analysis per client
+- Operator dashboard showing ALL projects at once
+- Quality monitoring and escalation
+
+### Platform Mode (external product)
+
+Engineering teams buy Familiar to manage their own agents. They see the full dashboard, configure permissions, connect services, monitor agents. This is the product described in the original plan — Stripe Minions as a service.
+
+```
+Team → Familiar Dashboard/Slack → Agent Fleet → PRs/Results → Team
+```
+
+In this mode, Familiar is a SaaS product. Each team manages their own:
+- Repos and environments
+- Agent configuration and dispatch
+- Permission policies
+- Service connections
+- Budget and cost caps
+
+### Shared Infrastructure
+
+Both modes run on the same codebase. The differences are:
+
+| | Agency Mode | Platform Mode |
 |---|---|---|
-| Who can use it | Stripe engineers | Any engineering team |
-| Agent | Fork of Goose, heavily customized | imp (built for this) |
-| Scope | Coding tasks only | Coding + service tasks (Slack, APIs, monitoring) |
-| Environments | Custom devboxes (10s spin-up) | Fly Sprites (isolated, persistent) |
-| Tools | Toolshed (400+ internal MCP tools) | MCP + built-in tools (any language) |
-| Task dispatch | Slack bot + internal platforms | Slack + dashboard + API |
-| Feedback loop | Local lint + CI (max 2 rounds) | Verify gates + failure accumulation |
-| Service access | Internal auth | Action broker + service gateway (managed or self-hosted) |
-| Permissions | Internal access controls | Layered permission system (always/notify/ask/never) |
-| Monitoring | Internal web UI | LiveView dashboard |
-| Source | Proprietary (internal) | Open source |
-| Build cost | Dedicated team, months of work | Sign up and connect your repo (or self-host) |
-
-### Key differentiators
-
-1. **Verify gates** — Every coding task has a shell command contract. The agent isn't done when it says it's done — it's done when the test passes.
-2. **Failure accumulation** — Failed attempts are preserved. The next agent sees what was tried and why it failed.
-3. **Action broker + service gateway** — Agents act on external and internal services without ever seeing tokens. Familiar enforces permissions + audit logging, then executes actions through the gateway. Teams choose managed (Familiar hosts) or self-hosted (customer runs in their own infra).
-4. **Permission controls** — Layered permissions (always/notify/ask/never) control what agents can do, per service, per action type. Conservative defaults, teams loosen with trust.
-5. **Unattended by design** — Not an interactive coding assistant. Fire and forget. Come back to a PR, not a chat session.
-6. **MCP-native tools** — Teams bring their own tools in any language via MCP. No Elixir required.
-7. **Slack-first** — Teams invoke agents from where they already work. Tag the bot in a thread, agent does the work.
+| Who uses the dashboard | Operator (you) | Customer team |
+| Who configures agents | Operator | Customer team |
+| Who pays for LLM tokens | Built into pricing | Customer (or BYOK) |
+| Customer interface | Product frontend (Wurk, etc.) | Familiar dashboard + Slack |
+| Revenue model | Outcome-based (credits, project fees) | Subscription |
+| Multi-tenant view | Operator sees ALL clients | Team sees only their projects |
 
 ---
 
-## Target Audience
+## The Funnel
 
-Engineering teams (10-200 engineers) who:
+Each layer of the Tower ecosystem feeds the next:
 
-- Have well-defined, repetitive tasks they want automated (migrations, refactors, test coverage, dependency updates, triage, monitoring)
+```
+imp (free, open source)                     → distribution, developer awareness
+    ↓ "I want to orchestrate multiple agents visually"
+Wizard ($30 buy-once desktop app)           → power users, solo builders
+    ↓ "I want this for my team / in the cloud / unattended"
+Familiar Team ($299-999/month)              → engineering teams
+    ↓ "I need enterprise features / self-hosted gateway"
+Familiar Enterprise ($2K-10K/month)         → large organizations
+    ↓ "I want to build products on this"
+Familiar Platform API (usage-based)         → agent-powered businesses
+```
+
+Meanwhile, the agency products (Wurk, etc.) generate revenue immediately and run on Familiar internally — proving the platform, funding development, and creating case studies.
+
+---
+
+## Target Audiences
+
+### Agency Mode customers (via product frontends)
+
+**Non-technical founders and business owners** who want software built, content produced, operations automated, or support handled — without managing agents or understanding the infrastructure.
+
+They interact through product-specific UIs. They pay for outcomes. They don't know Familiar exists.
+
+### Platform Mode customers
+
+**Engineering teams (10-200 engineers)** who:
+
+- Have well-defined, repetitive tasks they want automated
 - Already use CI/CD and have tests they trust
 - Use Slack for team communication
 - Can't justify building dedicated agent infrastructure
 - Want agents that prove their work, not just claim it's done
-- Need agents that can interact with external services securely (GitHub, Sentry, Linear, Stripe, internal APIs)
+- Need agents that can interact with external services securely
 
-**Ideal early users:**
+**Solo developers and power users** upgrading from Wizard who want:
+- Cloud-hosted agent execution
+- GitHub integration with auto-PR
+- Managed LLM access
+- Session sync across machines
+
+### Ideal early users (Platform Mode)
+
 - Teams already using AI coding agents (Claude Code, Cursor, Aider) who want to scale to unattended work
 - Teams with good test coverage (verify gates need tests)
 - Teams with enough repetitive work to justify automation
@@ -114,13 +204,22 @@ No babysitting. No chat session. No steering. The verify command is the feedback
      "When a P0 error appears in Sentry, create a task to fix it
       and notify #oncall in Slack"
 3. The agent acts through the action broker:
-   - Agent describes intent (`services.call(...)`)
+   - Agent describes intent (services.call(...))
    - Familiar checks permissions (Always / Notify / Ask / Never)
    - Gateway executes the action with real credentials
 4. Dashboard shows everything the agent did, full audit trail
 ```
 
-By default, Familiar manages the gateway and credentials. Teams that need credentials to stay in their own infrastructure can self-host the gateway component — same code, same features, different trust boundary.
+### Agency flow (internal)
+
+```
+1. Client describes what they want through a product frontend (e.g. Wurk)
+2. Product frontend calls Familiar API to create a project + task tree
+3. Familiar dispatches agents into isolated environments
+4. Agents work, verify gates pass, results flow back
+5. Product frontend delivers results to client
+6. Operator dashboard shows all clients, costs, margins, status
+```
 
 ### Combined flow
 
@@ -147,59 +246,156 @@ Sentry alert: "NullPointerException in PaymentProcessor.java"
 │  ┌──────────────┐  ┌──────────────┐  ┌────────────────────┐   │
 │  │ Task System   │  │ Agent Manager │  │ GitHub App         │   │
 │  │              │  │              │  │                    │   │
-│  │ • Create     │  │ • Supervise  │  │ • Clone repos      │   │
-│  │ • Schedule   │  │ • Dispatch   │  │ • Open PRs         │   │
-│  │ • Verify     │  │ • Monitor    │  │ • Webhooks         │   │
-│  │ • Retry      │  │ • Kill       │  │ • Status checks    │   │
+│  │ Create       │  │ Supervise    │  │ Clone repos        │   │
+│  │ Schedule     │  │ Dispatch     │  │ Open PRs           │   │
+│  │ Verify       │  │ Monitor      │  │ Webhooks           │   │
+│  │ Retry        │  │ Kill         │  │ Status checks      │   │
 │  └──────────────┘  └──────┬───────┘  └────────────────────┘   │
 │                           │                                    │
 │         ┌─────────────────▼─────────────────┐                  │
-│         │          imp (SDK)                 │                  │
+│         │     imp (Rust binary, spawned)     │                  │
 │         │                                   │                  │
 │         │  Agent Loop · LLM Client          │                  │
 │         │  Built-in Tools · MCP Client      │                  │
-│         │  Tasks Tool · Permission Gate     │                  │
+│         │  Context Management               │                  │
 │         └─────────────────┬─────────────────┘                  │
 │                           │                                    │
 │  ┌──────────────┐  ┌──────▼───────┐  ┌────────────────────┐   │
 │  │ Action       │  │ Environments │  │ Service Gateway    │   │
 │  │ Broker       │  │              │  │                    │   │
-│  │              │  │ • Fly Sprites│  │ • Managed (default)│   │
-│  │ • Permissions│  │ • Clone repo │  │ • Self-hosted opt  │   │
-│  │ • Approvals  │  │ • Install    │  │ • Credential store │   │
-│  │ • Audit log  │  │   deps       │  │ • OAuth / tokens   │   │
-│  │ • Rate limit │  │ • Isolated   │  │ • API execution    │   │
+│  │              │  │ Fly Sprites  │  │ Managed (default)  │   │
+│  │ Permissions  │  │ Clone repo   │  │ Self-hosted opt    │   │
+│  │ Approvals    │  │ Install deps │  │ Credential store   │   │
+│  │ Audit log    │  │ Isolated     │  │ OAuth / tokens     │   │
+│  │ Rate limit   │  │              │  │ API execution      │   │
 │  └──────────────┘  └──────────────┘  └────────────────────┘   │
 │                                                                │
 │  ┌──────────────┐  ┌──────────────┐  ┌────────────────────┐   │
-│  │ LiveView     │  │ Slack App    │  │ LLM Gateway        │   │
-│  │ Dashboard    │  │              │  │                    │   │
-│  │              │  │ • Bot invoke │  │ • Route + meter    │   │
-│  │ • Tasks      │  │ • Threads   │  │ • Cost caps        │   │
-│  │ • Agent logs │  │ • Notify    │  │ • BYOK             │   │
-│  │ • Services   │  │ • Approvals │  │ • Multi-provider   │   │
-│  │ • Permissions│  │              │  │                    │   │
-│  │ • Kill switch│  └──────────────┘  └────────────────────┘   │
-│  └──────────────┘                                              │
+│  │ Product      │  │ Slack App    │  │ LLM Gateway        │   │
+│  │ Frontend API │  │              │  │                    │   │
+│  │              │  │ Bot invoke   │  │ Route + meter      │   │
+│  │ Headless     │  │ Threads      │  │ Cost caps          │   │
+│  │ Familiar for │  │ Notify       │  │ BYOK               │   │
+│  │ agency       │  │ Approvals    │  │ Multi-provider     │   │
+│  │ products     │  │              │  │                    │   │
+│  └──────────────┘  └──────────────┘  └────────────────────┘   │
 │                                                                │
-│  ┌──────────────┐                                              │
-│  │ MCP          │                                              │
-│  │ Connections  │  PostgreSQL + pgvector                       │
-│  │              │                                              │
-│  │ • Team tools │                                              │
-│  │ • Any lang   │                                              │
-│  │ • 3rd party  │                                              │
-│  └──────────────┘                                              │
+│  ┌──────────────┐  ┌──────────────┐                            │
+│  │ LiveView     │  │ MCP          │                            │
+│  │ Dashboard    │  │ Connections  │  PostgreSQL + pgvector     │
+│  │              │  │              │                            │
+│  │ Tasks        │  │ Team tools   │                            │
+│  │ Agent logs   │  │ Any lang     │                            │
+│  │ Services     │  │ 3rd party    │                            │
+│  │ Operator view│  │              │                            │
+│  │ Kill switch  │  │              │                            │
+│  └──────────────┘  └──────────────┘                            │
 └────────────────────────────────────────────────────────────────┘
 ```
 
-**Open source, single codebase, single language.** imp agents run as OTP processes on the BEAM. Fly Sprites are sandboxed execution environments for the agent's bash/code tools — the agent brain runs on the control plane. The service gateway is a deployable component of Familiar — managed by default, self-hostable for teams that need credentials in their own infrastructure.
+**Key architectural change from the original plan:** imp is a Rust binary, not an Elixir SDK. Familiar spawns imp processes and communicates through the mana filesystem protocol (`.mana/` state) and process events. The agent brain runs inside imp. Familiar handles orchestration, web UI, integrations, and business logic. Clean separation — Familiar never touches LLM calls or tool execution.
+
+---
+
+## Agency Mode
+
+### Multi-Tenant Operator View
+
+The operator dashboard shows everything across all clients:
+
+```
+┌─────────────────────────────────────────────────────┐
+│  OPERATOR DASHBOARD                                  │
+│                                                      │
+│  Active clients: 47    Running agents: 23            │
+│  Monthly revenue: $14,200    LLM costs: $3,100       │
+│  Margin: 78%                                         │
+│                                                      │
+│  ┌─────────────────────────────────────────────────┐ │
+│  │ Client          │ Status │ Agents │ Spend │ Rev │ │
+│  │ Acme Corp       │ 3 running │  5  │ $120 │ $500│ │
+│  │ StartupXYZ      │ idle      │  0  │  $45 │ $200│ │
+│  │ Jane's Bakery   │ 1 running │  2  │  $30 │ $149│ │
+│  │ ...             │           │     │      │     │ │
+│  └─────────────────────────────────────────────────┘ │
+│                                                      │
+│  Recent: ✅ Acme/pagination passed (2m ago)          │
+│          ⚠️ StartupXYZ/auth failed attempt 2         │
+│          ✅ Jane's/menu-page passed (5m ago)         │
+└─────────────────────────────────────────────────────┘
+```
+
+### Product Frontend API
+
+A headless API that product frontends (Wurk, etc.) consume. The full Familiar dashboard is NOT exposed to agency clients.
+
+```
+POST   /api/v1/projects              Create a project for a client
+POST   /api/v1/projects/:id/tasks    Create tasks with verify gates
+POST   /api/v1/projects/:id/dispatch Dispatch agents
+GET    /api/v1/projects/:id/status   Project status (tasks, progress)
+GET    /api/v1/projects/:id/stream   SSE stream of progress events
+GET    /api/v1/projects/:id/results  Completed artifacts
+DELETE /api/v1/projects/:id          Tear down project
+```
+
+Each product frontend authenticates with a service key. Client isolation is enforced at the API level — a Wurk service key can only see Wurk projects.
+
+### Client Isolation
+
+Every client project gets:
+- Its own isolated Fly Sprite environment
+- Its own `.mana/` state
+- Its own agent pool (no cross-contamination)
+- Its own cost tracking
+- No visibility into other clients
+
+### Margin Tracking
+
+For every agent-hour, Familiar tracks:
+- LLM token cost (input + output, per model)
+- Compute cost (Fly Sprite time)
+- Revenue attributed (from the product frontend's pricing)
+- Net margin
+
+The operator dashboard surfaces this as: "This client is generating $500/month in revenue at $120 in costs = 76% margin." This is the data that drives pricing decisions and capacity planning.
+
+---
+
+## Platform Mode
+
+Platform Mode is the product engineering teams buy to manage their own agents. This is the original Familiar plan — largely unchanged.
+
+### What teams get
+
+- **Dashboard** — Full LiveView dashboard with tasks, agent activity, attempt history, services, permissions, audit trail
+- **GitHub App** — Connect repos, auto-clone, auto-PR on verify pass
+- **Slack Bot** — Create tasks from Slack threads, get notifications, approve actions
+- **Isolated Environments** — Per-repo Fly Sprites, cloned and dependency-installed
+- **Verify Gates** — Shell commands that prove work is done
+- **Failure Accumulation** — Failed attempts inform the next try
+- **Action Broker** — Agents act on services without seeing credentials
+- **Permission System** — Layered control over what agents can do
+- **LLM Gateway** — Cost tracking, caps, model selection, BYOK
+- **MCP Tools** — Teams bring their own tools in any language
+- **Kill Switch** — Immediate agent termination, always visible
+
+### Self-service onboarding
+
+```
+1. Sign up with GitHub OAuth
+2. Install the Familiar GitHub App on your org
+3. Select repos to connect
+4. Familiar creates environments (clone + deps)
+5. Create your first task (or let Slack bot create one)
+6. Watch the agent work
+```
 
 ---
 
 ## Task System
 
-The beans concepts — verify gates, fail-first, failure accumulation, dependency scheduling — reimplemented in Elixir as native Familiar functionality, built on imp's tasks tool.
+The mana concepts — verify gates, fail-first, failure accumulation, dependency scheduling — implemented as native Familiar functionality.
 
 ### Task structure
 
@@ -207,6 +403,7 @@ The beans concepts — verify gates, fail-first, failure accumulation, dependenc
 %Task{
   id: uuid,
   team_id: uuid,
+  client_id: uuid | nil,                    # nil for platform mode
   repo_id: uuid | nil,                      # nil for service-only tasks
   title: "Add pagination to users endpoint",
   description: "Implement cursor-based pagination...",
@@ -217,10 +414,10 @@ The beans concepts — verify gates, fail-first, failure accumulation, dependenc
   parent_id: uuid | nil,
   produces: ["PaginationParams"],
   requires: ["UserSchema"],
-  attempts: [],                              # list of attempt records
+  attempts: [],
   max_attempts: 5,
   created_by: uuid,
-  source: :dashboard | :slack | :api | :agent,  # where the task came from
+  source: :dashboard | :slack | :api | :agent | :product_frontend,
   created_at: datetime,
   updated_at: datetime
 }
@@ -230,12 +427,12 @@ The beans concepts — verify gates, fail-first, failure accumulation, dependenc
 
 Every coding task has a shell command that defines done. The command runs inside the task's isolated environment.
 
-- **Pass (exit 0)** → task closes, PR opens
-- **Fail (exit non-zero)** → attempt recorded with output, agent retries or task stays open
+- **Pass (exit 0)** — task closes, PR opens
+- **Fail (exit non-zero)** — attempt recorded with output, agent retries or task stays open
 
 Service tasks may have verify gates too (e.g., `curl -s https://api.example.com/health | jq -e '.status == "ok"'`) or may be verified by the agent's judgment + human review.
 
-### Fail-first (optional, default on for coding tasks)
+### Fail-first
 
 Before dispatching an agent, run the verify command. If it already passes, reject — the test doesn't test anything new. Disabled by default for service tasks and refactoring work.
 
@@ -269,63 +466,65 @@ Large tasks decompose into subtasks. When all children pass, the parent verifies
 
 ## Agent Runtime
 
-The agent runtime is **imp** (`~/imp`). See `~/imp/PLAN.md` for the full spec.
+The agent runtime is **imp** — a Rust binary from the Tower ecosystem. Familiar spawns imp as child processes.
 
-Familiar uses imp as an SDK:
+### Integration model
 
-```elixir
-{:ok, agent} = Imp.start_agent(%{
-  model: team.default_model,
-  tools: Imp.default_tools() ++ mcp_tools(team) ++ familiar_tools(task),
-  system_prompt: build_agent_prompt(task, team),
-  on_event: &handle_agent_event(task, &1),
-  credential_broker: platform_broker(team),
-  permission_gate: platform_permissions(team)
-})
 ```
+Familiar (Elixir/OTP)
+  │
+  ├── Spawns: imp <UNIT_ID> --project-dir <PATH> --model <MODEL> [OPTIONS]
+  │
+  ├── Monitors: process exit code, stdout/stderr streaming
+  │
+  ├── State: reads/writes .mana/ directory (task state, attempts, notes)
+  │
+  └── Events: imp writes structured events to stdout, Familiar parses and routes
+```
+
+This is the same model that mana uses locally to dispatch agents. Familiar adds:
+- Supervised OTP process per agent (restart on crash, timeout enforcement)
+- Event routing to LiveView dashboard (real-time UI updates)
+- Event routing to Slack (thread updates, notifications)
+- Cost tracking per agent (LLM token metering)
 
 ### What imp provides
 
 - Agent loop (prompt → LLM → tool calls → loop)
-- Multi-provider LLM client (Anthropic, OpenAI, Google)
-- Built-in tools (read, write, edit, bash, grep, find, ls, etc.)
-- Tasks tool (create, show, close, verify, context)
+- Multi-provider LLM client (Anthropic, OpenAI, Google, 11+ providers)
+- Built-in tools (read, write, edit, bash, grep, find, ls, diff, scan, web, ask, memory)
 - MCP client (connect to external tool servers)
-- Action broker interface (isolated process; agent never sees credentials)
-- Permission gate (always/once/never, per-tool patterns)
-- Streaming events (text, thinking, tool calls, errors)
 - Context management (compaction, token tracking)
+- Verify gate execution
 
-### What Familiar adds on top of imp
+### What Familiar adds on top
 
 - Task persistence (Postgres, not local files)
 - GitHub integration (clone, branch, commit, PR)
 - Slack integration (bot invocation, thread context, notifications)
 - Isolated environments (Fly Sprites)
-- Team management and auth
-- Dashboard (LiveView)
-- Dispatch scheduling (parallel agents, dependency ordering)
+- Multi-tenant isolation
+- Dispatch scheduling (parallel agents, dependency ordering, capacity management)
 - LLM Gateway (cost tracking, caps, BYOK, multi-provider routing)
-- Permission extensions (Allow + Notify level, persistent storage, push notifications)
-- Service gateway (managed or self-hosted) with credential storage and OAuth
-- Action broker integration (permissions, approvals, audit trail)
-- Agent monitoring, kill switch, audit trail
+- Action broker + service gateway (brokered external actions)
+- Permission system (layered, per-service, per-action)
+- Monitoring, kill switch, audit trail
 
 ### Familiar-specific tools
 
-Registered with imp beyond the built-in set:
+Injected into imp's environment via configuration or MCP:
 
-- `git.commit(message)` — commit current changes (agent works on a branch)
+- `git.commit(message)` — commit current changes
 - `git.diff()` — view current changes
 - `services.list()` — list connected services and available actions
-- `services.call(service, action, params)` — act on a service through the action broker and gateway
-- `notify(channel, message)` — send a notification (Slack, dashboard)
+- `services.call(service, action, params)` — act through the action broker
+- `notify(channel, message)` — send a notification
 
 ---
 
 ## Isolated Environments
 
-Each repo gets an isolated sandbox. The agent brain (imp process) runs on the BEAM, but its bash/execution tools target the sandbox.
+Each repo gets an isolated sandbox. The imp process runs inside the sandbox — its bash/execution tools are scoped to that environment.
 
 ### Fly Sprites
 
@@ -338,7 +537,7 @@ Each repo gets an isolated sandbox. The agent brain (imp process) runs on the BE
 ### Environment lifecycle
 
 ```
-Team connects repo
+Team connects repo (or agency product creates project)
   → Familiar creates Fly Sprite
   → Clones repo, installs dependencies, snapshots clean state
   → Sprite sleeps ($0 until needed)
@@ -346,12 +545,10 @@ Team connects repo
 Coding task dispatched
   → Sprite wakes, restores clean snapshot
   → Creates branch: familiar/task-{id}
-  → Agent executes (bash, write, etc. target the Sprite)
+  → imp agent executes (bash, write, etc. inside the Sprite)
   → Verify passes → commit, push, open PR
   → Sprite sleeps
 ```
-
-Service-only tasks don't need an environment — they run through the action broker and service gateway (plus any connected MCP tools).
 
 ### Parallel agents
 
@@ -365,8 +562,7 @@ Teams extend the agent with MCP. No Elixir required.
 
 ### Built-in tools (from imp)
 
-Always available: read, write, edit, bash, grep, find, ls, task tools.
-On demand: code intelligence, web search, database, testing, etc.
+Always available: read, write, edit, multi_edit, bash, grep, find, ls, diff, scan, web, ask, memory.
 
 ### MCP tools (team-provided)
 
@@ -374,30 +570,18 @@ Teams connect MCP servers that expose tools to the agent in any language:
 
 - Python MCP server that searches internal documentation
 - Go MCP server that checks deployment status
-- TypeScript MCP server that queries the team's data warehouse
+- TypeScript MCP server that queries the data warehouse
 - Ruby MCP server that runs database migrations
-
-**Connecting MCP servers:**
-```
-Dashboard → Settings → Tools → Add MCP Server
-  URL: https://tools.mycompany.com/mcp
-  Auth: Bearer token
-```
 
 ### Third-party MCP servers
 
-Teams can connect any compatible MCP server — Sourcegraph, Linear, Sentry, PagerDuty, etc. The MCP ecosystem is growing fast.
+Teams can connect any compatible MCP server — Sourcegraph, Linear, Sentry, PagerDuty, etc.
 
 ---
 
 ## Action Broker + Service Gateway
 
-The core security component for service work. **Familiar brokers actions, not credentials.** Agents never see tokens. The gateway handles credential storage and API execution. Teams choose who runs it.
-
-There are two parts:
-
-- **Action broker** — enforces permissions, handles approvals, rate limits, and writes the audit trail.
-- **Service gateway** — stores credentials, executes API calls, handles OAuth token refresh. A deployable component of Familiar with two modes: managed (default) or self-hosted.
+The core security component for service work. **Familiar brokers actions, not credentials.** Agents never see tokens. The gateway handles credential storage and API execution.
 
 ### Architecture
 
@@ -408,68 +592,31 @@ Agent: services.call("sentry", "get_issue", {issue_id: "PROJ-123"})
 Action broker:
   1. Authenticate request (team-scoped)
   2. Check permissions → Always / Notify / Ask / Never
-  3. If Ask → notify a human (Slack + dashboard), wait for response
-  4. Forward the approved action to the gateway
-  5. Log action (audit trail: who/what/when + params + result metadata)
-  6. Return result to agent (issue data; never credentials)
+  3. If Ask → notify human (Slack + dashboard), wait for response
+  4. Forward approved action to gateway
+  5. Log action (audit: who/what/when + params + result metadata)
+  6. Return result to agent (issue data, never credentials)
 
 Service gateway:
   - Fetch credentials from encrypted store
   - Handle OAuth token refresh if needed
   - Execute the real API call
-  - Return a sanitized result/error to the broker
+  - Return sanitized result/error to broker
 ```
 
 ### Deployment modes
 
-**Managed (default)**
+**Managed (default)** — Familiar runs the gateway. Teams configure credentials through the dashboard. Credentials encrypted at rest. Zero infrastructure for the customer.
 
-Familiar runs the gateway. Teams configure service credentials through the dashboard — OAuth flows, API keys, tokens. Credentials are encrypted at rest. Zero infrastructure for the customer.
+**Self-hosted** — For teams with compliance requirements or internal services unreachable from the internet. The gateway is a deployable component — same code, customer's infrastructure.
 
-```
-Dashboard → Services → Connect Sentry
-  → OAuth flow or paste API key
-  → Credentials encrypted and stored
-  → Agent can now call Sentry through the broker
-```
+**Hybrid** — Managed for SaaS services, self-hosted for internal APIs.
 
-This is the right default for most teams. Fast onboarding, no infra to manage.
+### Supported credential types
 
-**Self-hosted**
-
-For teams with compliance requirements or internal services that can't be reached from the public internet. The gateway is a deployable component of Familiar — same code, same features, runs in the customer's infrastructure.
-
-```
-1. Deploy the gateway (Docker image from the Familiar repo)
-2. Configure credentials locally (Vault, KMS, env vars)
-3. Register the gateway with the Familiar control plane
-4. Agent actions route through the customer's gateway instead
-```
-
-Self-hosted gateways can reach internal APIs, VPN-only services, and private databases that the managed gateway never could. The action broker still enforces permissions and logs the audit trail — only the execution location changes.
-
-**Hybrid**
-
-Teams can use both. Managed gateway for SaaS services (Sentry, Linear, Slack), self-hosted gateway for internal APIs and services behind the firewall.
-
-### OAuth and credential management
-
-The gateway handles OAuth flows, token storage, and automatic refresh for connected services. In managed mode, Familiar handles this end-to-end. In self-hosted mode, teams can use their existing credential infrastructure (Vault, KMS, etc.) or let the gateway manage OAuth directly.
-
-Supported credential types:
-- **OAuth 2.0** — full flow with token refresh (Sentry, Linear, Slack, GitHub, etc.)
+- **OAuth 2.0** — full flow with token refresh
 - **API keys** — static tokens, encrypted at rest
-- **Custom auth** — headers, mTLS, bearer tokens, whatever the service needs
-
-### Why brokered actions matter
-
-Without brokered actions: you hand the agent a Stripe key / GitHub token / internal service token. If the agent is tricked by a prompt injection, it has full access.
-
-With brokered actions: the agent can only request specific actions. The broker enforces org policy, a human can approve high-risk operations, the gateway executes using real credentials the agent never sees, and the broker records a complete audit trail.
-
-### Open source and trust
-
-The gateway is part of the Familiar codebase — fully open source. Teams can audit exactly what handles their credentials, whether they use managed or self-hosted. This is table stakes for security-sensitive infrastructure: you shouldn't have to trust a black box with your API keys.
+- **Custom auth** — headers, mTLS, bearer tokens
 
 ---
 
@@ -480,7 +627,7 @@ Layered permissions that control what agents can do, with progressive trust.
 | Level | Behavior | Default for |
 |---|---|---|
 | **Always Allow** | Agent acts, no friction | Read-only operations |
-| **Allow + Notify** | Agent acts, team gets notification | — (promoted as trust builds) |
+| **Allow + Notify** | Agent acts, team gets notification | Promoted as trust builds |
 | **Ask Every Time** | Agent pauses, sends approval request | All write/create/delete actions |
 | **Never** | Hard block | Destructive actions |
 
@@ -489,8 +636,6 @@ Layered permissions that control what agents can do, with progressive trust.
 Conservative. Everything starts at **Ask Every Time** except:
 - Read-only operations on connected services → **Always Allow**
 - Destructive operations → **Never**
-
-Teams promote actions as they build trust: "reading Sentry is fine" → Always Allow. "Creating Linear tickets is fine but I want to know" → Allow + Notify.
 
 ### Granularity
 
@@ -520,7 +665,7 @@ Slack:
 
 ### Approval UX
 
-When the agent hits an "Ask Every Time" action:
+When an agent hits "Ask Every Time":
 1. Agent pauses
 2. Notification via Slack DM + dashboard (real-time LiveView)
 3. Shows: what the agent wants to do, why, specific parameters
@@ -545,11 +690,11 @@ Familiar is a GitHub App. Teams install it on their org, grant access to specifi
 ### PR format
 
 ```markdown
-## 🤖 Familiar: Add pagination to users endpoint
+## Familiar: Add pagination to users endpoint
 
 **Task:** Add cursor-based pagination to the GET /users endpoint
 **Verify:** `cargo test api::users::pagination` ✅ (attempt 2)
-**Agent:** claude-sonnet-4 | 3m 41s | $0.12
+**Agent:** imp/claude-sonnet-4 | 3m 41s | $0.12
 
 ### What changed
 - `src/api/users.rs` — Added PaginationParams and cursor-based query logic
@@ -568,7 +713,7 @@ Humans review and merge. Familiar never merges automatically.
 
 ## Slack Integration
 
-Slack is the front door. Teams invoke agents from where they already work.
+Slack is the front door for platform mode. Teams invoke agents from where they already work.
 
 ### Bot invocation
 
@@ -586,13 +731,9 @@ Tag the Familiar bot in any Slack thread:
 
 The bot:
 1. Reads the full thread for context
-2. Creates a task (coding, service, or hybrid depending on the request)
+2. Creates a task (coding, service, or hybrid)
 3. Dispatches an agent
-4. Posts updates in the thread (started, working on it, PR opened, failed)
-
-### Thread context
-
-Slack threads often contain rich context — error messages, screenshots, links to PRs, discussion about what the fix should look like. The bot ingests the full thread and includes it in the agent's context.
+4. Posts updates in the thread
 
 ### Notifications
 
@@ -601,74 +742,84 @@ Slack threads often contain rich context — error messages, screenshots, links 
 - Approval needed → DM to the requesting team member
 - Kill switch activated → thread reply confirming agent stopped
 
-### Channel integration
-
-Teams can configure Familiar to monitor channels:
-- Watch #oncall for patterns ("can someone fix...", error reports)
-- Watch #deploys for failed deployment notifications
-- Post daily summaries of agent activity to a designated channel
-
 ---
 
 ## Dashboard
 
 LiveView — server-rendered, real-time via WebSocket, no JavaScript framework.
 
-### Screens
+### Platform Mode screens
 
-**Tasks** (home)
-- All tasks: open, running, passed, failed
-- Create new tasks (coding or service)
-- Filter by repo, status, priority, type, source
-- Bulk operations (re-run failed, cancel running)
+**Tasks** (home) — All tasks: open, running, passed, failed. Create, filter, bulk operations.
 
-**Task Detail**
-- Spec: title, description, verify command
-- Live agent activity (streaming when running)
-- Attempt history with full output
-- Subtasks and dependency graph
-- Link to PR (if passed)
-- Re-run, edit, cancel, delete
+**Task Detail** — Spec, live agent activity, attempt history, subtasks, dependency graph, PR link.
 
-**Agent Activity**
-- All running agents across the team
-- Live streaming of current tool calls and output
-- Token usage and cost per agent
-- Kill switch per agent
+**Agent Activity** — Running agents, live streaming, token usage, cost, kill switch.
 
-**Repos**
-- Connected repositories and environment status
-- Per-repo settings (default branch, setup commands, env vars)
+**Repos** — Connected repos, environment status, settings.
 
-**Services**
-- Connected service gateways + exposed services/actions
-- Connection status, last used, permission summary
-- Add/remove gateways / connections
+**Services** — Connected services, permission summary, gateway status.
 
-**Tools**
-- Connected MCP servers and tool inventory
-- Add/remove MCP connections
-- Built-in tool group configuration
+**Tools** — MCP servers, built-in tool groups, inventory.
 
-**Permissions**
-- Per-service, per-action permission matrix
-- Current level + ability to change
-- History of permission changes
+**Permissions** — Per-service, per-action permission matrix with history.
 
-**Audit Trail**
-- Every action the agent took on external services
-- Timestamp, service, action, parameters, result
-- Filterable and searchable
+**Audit Trail** — Every agent action on external services, filterable, searchable.
 
-**Team**
-- Members and roles
-- Invite links
-- Model preferences, cost caps, usage
+**Team** — Members, roles, invites, model preferences, cost caps.
 
-**Kill Switch**
-- Prominent stop button in header (always visible)
-- Immediately halts agent, cancels pending broker calls, drops LLM request
-- Per-agent and team-wide options
+### Agency Mode screens (operator-only)
+
+**Operator Overview** — All clients, aggregate revenue, costs, margins, active agents.
+
+**Client Detail** — Per-client tasks, agent activity, cost breakdown, revenue attribution.
+
+**Fleet Health** — Agent success rates, average verify attempts, cost per task, utilization.
+
+**Margin Analysis** — Revenue vs. cost per client, per product, per task type. Identifies unprofitable work.
+
+**Capacity Planning** — Current agent load, available headroom, projected costs at scale.
+
+---
+
+## Agent Fleet Economics
+
+In agency mode, every agent-hour is a business decision. Familiar tracks:
+
+### Per-agent metrics
+
+- LLM tokens consumed (input + output, broken by model)
+- LLM cost (per-model pricing applied)
+- Compute time (Fly Sprite seconds)
+- Wall-clock duration
+- Verify attempts (how many tries to pass)
+- Task outcome (passed / failed / timed out)
+
+### Per-client metrics
+
+- Total agent-hours consumed
+- Total LLM cost
+- Total compute cost
+- Revenue attributed (from product frontend pricing)
+- Net margin
+- Average tasks per month
+- Average cost per task
+
+### Fleet-wide metrics
+
+- Agent utilization rate (busy vs. idle)
+- First-attempt pass rate (% of tasks that pass verify on attempt 1)
+- Average cost per successful task
+- Cost per revenue dollar
+- Model efficiency (which models produce best results per dollar)
+
+### Alerts
+
+- Client margin drops below threshold
+- Agent failure rate spikes
+- LLM costs exceed budget
+- Agent utilization drops (capacity being wasted)
+- Specific model producing poor results
 
 ---
 
@@ -689,11 +840,15 @@ LiveView — server-rendered, real-time via WebSocket, no JavaScript framework.
 - Team creation linked to GitHub org
 - Members added by GitHub username or invite link
 
+### Agency mode: Operator role
+
+The operator has a superuser role across all teams/clients in agency mode. Not exposed to platform mode customers.
+
 ---
 
 ## LLM Gateway
 
-Sits on the control plane, proxies LLM requests from agents.
+Proxies LLM requests from imp agents.
 
 ```
 imp agent → LLM Gateway (Elixir) → Anthropic / OpenAI / Google
@@ -706,46 +861,10 @@ Handles:
 - **Cost tracking** — real-time spend per team, stored in Postgres
 - **Rate limiting** — prevent runaway agents
 - **Cost caps** — team-configurable: "stop at $X/month"
-- **BYOK** — teams can bring their own API keys
+- **BYOK** — teams bring own API keys (lower cost for them, lower margin for us)
+- **Model routing** — route simple tasks to cheaper models, complex tasks to stronger ones
 
 ---
-
-## Configuration Model
-
-Familiar should be config-centric, but because it is a multi-tenant platform its configuration has to be split deliberately.
-
-### 1. Operator/runtime config
-
-Elixir-native deployment config: app wiring, environment-specific endpoints, queue/backing-service configuration, feature flags, and self-hosted gateway registration. This belongs in the app's runtime configuration surface and deployment environment, not in team records.
-
-### 2. Team-managed settings
-
-Product-level settings edited through the dashboard and stored by the platform:
-- model preferences
-- cost caps
-- permission policies
-- connected repo settings
-- tool/service configuration
-
-These are durable app data, not committed repo config.
-
-### 3. Per-user preferences
-
-User-specific notification settings, dashboard defaults, and personal workflow preferences. These should stay per-user and should not silently mutate team-wide behavior.
-
-### 4. Secrets and credentials
-
-Credentials never belong in committed config. In managed mode they live in Familiar's encrypted gateway store. In self-hosted mode they live in the customer's own secret systems or local environment. Agents receive action results, not raw credentials.
-
-### Layering rule
-
-Familiar should keep these layers separate:
-- operator/runtime config controls how the platform runs
-- team-managed settings control what each team allows and prefers
-- user preferences control personal experience
-- secrets stay in dedicated secret storage
-
-This keeps Familiar config-centric without confusing platform configuration, product data, and secret material.
 
 ## Memory & Context
 
@@ -755,7 +874,7 @@ The current LLM context window during a task run. Dies when the task completes.
 
 ### Attempt history (persistent)
 
-Every task attempt is recorded with output, files changed, model used, duration. Survives across retries. This IS the memory for coding tasks.
+Every task attempt recorded with output, files changed, model, duration. Survives across retries. This IS the memory for coding tasks.
 
 ### Team knowledge (persistent)
 
@@ -770,14 +889,11 @@ services.sentry.project = "backend-api"
 services.linear.team = "ENG"
 ```
 
-- Stored in Postgres, scoped by team
-- Loaded into agent context at task start
-- Editable via dashboard
-- Agent can write new facts via a memory tool
+Stored in Postgres, scoped by team. Loaded into agent context at task start. Editable via dashboard.
 
 ### Semantic recall (future)
 
-Embeddings over past task history, agent conversations, and service interactions. "What happened the last time we had a payments timeout?" Not v0.1 but the pgvector infrastructure supports it.
+Embeddings over past task history and agent conversations. Not v0.1 but the pgvector infrastructure supports it.
 
 ---
 
@@ -788,34 +904,31 @@ Embeddings over past task history, agent conversations, and service interactions
 ```
 Layer 1: Environment isolation (Fly Sprite / Firecracker)
   → Agent can't escape sandbox
-  → Agent can't reach other teams
-  → Network restricted to package registries via proxy
+  → Agent can't reach other teams or clients
+  → Network restricted to package registries
 
 Layer 2: Action broker + service gateway
-  → No service credentials in the agent context
-  → Managed gateway: credentials encrypted at rest, isolated from agent processes
-  → Self-hosted gateway: credentials never leave customer infrastructure
+  → No service credentials in agent context
   → Every external action authenticated and logged
   → Rate limited per service per team
 
 Layer 3: Permission system
   → Team defines what agent can do
-  → Conservative defaults (Ask Every Time for writes)
+  → Conservative defaults
   → Progressive trust model
 
 Layer 4: Branch isolation
   → Agent works on a branch, never pushes to main
-  → Human must review and merge the PR
+  → Human must review and merge
 
-Layer 5: Anomaly detection (future)
-  → Rate-of-change monitoring in broker
-  → Unusual patterns flagged (50 tickets created after months of 3/day)
+Layer 5: Client isolation (agency mode)
+  → Each client's projects are fully isolated
+  → No cross-client data access
+  → Operator sees everything, clients see only their own
+
+Layer 6: Anomaly detection (future)
+  → Rate-of-change monitoring
   → Auto-pause on suspicious behavior
-
-Layer 6: Transparency (dashboard)
-  → Team sees everything agent does
-  → Full audit trail for service actions
-  → Kill switch always available
 ```
 
 ### What the agent CAN'T do
@@ -824,16 +937,9 @@ Layer 6: Transparency (dashboard)
 - Merge its own PRs
 - See other teams' repos, tasks, or credentials
 - Access the internet (except package registries)
-- See service credentials (OAuth tokens, API keys — isolated in the gateway)
-- Exceed the permission boundary the team has set
-
-### Prompt injection defense
-
-1. **Action broker + service gateway** — even if the agent is tricked, it can only request approved actions; credentials are isolated in the gateway, never in agent context
-2. **Permission gates** — destructive actions require human approval by default
-3. **Environment isolation** — compromised agent can't escape the sandbox
-4. **Audit trail** — everything is logged, anomalies are visible
-5. **Kill switch** — instant agent termination
+- See service credentials
+- Exceed the permission boundary
+- Access other clients' data (agency mode)
 
 ---
 
@@ -842,201 +948,291 @@ Layer 6: Transparency (dashboard)
 ### Control plane
 
 - **Phoenix app** on Fly.io
-- **PostgreSQL + pgvector** for tasks, teams, attempts, gateway registrations, audit trail, embeddings
-- **imp agents** as supervised OTP processes on the BEAM
+- **PostgreSQL + pgvector** for tasks, teams, clients, attempts, audit trail, embeddings
+- **imp agents** spawned as supervised child processes
 - **LiveView** for real-time dashboard
-- **Oban** for background jobs (environment sync, scheduled tasks, notifications)
+- **Oban** for background jobs
 
 ### Execution environments
 
 - **Fly Sprites** per repo (Firecracker isolation, persistent disk, checkpoint/restore)
 - Sleep when idle ($0), wake in ~200ms
-- Disk persists installed dependencies
 
 ### Service gateway
 
-- **Managed mode (default)** — gateway runs on Familiar's infrastructure, credentials encrypted at rest in Postgres
-- **Self-hosted mode** — same gateway code deployed in customer infrastructure (Docker image), credentials stay in customer's network
-- **OAuth engine** — built-in OAuth flow + token refresh for common SaaS APIs (Sentry, Linear, Slack, GitHub, etc.)
-- **Hybrid** — managed for SaaS, self-hosted for internal APIs
+- Managed mode: gateway on Familiar infrastructure
+- Self-hosted mode: Docker image, customer infrastructure
 
 ### Scaling
 
-The BEAM handles thousands of concurrent agent processes. Each agent is a lightweight OTP process. Bottleneck is LLM API rate limits and environment capacity, not the control plane.
+The BEAM handles thousands of concurrent agent supervisions. Each agent is a lightweight OTP-supervised process. Bottleneck is LLM API rate limits and environment capacity, not the control plane.
 
 ---
 
 ## Pricing
 
-### Cost structure per team (estimated)
+### Platform Mode
 
-| Component | Monthly cost |
-|---|---|
-| Control plane (shared BEAM) | ~$0 per team (amortized) |
-| Fly Sprite per repo | ~$1-5/repo/month |
-| Persistent disk per repo | ~$0.15/GB/month |
-| Service gateway (managed) | Included in base plan |
-| PostgreSQL (shared, amortized) | ~$0.50/team |
-| LLM tokens | Variable (dominant cost) |
+| Tier | Price | Who | Includes |
+|------|-------|-----|----------|
+| **Solo** | $29/month | Individual developers | 1 repo, 2 concurrent agents, managed LLM, 50K tokens/month |
+| **Team** | $299/month | Engineering teams (5-20) | 10 repos, 8 concurrent agents, Slack bot, 500K tokens/month |
+| **Growth** | $999/month | Larger teams (20-50) | 50 repos, 20 concurrent agents, action broker, 2M tokens/month |
+| **Enterprise** | $2K-10K/month | Large orgs (50-200+) | Unlimited repos, self-hosted gateway, SSO, SLA, dedicated support |
 
-### Pricing model
+Additional LLM usage beyond included tokens: pass-through pricing with margin. BYOK available at all tiers (removes included tokens, reduces price).
 
-- **Base plan:** $X/month per team — repos, concurrent agents, dashboard, GitHub + Slack integration, connected services
-- **Usage-based LLM:** pass-through pricing with margin, or included allocation
-- **BYOK:** teams bring own API keys (lower cost for them, lower margin for us)
+### Agency Mode (internal pricing for products)
 
-Target: $500-2,000/month per team. Must be cheaper than the engineering time to build this themselves.
+Not a customer-facing price — this is the cost structure for running Wurk and other agency products:
 
-Exact pricing TBD after validating with early users.
+| Component | Cost |
+|-----------|------|
+| Fly Sprite per project | ~$1-5/month |
+| LLM tokens per task | Variable (~$0.05-2.00 depending on complexity) |
+| Compute/monitoring overhead | ~$0.50/project/month |
+
+Agency product pricing (what clients pay through Wurk, etc.) is set per-product to maintain 60-80% margins on average.
 
 ---
 
-## v0.1 Scope
+## Phased Scope
 
-The minimum to put this in one team's hands and learn if it works. The wedge is coding tasks with verify gates.
+### v0.1 — Coding wedge (Agency Mode first)
 
-### Must have
+Build the minimum to power Wurk and validate the model with real paying clients.
 
-- [ ] GitHub App (OAuth, clone repos, create branches, open PRs)
-- [ ] Task CRUD (create, list, show, edit, delete — via dashboard)
-- [ ] Verify gates (run shell command in environment, pass/fail)
-- [ ] Failure accumulation (attempt history with output)
-- [ ] Isolated environment per repo (Fly Sprite, clone + deps)
-- [ ] Agent dispatch (one task at a time is fine for v0.1)
-- [ ] imp agent with built-in tools (read, write, edit, bash, grep, find, ls)
-- [ ] PR creation on verify pass
-- [ ] LiveView dashboard (tasks, agent activity, attempt history)
-- [ ] Team auth (GitHub OAuth, single team)
-- [ ] LLM token tracking (cost per task)
-- [ ] Slack bot (create tasks from Slack, status updates in thread)
+- [ ] Product Frontend API (headless Familiar for Wurk)
+- [ ] Task CRUD via API
+- [ ] Verify gates (run in environment, pass/fail)
+- [ ] Failure accumulation
+- [ ] Isolated environment per project (Fly Sprite, clone + deps)
+- [ ] Agent dispatch (imp binary, spawned and supervised)
+- [ ] Multi-tenant client isolation
+- [ ] Operator dashboard (clients, agents, costs)
+- [ ] LLM token tracking and cost attribution
+- [ ] GitHub integration (clone, branch, commit, PR)
+- [ ] Basic capacity management
 
-### v0.2 (coding agent maturity)
+### v0.2 — Platform wedge
 
-- [ ] Parallel agent dispatch
-- [ ] Dependency scheduling (produces/requires)
-- [ ] Parent-child tasks with agent-assisted decomposition
+Expose Familiar to external teams as a self-service product.
+
+- [ ] Team auth (GitHub OAuth)
+- [ ] Self-service onboarding (install GitHub App, select repos)
+- [ ] Full LiveView dashboard (tasks, agent activity, attempt history)
+- [ ] Slack bot (create tasks, notifications)
+- [ ] Parallel agent dispatch with dependency scheduling
+- [ ] Parent-child tasks
 - [ ] Fail-first verification
-- [ ] MCP tool connections
-- [ ] Environment auto-sync on push to main
 - [ ] BYOK (bring your own API key)
-- [ ] Environment variable management
 - [ ] Cost caps per team
+- [ ] Kill switch
 
-### v0.3 (service expansion)
+### v0.3 — Service expansion
 
-- [ ] Service gateway with managed credential storage (OAuth + API keys, encrypted at rest)
+- [ ] Service gateway with managed credential storage
 - [ ] Action broker (permissions, approvals, rate limiting, audit trail)
-- [ ] Self-hosted gateway deployment (Docker image, registration protocol)
+- [ ] Self-hosted gateway deployment (Docker image)
 - [ ] Permission system (four levels, per-service, per-action)
 - [ ] Service tasks (non-coding work via gateway)
-- [ ] Connected services dashboard (service cards, permissions matrix)
-- [ ] Audit trail for service actions
-- [ ] Slack channel monitoring (watch for patterns, auto-create tasks)
 - [ ] Approval flow via Slack DM
+- [ ] Audit trail
+- [ ] MCP tool connections
+
+### v0.4 — Agency scale
+
+- [ ] Agent fleet economics dashboard
+- [ ] Margin analysis per client
+- [ ] Capacity planning and auto-scaling
+- [ ] Model routing (cheap models for simple tasks)
 - [ ] Team knowledge / memory system
+- [ ] Multiple agency product support (beyond Wurk)
 
 ### Later
 
-- Adversarial review (second agent reviews the work)
+- Adversarial review (second agent reviews work)
 - Anomaly detection
 - GitLab / Bitbucket support
 - Semantic recall (RAG over task history)
-- Agent self-building tools (HTTP template, Lua)
 - Scheduled/recurring tasks
 - Multi-team billing
 - Mobile dashboard
-
----
-
-## Open Source Strategy
-
-Familiar is fully open source. The managed platform is the business — not the code.
-
-### Why open source
-
-1. **Trust** — The gateway handles service credentials. Teams need to audit the code that touches their Stripe keys and database tokens. Open source is the trust mechanism.
-2. **Distribution** — The agent space is crowded. Open source gets adoption when you're competing against Claude Code, Cursor, Goose, Aider, and whatever ships next week.
-3. **Self-host option** — Enterprise teams with compliance requirements can run everything themselves. Most won't — but the option existing removes "vendor lock-in" from the objection list.
-4. **Contributions** — Good open source projects attract contributors who build tools, fix bugs, add provider integrations, and extend the platform in ways a small team can't.
-5. **Ecosystem** — imp (agent engine), beans (task tracker), and Familiar (platform) form a coherent open source ecosystem. Each piece is useful standalone. Together they're the full stack.
-
-### What's open source
-
-Everything. The entire Familiar codebase — Phoenix app, service gateway, action broker, dashboard, imp integration, Slack bot, GitHub App logic. MIT or Apache 2.0.
-
-### What you pay for
-
-The managed service:
-- Hosted infrastructure (Fly Sprites, control plane, database)
-- Managed service gateway (we handle credentials, OAuth, uptime)
-- LLM gateway (API key management, cost tracking, rate limiting)
-- SLA, support, onboarding
-
-Self-hosting is free. Managing it yourself is the cost.
+- Platform API for third-party agent businesses
 
 ---
 
 ## Go-to-Market
 
-### Phase 1: beans (now)
+### Phase 1: Wurk (now)
 
-beans is already built, published on crates.io, and works today. It validates the core concepts (verify gates, failure accumulation, dependency scheduling) in the open.
+Wurk is the first agency product. Clients describe software, agents build it. Familiar v0.1 powers the orchestration. Revenue comes from Wurk's credit/project pricing, not from Familiar directly.
 
-**Show HN: beans — Task tracker for AI coding agents with verify gates**
+This validates:
+- Agent orchestration at scale
+- Verify gates in production
+- Multi-tenant isolation
+- Cost economics (are margins real?)
 
-This establishes the ideas, builds an audience of developers who care about verified agent work, and creates a funnel: "I love beans locally, but I want this on my team's codebase in the cloud" → that's Familiar.
+### Phase 2: Wizard users → Familiar Solo
 
-### Phase 2: Familiar open source + managed beta (coding wedge)
+Wizard (Godot desktop app) builds a developer audience. Power users who hit the ceiling of local orchestration — want cloud agents, GitHub integration, managed LLM — upgrade to Familiar Solo at $29/month.
 
-Open source the full codebase. Launch the managed platform in private beta with 3-5 teams on real coding tasks. Source from:
-- beans users who want the cloud version
-- HN/Twitter engagement from the beans launch
-- Teams posting about AI coding agent workflows
+This validates:
+- Self-service onboarding
+- Developer willingness to pay for cloud agent orchestration
+- The funnel from local to cloud
+
+### Phase 3: Team launch
+
+Once Solo works, launch Team and Growth tiers. Source from:
+- Solo users who want team features
+- Wizard/imp community (developers who already know the ecosystem)
+- Content marketing (case studies from Wurk, "how we run 100 agents" posts)
 - Direct outreach to teams with good test coverage
 
-Open source launch and managed beta can happen simultaneously — the code being public builds credibility and drives signups.
+### Phase 4: Enterprise + Platform API
 
-### Phase 3: Service expansion beta
+Enterprise tier for large organizations. Platform API for businesses that want to build their own agent-powered products on Familiar's infrastructure.
 
-Once coding tasks work reliably for early users, introduce the service gateway (managed + self-hosted) and service integration. Early users are the best candidates — they already trust the platform for coding, expanding to services is natural.
+### Phase 5: Agency expansion
 
-### Phase 4: Public launch
+Launch additional agency products beyond Wurk — content, operations, support. Each is a thin product frontend on Familiar's infrastructure.
 
-Public launch with pricing once the product works for 5-10 teams across both coding and service tasks.
+---
+
+## The Portfolio Strategy
+
+Familiar enables a unique business model: the agent-powered holding company.
+
+### How it works
+
+1. **Acquire small SaaS products** ($1K-50K MRR) from burned-out founders at 2-4x ARR
+2. **Point Familiar at the codebase** — agents audit, fix bugs, modernize, add features
+3. **Run ongoing development through Familiar** — agents handle support, dependency updates, feature requests
+4. **Track economics** — revenue vs. agent cost per product. Kill underperformers.
+
+### Why Familiar makes this work
+
+Without Familiar, acquiring and running 50 SaaS products requires hiring 50+ engineers. With Familiar, the same portfolio runs on agents coordinated by one operator through the same dashboard used for everything else.
+
+The operator dashboard shows the entire portfolio:
+- Revenue per product
+- Agent cost per product
+- Net margin per product
+- Active tasks, recent completions, failures
+- Quality metrics (test pass rate, customer complaints)
+
+### The compounding effect
+
+- More products → more revenue → more capital for acquisitions
+- More codebases → more agent experience → better first-attempt pass rates
+- Higher volume → better LLM pricing → lower costs → higher margins
+- Proven track record → easier acquisitions → faster portfolio growth
+
+---
+
+## Revenue Projections
+
+| Year | Agency Revenue | Platform Revenue | Total |
+|------|---------------|-----------------|-------|
+| 1 | $50K-200K (Wurk + early products) | $10K-50K (Wizard Cloud → Solo) | $60K-250K |
+| 2 | $500K-2M (scale + new products) | $200K-1M (Team + Growth tiers) | $700K-3M |
+| 3 | $2M-10M (agency scale + portfolio) | $1M-5M (Enterprise) | $3M-15M |
+| 5 | $10M-50M (portfolio + multiple agency products) | $10M-50M (Platform + API) | $20M-100M |
+| 7+ | $50M-200M | $50M-200M | $100M-400M |
+
+These projections assume:
+- Wurk achieves product-market fit in year 1
+- Platform mode launches in year 1, reaches meaningful adoption in year 2
+- Portfolio acquisitions begin in year 2-3
+- Additional agency products launch in year 2-3
+- Platform API opens in year 3-4
+
+---
+
+## Open Source Strategy
+
+Familiar is fully open source. The managed platform is the business.
+
+### Why open source
+
+1. **Trust** — The gateway handles credentials. Teams must audit the code.
+2. **Distribution** — Open source gets adoption faster than closed-source in a crowded market.
+3. **Self-host option** — Removes "vendor lock-in" from the objection list.
+4. **Contributions** — Community builds tools, integrations, fixes.
+5. **Ecosystem** — imp, mana, Wizard, and Familiar form a coherent open source stack.
+
+### What's open source
+
+Everything. The entire Familiar codebase — Phoenix app, service gateway, action broker, dashboard, imp integration, Slack bot, GitHub App logic.
+
+### What you pay for
+
+The managed service:
+- Hosted infrastructure (Fly Sprites, control plane, database)
+- Managed service gateway
+- LLM gateway
+- SLA, support, onboarding
+
+---
+
+## Configuration
+
+### Operator/runtime config
+
+Elixir-native deployment config: environment endpoints, queue configuration, feature flags, gateway registration.
+
+### Team-managed settings
+
+Product-level settings via dashboard: model preferences, cost caps, permission policies, repo settings, tool/service configuration.
+
+### Per-user preferences
+
+Notification settings, dashboard defaults, personal workflow preferences.
+
+### Secrets and credentials
+
+Never in committed config. Managed mode: encrypted gateway store. Self-hosted: customer's secret systems.
 
 ---
 
 ## Open Questions
 
-1. **imp maturity** — Familiar depends on imp for the agent runtime. imp Phase 1 (agent loop, LLM client, core tools) + Phase 2 (MCP client, tasks tool) are prerequisites for Familiar v0.1.
+1. **imp integration protocol** — Process spawn + stdout events + `.mana/` state? Or something richer (Unix socket, gRPC)?
 
-2. **Fly Sprites** — Relatively new. Need to verify: checkpoint/restore stability, disk persistence, networking, startup latency under load.
+2. **Fly Sprites maturity** — Need to verify checkpoint/restore stability, disk persistence, networking, startup latency under load.
 
-3. **Environment setup** — Cloning is easy. Installing dependencies reliably across languages (npm, cargo, pip, bundler, mix, go mod) is hard. May need per-language templates or team-defined setup scripts.
+3. **Environment setup reliability** — Dependency installation across languages (npm, cargo, pip, bundler, mix, go mod) is fragile. May need per-language templates or team-defined setup scripts.
 
-4. **Verify command reliability** — Flaky tests as verify gates mean agents retry forever on something that isn't their fault. Strategy: timeout, max attempts, team can mark "flaky, human review instead."
+4. **Verify command reliability** — Flaky tests mean agents retry forever. Strategy: timeout, max attempts, mark as "flaky, human review."
 
-5. **OAuth engine scope** — Building OAuth flows + token refresh for common SaaS APIs (Sentry, Linear, Slack, GitHub) is a significant surface area. May start with API key support only and add OAuth incrementally per service.
+5. **OAuth engine scope** — Building OAuth flows + token refresh for common SaaS APIs is significant surface area. May start with API key support only.
 
-6. **beans rename** — The beans CLI may get a new name. Concepts carry forward regardless.
+6. **Slack app review** — Can take weeks. Direct install link works initially.
 
-7. **Slack app review** — Slack's app directory review process can take weeks. Direct install link works initially but limits discoverability.
+7. **Self-hosted gateway networking** — Outbound-only connectivity, clean handshake protocol needed.
 
-8. **Self-hosted gateway networking** — Self-hosted gateways need outbound-only connectivity to register with the Familiar control plane. Need a clean handshake protocol and good docs for enterprise network teams.
+8. **Multi-repo tasks** — Some tasks span multiple repos. Architecture should support this eventually.
 
-9. **Multi-repo tasks** — Some tasks span multiple repos (e.g., update a shared library and all its consumers). Architecture should support this eventually.
+9. **Pricing validation** — Projections are estimates. Need conversations with target teams.
 
-10. **Pricing validation** — $500-2,000/month is a guess. Need conversations with target teams to validate willingness to pay and what features justify the price.
+10. **Agency mode legal structure** — One entity running code in client environments at scale has liability implications. Terms of service, insurance, and contract structure need legal review.
+
+11. **Wizard ↔ Familiar bridge** — How does the Godot desktop app connect to Familiar's cloud? WebSocket to the Phoenix app? Same protocol as the LiveView dashboard?
 
 ---
 
 ## Influences
 
-- **Stripe Minions** — Proved the model: unattended agents, one-shot from task to PR, isolated environments, 1000+ PRs/week.
-- **beans** (`~/beans`) — Task tracker with verify gates, failure accumulation, dependency scheduling. The concepts Familiar's task system is built on.
-- **imp** (`~/imp`) — Elixir agent engine. The agent runtime for Familiar.
-- **OpenClaw** — Proved massive demand for personal AI agents (180k GitHub stars). Security cautionary tale.
+- **Stripe Minions** — Proved the model: unattended agents, one-shot task to PR, 1,000+ PRs/week.
+- **AWS** — Built infrastructure for internal use, then sold it. The agency → platform playbook.
+- **mana** — Coordination substrate with verify gates, failure accumulation, dependency scheduling.
+- **imp** — The agent engine that powers everything.
+- **Wizard** — Local command center. The desktop on-ramp to Familiar's cloud platform.
+- **Wurk** — First agency product. Proves the model generates revenue.
+- **OpenClaw** — Proved massive demand for personal AI agents. Security cautionary tale.
 - **Composio** — "Brokered actions" pattern: agent never sees tokens.
-- **Supabase / PostHog** — Open source core, managed platform as the business. Proved the model works.
-- **MCP** (Model Context Protocol) — Open standard for connecting tools to agents.
+- **Supabase / PostHog** — Open source core, managed platform as the business.
+- **MCP** — Open standard for connecting tools to agents.
 - **Fly Sprites** — Firecracker-based sandboxes with persistent disk, checkpoint/restore.

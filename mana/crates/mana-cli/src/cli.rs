@@ -639,12 +639,11 @@ Examples:
         force: bool,
     },
 
-    /// Health check -- orphans, cycles, index freshness
+    /// Health check -- index, dependency graph, and stale/misleading config
     #[command(display_order = 42)]
     Doctor {
-        /// Automatically fix detected issues
-        #[arg(long)]
-        fix: bool,
+        #[command(subcommand)]
+        command: Option<DoctorCommand>,
     },
 
     /// Manage hook trust (enable/disable hook execution)
@@ -1210,16 +1209,61 @@ pub enum DepCommand {
 }
 
 #[derive(Subcommand)]
+pub enum DoctorCommand {
+    /// Automatically fix safe, deterministic issues
+    Fix,
+}
+
+#[derive(Subcommand)]
 pub enum ConfigCommand {
-    /// Get a configuration value
+    /// Get the effective value for a configuration key
     Get {
         /// Config key. Model keys: run_model (mana run), plan_model (mana plan), review_model (AI review), research_model (project research/planning).
         key: String,
     },
 
-    /// Set a configuration value
+    /// Get the raw project-local value for a configuration key
+    GetProject {
+        /// Config key.
+        key: String,
+    },
+
+    /// Get the raw global value for a configuration key
+    GetGlobal {
+        /// Config key.
+        key: String,
+    },
+
+    /// Inspect effective/local/global values and source information
+    Inspect {
+        /// Optional config key. Omit to inspect common runtime settings.
+        key: Option<String>,
+    },
+
+    /// Detect stale or misleading local config overrides
+    Doctor,
+
+    /// Set a project-local configuration value
     Set {
         /// Config key. Model keys: run_model (mana run), plan_model (mana plan), review_model (AI review), research_model (project research/planning).
+        key: String,
+
+        /// New value
+        value: String,
+    },
+
+    /// Set a project-local configuration value explicitly
+    SetProject {
+        /// Config key.
+        key: String,
+
+        /// New value
+        value: String,
+    },
+
+    /// Set a global configuration value in ~/.config/mana/config.yaml
+    SetGlobal {
+        /// Config key.
         key: String,
 
         /// New value

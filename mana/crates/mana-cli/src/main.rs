@@ -21,7 +21,10 @@ fn auto_json(explicit_json: bool, no_json: bool) -> bool {
 
 mod cli;
 
-use cli::{Cli, Command, ConfigCommand, CreateOpts, CreateSubcommand, DepCommand, McpCommand};
+use cli::{
+    Cli, Command, ConfigCommand, CreateOpts, CreateSubcommand, DepCommand, DoctorCommand,
+    McpCommand,
+};
 use mana::commands::create::CreateArgs;
 use mana::commands::plan::PlanArgs;
 use mana::commands::quick::QuickArgs;
@@ -728,7 +731,10 @@ fn main() -> Result<()> {
             cmd_tidy(&mana_dir, dry_run, &out)
         }
         Command::Stats { json, no_json } => cmd_stats(&mana_dir, auto_json(json, no_json)),
-        Command::Doctor { fix } => cmd_doctor(&mana_dir, fix),
+        Command::Doctor { command } => {
+            let fix = matches!(command, Some(DoctorCommand::Fix));
+            cmd_doctor(&mana_dir, fix)
+        }
         Command::Trust { revoke, check } => cmd_trust(&mana_dir, revoke, check),
 
         Command::Unarchive { id } => {
@@ -887,7 +893,23 @@ fn main() -> Result<()> {
 
         Command::Config { command } => match command {
             ConfigCommand::Get { key } => cmd_config_get(&mana_dir, &key),
+            ConfigCommand::GetProject { key } => {
+                mana::commands::config_cmd::cmd_config_get_project(&mana_dir, &key)
+            }
+            ConfigCommand::GetGlobal { key } => {
+                mana::commands::config_cmd::cmd_config_get_global(&mana_dir, &key)
+            }
+            ConfigCommand::Inspect { key } => {
+                mana::commands::config_cmd::cmd_config_inspect(&mana_dir, key.as_deref())
+            }
+            ConfigCommand::Doctor => mana::commands::config_cmd::cmd_config_doctor(&mana_dir),
             ConfigCommand::Set { key, value } => cmd_config_set(&mana_dir, &key, &value),
+            ConfigCommand::SetProject { key, value } => {
+                mana::commands::config_cmd::cmd_config_set_project(&mana_dir, &key, &value)
+            }
+            ConfigCommand::SetGlobal { key, value } => {
+                mana::commands::config_cmd::cmd_config_set_global(&mana_dir, &key, &value)
+            }
         },
 
         Command::Mcp { command } => match command {

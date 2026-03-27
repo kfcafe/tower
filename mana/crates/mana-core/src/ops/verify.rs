@@ -43,7 +43,7 @@ pub fn run_verify(mana_dir: &Path, id: &str) -> Result<Option<VerifyResult>> {
         _ => return Ok(None),
     };
 
-    let config = Config::load(mana_dir).ok();
+    let config = Config::load_with_extends(mana_dir).ok();
     let timeout_secs =
         unit.effective_verify_timeout(config.as_ref().and_then(|c| c.verify_timeout));
 

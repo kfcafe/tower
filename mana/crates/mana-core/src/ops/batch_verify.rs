@@ -73,7 +73,7 @@ pub fn batch_verify_ids(mana_dir: &Path, ids: &[String]) -> Result<BatchVerifyRe
         .parent()
         .ok_or_else(|| anyhow::anyhow!("Cannot determine project root from mana dir"))?;
 
-    let config = Config::load(mana_dir).ok();
+    let config = Config::load_with_extends(mana_dir).ok();
 
     // Load all units and group by verify command string.
     // Units without a verify command or not in AwaitingVerify are skipped.
@@ -141,6 +141,10 @@ pub fn batch_verify_ids(mana_dir: &Path, ids: &[String]) -> Result<BatchVerifyRe
                             CloseOutcome::MergeConflict { .. } => {
                                 // MergeConflict has no unit_id — record using the original unit id.
                                 passed.push(unit.id.clone());
+                            }
+                            CloseOutcome::VerifyFrozenViolation { unit_id, .. } => {
+                                // Judge was changed — treat as needing attention.
+                                passed.push(unit_id);
                             }
                             CloseOutcome::VerifyFailed(_) => {
                                 // Should not happen with force: true.

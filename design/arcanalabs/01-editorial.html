@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arcana Labs — Editorial</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+      :root {
+        --font-display: "Fraunces", serif;
+        --font-body: "Manrope", sans-serif;
+        --font-mono: "IBM Plex Mono", monospace;
+        --space-2: 8px;
+        --space-3: 12px;
+        --space-4: 16px;
+        --space-5: 20px;
+        --space-6: 24px;
+        --space-8: 32px;
+        --space-10: 40px;
+        --space-12: 48px;
+        --space-16: 64px;
+        --space-20: 80px;
+        --radius: 20px;
+      }
+
+      :root[data-theme="light"] {
+        color-scheme: light;
+        --bg: #f6f1eb;
+        --bg-elevated: #fffdf9;
+        --text: #23181f;
+        --text-muted: #5a4b52;
+        --border: rgba(91, 65, 81, 0.18);
+        --accent: #6e455f;
+        --accent-strong: #4c273f;
+        --accent-soft: rgba(110, 69, 95, 0.09);
+        --signal: #9a7626;
+      }
+
+      :root[data-theme="dark"] {
+        color-scheme: dark;
+        --bg: #120e14;
+        --bg-elevated: #1b141c;
+        --text: #efe7e7;
+        --text-muted: #b8a9ae;
+        --border: rgba(210, 182, 195, 0.15);
+        --accent: #d5afc5;
+        --accent-strong: #f2dfe7;
+        --accent-soft: rgba(213, 175, 197, 0.1);
+        --signal: #d6bf87;
+      }
+
+      * { box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
+      body {
+        margin: 0;
+        font: 500 16px/1.65 var(--font-body);
+        color: var(--text);
+        background:
+          radial-gradient(circle at top right, var(--accent-soft), transparent 24%),
+          var(--bg);
+      }
+      a { color: inherit; text-decoration: none; }
+      button { font: inherit; }
+      .wrap { width: min(1040px, calc(100% - 32px)); margin: 0 auto; }
+      .header {
+        position: sticky;
+        top: 0;
+        backdrop-filter: blur(14px);
+        background: color-mix(in srgb, var(--bg) 82%, transparent);
+        border-bottom: 1px solid var(--border);
+      }
+      .header .wrap {
+        min-height: 76px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--space-4);
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: var(--space-3);
+      }
+      .brand-mark {
+        width: 18px;
+        height: 18px;
+        border: 1.5px solid var(--accent);
+        transform: rotate(45deg);
+      }
+      .brand-copy { display: grid; gap: 2px; }
+      .brand-copy strong {
+        font-family: var(--font-display);
+        font-size: 1.1rem;
+        font-weight: 600;
+        letter-spacing: -0.03em;
+      }
+      .brand-copy span {
+        color: var(--text-muted);
+        font: 500 0.72rem/1.1 var(--font-mono);
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
+      .nav {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+      }
+      .nav a, .toggle {
+        padding: 10px 14px;
+        border-radius: 999px;
+      }
+      .nav a { color: var(--text-muted); }
+      .nav a:hover { background: var(--accent-soft); color: var(--text); }
+      .toggle {
+        border: 1px solid var(--border);
+        background: var(--bg-elevated);
+        color: var(--text-muted);
+        cursor: pointer;
+      }
+      .hero {
+        padding: clamp(48px, 8vw, 96px) 0 var(--space-16);
+      }
+      .eyebrow {
+        display: inline-block;
+        margin-bottom: var(--space-5);
+        color: var(--text-muted);
+        font: 500 0.76rem/1 var(--font-mono);
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
+      h1, h2, h3, p { margin: 0; }
+      h1 {
+        max-width: 10.5ch;
+        font-family: var(--font-display);
+        font-size: clamp(3.2rem, 7vw, 6.8rem);
+        line-height: 0.93;
+        letter-spacing: -0.06em;
+      }
+      .accent { color: var(--accent); }
+      .lede {
+        max-width: 56ch;
+        margin-top: var(--space-6);
+        color: var(--text-muted);
+        font-size: clamp(1.05rem, 1rem + 0.4vw, 1.28rem);
+      }
+      .hero-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-3);
+        margin-top: var(--space-8);
+      }
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 48px;
+        padding: 0 20px;
+        border-radius: 999px;
+        border: 1px solid transparent;
+      }
+      .button-primary {
+        background: var(--accent-strong);
+        color: #fff;
+      }
+      .button-secondary {
+        border-color: var(--border);
+        background: var(--bg-elevated);
+      }
+      .hero-grid {
+        display: grid;
+        grid-template-columns: 1.15fr 0.85fr;
+        gap: var(--space-12);
+        align-items: start;
+      }
+      .note {
+        border-top: 1px solid var(--border);
+        padding-top: var(--space-6);
+        color: var(--text-muted);
+      }
+      .note strong { color: var(--text); display: block; margin-bottom: 6px; }
+      .section {
+        padding: var(--space-16) 0;
+        border-top: 1px solid var(--border);
+      }
+      .section-header {
+        display: grid;
+        gap: var(--space-4);
+        margin-bottom: var(--space-8);
+      }
+      .section-kicker {
+        color: var(--text-muted);
+        font: 500 0.74rem/1 var(--font-mono);
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+      }
+      .section h2 {
+        max-width: 11ch;
+        font-family: var(--font-display);
+        font-size: clamp(2rem, 4vw, 3.6rem);
+        line-height: 0.98;
+        letter-spacing: -0.05em;
+      }
+      .section-copy {
+        max-width: 60ch;
+        color: var(--text-muted);
+      }
+      .split {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--space-8);
+      }
+      .essay {
+        display: grid;
+        gap: var(--space-4);
+      }
+      .essay h3 {
+        font-family: var(--font-display);
+        font-size: 2rem;
+        letter-spacing: -0.04em;
+      }
+      .essay ul {
+        display: grid;
+        gap: var(--space-3);
+        padding: 0;
+        margin: var(--space-3) 0 0;
+        list-style: none;
+      }
+      .essay li {
+        padding-top: var(--space-3);
+        border-top: 1px solid var(--border);
+        color: var(--text-muted);
+      }
+      .essay li strong { display: block; color: var(--text); margin-bottom: 4px; }
+      .products {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--space-5);
+      }
+      .card {
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: var(--bg-elevated);
+        padding: var(--space-6);
+        display: grid;
+        gap: var(--space-4);
+      }
+      .card-head {
+        display: flex;
+        align-items: start;
+        justify-content: space-between;
+        gap: var(--space-4);
+      }
+      .card-label {
+        color: var(--text-muted);
+        font: 500 0.72rem/1 var(--font-mono);
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+      }
+      .card h3 {
+        font-family: var(--font-display);
+        font-size: 1.7rem;
+        letter-spacing: -0.04em;
+      }
+      .badge {
+        padding: 6px 9px;
+        border-radius: 999px;
+        background: var(--accent-soft);
+        color: var(--text);
+        font: 600 0.68rem/1 var(--font-mono);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .card p { color: var(--text-muted); }
+      .footer {
+        padding: var(--space-10) 0 var(--space-12);
+        color: var(--text-muted);
+        border-top: 1px solid var(--border);
+      }
+      .footer .wrap {
+        display: flex;
+        justify-content: space-between;
+        gap: var(--space-4);
+      }
+      @media (max-width: 900px) {
+        .hero-grid, .split, .products { grid-template-columns: 1fr; }
+      }
+      @media (max-width: 720px) {
+        .nav a { display: none; }
+        .hero-actions { flex-direction: column; }
+        .button { width: 100%; }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="header">
+      <div class="wrap">
+        <a class="brand" href="#top">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span class="brand-copy">
+            <strong>Arcana Labs</strong>
+            <span>by Asher</span>
+          </span>
+        </a>
+        <nav class="nav">
+          <a href="#products">Products</a>
+          <a href="#consulting">Consulting</a>
+          <a href="#contact">Contact</a>
+          <button class="toggle" id="toggle">Light</button>
+        </nav>
+      </div>
+    </header>
+
+    <main id="top">
+      <section class="hero">
+        <div class="wrap hero-grid">
+          <div>
+            <div class="eyebrow">Editorial direction</div>
+            <h1>
+              A quieter
+              <span class="accent">studio for agent systems</span>
+              and product work.
+            </h1>
+            <p class="lede">
+              This version leans more editorial and human. It treats Arcana Labs like a studio or lab
+              first: serious products, serious consulting, but expressed with more calm and more
+              whitespace than a typical developer-tool landing page.
+            </p>
+            <div class="hero-actions">
+              <a class="button button-primary" href="#products">See the products</a>
+              <a class="button button-secondary" href="#consulting">See consulting</a>
+            </div>
+          </div>
+
+          <aside class="note">
+            <strong>What this version is testing</strong>
+            Editorial typography, softer spacing, warmer light mode, and a more personal tone.
+            Products and consulting stay equal, but the page feels less like software marketing and
+            more like the front door to a thoughtful builder's practice.
+          </aside>
+        </div>
+      </section>
+
+      <section class="section" id="consulting">
+        <div class="wrap">
+          <div class="section-header">
+            <div class="section-kicker">Products and practice</div>
+            <h2>Two offers, with the same weight.</h2>
+            <p class="section-copy">
+              The site should say two things at once: you build original software, and you are
+              available to help others build serious agent products of their own.
+            </p>
+          </div>
+          <div class="split">
+            <article class="essay">
+              <div class="section-kicker">Products</div>
+              <h3>Use the stack.</h3>
+              <p class="section-copy">
+                imp and mana stay open. Wizard and Familiar package the workflow into something more
+                legible and more adoptable.
+              </p>
+              <ul>
+                <li><strong>Open foundations</strong>Runtime and substrate stay composable and public.</li>
+                <li><strong>Polished surfaces</strong>Wizard and Familiar are the maintained experience on top.</li>
+                <li><strong>Verification as a feature</strong>The system is designed to be inspectable, not mystical.</li>
+              </ul>
+            </article>
+            <article class="essay">
+              <div class="section-kicker">Consulting</div>
+              <h3>Work with Arcana.</h3>
+              <p class="section-copy">
+                Help for teams building agent products, developer tools, or internal systems that
+                need real operator control instead of demo-level autonomy.
+              </p>
+              <ul>
+                <li><strong>Shape</strong>Product direction, scope, and system architecture.</li>
+                <li><strong>Build</strong>Execution loops, review surfaces, verification, and product polish.</li>
+                <li><strong>Ship</strong>From rough prototype to production-ready system.</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="products">
+        <div class="wrap">
+          <div class="section-header">
+            <div class="section-kicker">The stack</div>
+            <h2>Open primitives below, product surfaces above.</h2>
+          </div>
+          <div class="products">
+            <article class="card">
+              <div class="card-head">
+                <div>
+                  <div class="card-label">Runtime</div>
+                  <h3>imp</h3>
+                </div>
+                <span class="badge">Open source</span>
+              </div>
+              <p>The worker runtime for sessions, tools, approvals, memory, and the execution loop itself.</p>
+            </article>
+            <article class="card">
+              <div class="card-head">
+                <div>
+                  <div class="card-label">Substrate</div>
+                  <h3>mana</h3>
+                </div>
+                <span class="badge">Open source</span>
+              </div>
+              <p>The verified work graph: units, dependencies, review, facts, and explicit gates.</p>
+            </article>
+            <article class="card">
+              <div class="card-head">
+                <div>
+                  <div class="card-label">Local command center</div>
+                  <h3>Wizard</h3>
+                </div>
+                <span class="badge">In development</span>
+              </div>
+              <p>The local interface for supervising runs, reviewing diffs, and managing multiple agents.</p>
+            </article>
+            <article class="card">
+              <div class="card-head">
+                <div>
+                  <div class="card-label">Team platform</div>
+                  <h3>Familiar</h3>
+                </div>
+                <span class="badge">Planned</span>
+              </div>
+              <p>The hosted layer for approvals, isolated execution, budgets, audit trails, and team workflows.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="contact">
+        <div class="wrap split">
+          <article class="essay">
+            <div class="section-kicker">Contact</div>
+            <h3>Arcana Labs is open for select consulting and design partner work.</h3>
+            <p class="section-copy">
+              If this editorial direction feels closer to the kind of brand you want, we can push it
+              even further toward magazine, studio, or research publication.
+            </p>
+          </article>
+          <article class="essay">
+            <div class="section-kicker">What to notice</div>
+            <p class="section-copy">
+              This version is the softest and most human of the three. It should feel premium,
+              literate, and calm rather than intense or product-demo heavy.
+            </p>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="wrap">
+        <div>Arcana Labs — editorial concept</div>
+        <div>01 / 03</div>
+      </div>
+    </footer>
+
+    <script>
+      const root = document.documentElement;
+      const button = document.getElementById('toggle');
+      const key = 'arcana-theme-editorial';
+      const applyTheme = (theme, persist = true) => {
+        root.dataset.theme = theme;
+        button.textContent = theme === 'dark' ? 'Dark' : 'Light';
+        button.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
+        if (persist) localStorage.setItem(key, theme);
+      };
+      const stored = localStorage.getItem(key);
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      applyTheme(stored || (prefersDark ? 'dark' : 'light'), false);
+      button.addEventListener('click', () => applyTheme(root.dataset.theme === 'dark' ? 'light' : 'dark'));
+    </script>
+  </body>
+</html>

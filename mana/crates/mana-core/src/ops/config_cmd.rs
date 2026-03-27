@@ -8,7 +8,7 @@ use crate::config::{Config, GlobalConfig, DEFAULT_COMMIT_TEMPLATE};
 ///
 /// Returns the string representation of the config value.
 pub fn config_get(mana_dir: &Path, key: &str) -> Result<String> {
-    let config = Config::load(mana_dir)?;
+    let config = Config::load_with_extends(mana_dir)?;
 
     let value = match key {
         "project" => config.project,

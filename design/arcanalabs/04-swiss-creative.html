@@ -1,0 +1,1205 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arcana Labs — Swiss Creative</title>
+    <meta
+      name="description"
+      content="Arcana Labs by Asher — agent systems, operator tools, open-source products, and select consulting work."
+    >
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    >
+    <style>
+      :root {
+        --font-display: "Bricolage Grotesque", sans-serif;
+        --font-body: "Manrope", sans-serif;
+        --font-mono: "IBM Plex Mono", monospace;
+
+        --space-2: 8px;
+        --space-3: 12px;
+        --space-4: 16px;
+        --space-5: 20px;
+        --space-6: 24px;
+        --space-8: 32px;
+        --space-10: 40px;
+        --space-12: 48px;
+        --space-16: 64px;
+        --space-20: 80px;
+        --space-24: 96px;
+
+        --radius-xs: 6px;
+        --radius-sm: 12px;
+        --radius-full: 999px;
+
+        --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+        --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+        --dur-fast: 160ms;
+        --dur-normal: 260ms;
+        --shadow-sm: 0 10px 30px oklch(0% 0 0 / 0.06);
+        --shadow-md: 0 24px 72px oklch(0% 0 0 / 0.14);
+      }
+
+      :root[data-theme="light"] {
+        color-scheme: light;
+        --bg: oklch(96.8% 0.004 35);
+        --bg-elevated: oklch(99.2% 0.003 35 / 0.9);
+        --bg-muted: oklch(97.8% 0.006 35);
+        --text: oklch(22% 0.012 336);
+        --text-muted: oklch(44% 0.012 336);
+        --text-subtle: oklch(59% 0.008 336);
+        --border: oklch(87% 0.008 336);
+        --border-strong: oklch(74% 0.02 338);
+        --accent: oklch(38.7% 0.098 338.5);
+        --accent-strong: oklch(48.7% 0.103 338.3);
+        --accent-soft: oklch(95.6% 0.018 338);
+        --signal: oklch(59.4% 0.135 95.5);
+        --signal-soft: oklch(95% 0.02 95);
+        --grid: oklch(84% 0.008 336 / 0.95);
+      }
+
+      :root[data-theme="dark"] {
+        color-scheme: dark;
+        --bg: oklch(14.2% 0.005 336);
+        --bg-elevated: oklch(18.8% 0.006 336 / 0.84);
+        --bg-muted: oklch(21.5% 0.008 336);
+        --text: oklch(93% 0.01 40);
+        --text-muted: oklch(76% 0.01 40);
+        --text-subtle: oklch(61% 0.008 40);
+        --border: oklch(29% 0.008 336);
+        --border-strong: oklch(42% 0.024 338);
+        --accent: oklch(78.6% 0.07 338.4);
+        --accent-strong: oklch(69.7% 0.087 338.2);
+        --accent-soft: oklch(24.5% 0.028 338);
+        --signal: oklch(79.2% 0.091 95.9);
+        --signal-soft: oklch(23.5% 0.02 95);
+        --grid: oklch(24% 0.008 336 / 0.9);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        color: var(--text);
+        font: 500 16px/1.6 var(--font-body);
+        background:
+          linear-gradient(180deg, transparent 0, transparent 120px, var(--bg-muted) 120px, var(--bg-muted) 121px, transparent 121px),
+          radial-gradient(circle at 86% 14%, var(--accent-soft), transparent 20%),
+          radial-gradient(circle at 12% 86%, var(--signal-soft), transparent 18%),
+          var(--bg);
+      }
+
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        background-image:
+          linear-gradient(var(--grid) 1px, transparent 1px),
+          linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+        background-size: 44px 44px;
+        mask-image: linear-gradient(180deg, black 0%, black 58%, transparent 100%);
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      button {
+        font: inherit;
+      }
+
+      .wrap {
+        width: min(1220px, calc(100% - 32px));
+        margin: 0 auto;
+      }
+
+      .site-header {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        border-bottom: 1px solid var(--border);
+        backdrop-filter: blur(16px);
+        background: color-mix(in oklch, var(--bg) 84%, transparent);
+      }
+
+      .site-header .wrap {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--space-4);
+        min-height: 74px;
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--space-3);
+      }
+
+      .brand-mark {
+        position: relative;
+        width: 18px;
+        height: 18px;
+        border: 2px solid var(--accent);
+      }
+
+      .brand-mark::before {
+        content: "";
+        position: absolute;
+        inset: 3px;
+        border: 1px solid color-mix(in oklch, var(--signal) 45%, transparent);
+      }
+
+      .brand-copy {
+        display: grid;
+        gap: 2px;
+      }
+
+      .brand-copy strong {
+        font-family: var(--font-display);
+        font-size: 1rem;
+        font-weight: 800;
+        letter-spacing: -0.04em;
+        text-transform: uppercase;
+      }
+
+      .brand-copy span {
+        color: var(--text-subtle);
+        font: 500 0.72rem/1 var(--font-mono);
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+      }
+
+      .site-nav {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+      }
+
+      .site-nav a,
+      .theme-toggle {
+        min-height: 42px;
+        padding: 0 12px;
+        border: 1px solid transparent;
+        border-radius: var(--radius-full);
+        color: var(--text-muted);
+        transition:
+          border-color var(--dur-fast) var(--ease-out),
+          background var(--dur-fast) var(--ease-out),
+          color var(--dur-fast) var(--ease-out),
+          transform var(--dur-fast) var(--ease-out);
+      }
+
+      .site-nav a:hover,
+      .site-nav a:focus-visible,
+      .theme-toggle:hover,
+      .theme-toggle:focus-visible {
+        outline: none;
+        border-color: var(--border-strong);
+        background: var(--bg-elevated);
+        color: var(--text);
+        transform: translateY(-1px);
+      }
+
+      .theme-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        background: transparent;
+        cursor: pointer;
+      }
+
+      .theme-toggle-track {
+        position: relative;
+        width: 42px;
+        height: 24px;
+        border-radius: var(--radius-full);
+        border: 1px solid var(--border-strong);
+        background: color-mix(in oklch, var(--accent-soft) 70%, var(--bg));
+      }
+
+      .theme-toggle-thumb {
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 18px;
+        height: 18px;
+        border-radius: var(--radius-full);
+        background: linear-gradient(180deg, var(--signal), color-mix(in oklch, var(--signal) 65%, black));
+        transition: transform var(--dur-normal) var(--ease-out);
+      }
+
+      :root[data-theme="dark"] .theme-toggle-thumb {
+        transform: translateX(18px);
+      }
+
+      .theme-toggle-label,
+      .eyebrow,
+      .section-kicker,
+      .block-label,
+      .rail-label,
+      .stack-kind,
+      .section-index {
+        color: var(--text-subtle);
+        font: 500 0.72rem/1 var(--font-mono);
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+      }
+
+      main {
+        position: relative;
+      }
+
+      .hero {
+        padding: clamp(40px, 8vw, 96px) 0 var(--space-20);
+      }
+
+      .hero-shell {
+        display: grid;
+        grid-template-columns: repeat(12, minmax(0, 1fr));
+        gap: var(--space-5);
+        align-items: start;
+      }
+
+      .hero-copy,
+      .hero-stage {
+        position: relative;
+      }
+
+      .hero-copy {
+        grid-column: 1 / span 7;
+        display: grid;
+        gap: var(--space-6);
+      }
+
+      .hero-stage {
+        grid-column: 8 / span 5;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--space-3);
+      }
+
+      .eyebrow::before {
+        content: "";
+        width: 32px;
+        height: 1px;
+        background: var(--signal);
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+
+      h1 {
+        max-width: 10.2ch;
+        font-family: var(--font-display);
+        font-size: clamp(3.2rem, 6.7vw, 6.8rem);
+        line-height: 0.9;
+        letter-spacing: -0.07em;
+        text-transform: uppercase;
+        text-wrap: balance;
+      }
+
+      .accent {
+        color: var(--accent);
+      }
+
+      .lede {
+        max-width: 58ch;
+        color: var(--text-muted);
+        font-size: clamp(1rem, 0.98rem + 0.4vw, 1.22rem);
+      }
+
+      .hero-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-3);
+      }
+
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 50px;
+        padding: 0 18px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-full);
+        transition:
+          transform var(--dur-fast) var(--ease-out),
+          border-color var(--dur-fast) var(--ease-out),
+          background var(--dur-fast) var(--ease-out),
+          box-shadow var(--dur-fast) var(--ease-out);
+      }
+
+      .button:hover,
+      .button:focus-visible {
+        transform: translateY(-1px);
+        outline: none;
+      }
+
+      .button-primary {
+        border-color: var(--accent-strong);
+        background: var(--accent);
+        color: white;
+        box-shadow: var(--shadow-sm);
+      }
+
+      .button-primary:hover,
+      .button-primary:focus-visible {
+        background: var(--accent-strong);
+        box-shadow: var(--shadow-md);
+      }
+
+      .button-secondary {
+        background: var(--bg-elevated);
+      }
+
+      .hero-points {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-4);
+        color: var(--text-subtle);
+      }
+
+      .hero-points span {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .hero-points span::before {
+        content: "";
+        width: 6px;
+        height: 6px;
+        border-radius: var(--radius-full);
+        background: var(--signal);
+      }
+
+      .hero-stage-card {
+        position: relative;
+        border: 1px solid var(--border-strong);
+        background: color-mix(in oklch, var(--bg-elevated) 96%, transparent);
+        box-shadow: var(--shadow-md);
+      }
+
+      .hero-stage-card::before {
+        content: "";
+        position: absolute;
+        inset: 18px -18px -18px 18px;
+        z-index: -1;
+        border: 1px solid var(--border);
+        background: color-mix(in oklch, var(--accent-soft) 72%, transparent);
+      }
+
+      .hero-stage-card > * + * {
+        border-top: 1px solid var(--border);
+      }
+
+      .hero-stage-block {
+        padding: var(--space-5);
+      }
+
+      .hero-stage-block h3 {
+        margin: 10px 0 8px;
+        font-family: var(--font-display);
+        font-size: 1.34rem;
+        line-height: 1;
+        letter-spacing: -0.05em;
+        text-transform: uppercase;
+      }
+
+      .hero-stage-block p {
+        color: var(--text-muted);
+      }
+
+      .hero-stage-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1px;
+        background: var(--border);
+      }
+
+      .hero-stage-grid section {
+        padding: var(--space-5);
+        background: color-mix(in oklch, var(--bg-elevated) 96%, transparent);
+      }
+
+      .hero-stage-grid h4 {
+        margin: 10px 0 8px;
+        font-family: var(--font-display);
+        font-size: 1.16rem;
+        line-height: 1.05;
+        letter-spacing: -0.04em;
+        text-transform: uppercase;
+      }
+
+      .hero-stage-grid p {
+        color: var(--text-muted);
+        font-size: 0.95rem;
+      }
+
+      .mini-ledger {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        display: grid;
+        gap: 10px;
+      }
+
+      .mini-ledger li {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--space-4);
+        padding-top: 10px;
+        border-top: 1px solid var(--border);
+        color: var(--text-muted);
+      }
+
+      .mini-ledger strong {
+        color: var(--text);
+      }
+
+      .section {
+        padding: var(--space-20) 0;
+        border-top: 1px solid var(--border);
+      }
+
+      .section-header {
+        display: grid;
+        grid-template-columns: 96px minmax(0, 1fr);
+        gap: var(--space-6);
+        margin-bottom: var(--space-8);
+      }
+
+      .section-index {
+        padding-top: 2px;
+      }
+
+      .section-heading {
+        display: grid;
+        gap: var(--space-4);
+      }
+
+      h2 {
+        max-width: 12.5ch;
+        font-family: var(--font-display);
+        font-size: clamp(2.1rem, 3.9vw, 3.5rem);
+        line-height: 0.92;
+        letter-spacing: -0.06em;
+        text-transform: uppercase;
+        text-wrap: balance;
+      }
+
+      .section-copy {
+        max-width: 62ch;
+        color: var(--text-muted);
+      }
+
+      .split-panels {
+        display: grid;
+        grid-template-columns: repeat(12, minmax(0, 1fr));
+        gap: var(--space-5);
+      }
+
+      .split-panel {
+        position: relative;
+        padding: var(--space-6);
+        border: 1px solid var(--border);
+        background: color-mix(in oklch, var(--bg-elevated) 96%, transparent);
+      }
+
+      .split-panel:first-child {
+        grid-column: 1 / span 6;
+      }
+
+      .split-panel:last-child {
+        grid-column: 7 / span 6;
+        margin-top: var(--space-8);
+      }
+
+      .split-panel::before {
+        content: attr(data-mark);
+        position: absolute;
+        right: var(--space-5);
+        top: var(--space-4);
+        color: color-mix(in oklch, var(--accent) 12%, transparent);
+        font-family: var(--font-display);
+        font-size: clamp(3rem, 8vw, 6rem);
+        line-height: 1;
+        letter-spacing: -0.08em;
+      }
+
+      .split-panel h3,
+      .contact-card h3 {
+        position: relative;
+        z-index: 1;
+        margin: 10px 0 8px;
+        font-family: var(--font-display);
+        font-size: 1.85rem;
+        line-height: 1;
+        letter-spacing: -0.05em;
+        text-transform: uppercase;
+      }
+
+      .split-panel p,
+      .contact-card p {
+        position: relative;
+        z-index: 1;
+        color: var(--text-muted);
+      }
+
+      .split-panel ul {
+        position: relative;
+        z-index: 1;
+        margin: var(--space-5) 0 0;
+        padding: 0;
+        list-style: none;
+        display: grid;
+        gap: var(--space-3);
+      }
+
+      .split-panel li {
+        padding-top: var(--space-3);
+        border-top: 1px solid var(--border);
+        color: var(--text-muted);
+      }
+
+      .split-panel li strong {
+        display: block;
+        margin-bottom: 4px;
+        color: var(--text);
+      }
+
+      .stack-board {
+        display: grid;
+        gap: 1px;
+        background: var(--border);
+      }
+
+      .stack-entry {
+        background: color-mix(in oklch, var(--bg-elevated) 96%, transparent);
+      }
+
+      .stack-entry-inner {
+        display: grid;
+        grid-template-columns: 180px minmax(0, 1fr) auto;
+        gap: var(--space-5);
+        align-items: start;
+        padding: var(--space-5);
+      }
+
+      .stack-kind {
+        padding-top: 4px;
+      }
+
+      .stack-main {
+        display: grid;
+        gap: var(--space-3);
+      }
+
+      .stack-main h3 {
+        font-family: var(--font-display);
+        font-size: 2rem;
+        line-height: 1;
+        letter-spacing: -0.05em;
+        text-transform: uppercase;
+      }
+
+      .stack-main p {
+        max-width: 62ch;
+        color: var(--text-muted);
+      }
+
+      .stack-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-2);
+      }
+
+      .tag,
+      .stack-status {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 30px;
+        padding: 0 10px;
+        border-radius: var(--radius-full);
+        font: 600 0.68rem/1 var(--font-mono);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .tag {
+        border: 1px solid var(--border);
+        background: color-mix(in oklch, var(--bg-muted) 86%, transparent);
+        color: var(--text-muted);
+      }
+
+      .stack-status {
+        border: 1px solid var(--border-strong);
+        background: color-mix(in oklch, var(--accent-soft) 78%, transparent);
+      }
+
+      .service-grid {
+        display: grid;
+        grid-template-columns: repeat(12, minmax(0, 1fr));
+        gap: var(--space-5);
+      }
+
+      .service-card {
+        padding: var(--space-6);
+        border: 1px solid var(--border);
+        background: color-mix(in oklch, var(--bg-elevated) 96%, transparent);
+        display: grid;
+        gap: var(--space-4);
+      }
+
+      .service-card:nth-child(1) {
+        grid-column: 1 / span 7;
+      }
+
+      .service-card:nth-child(2) {
+        grid-column: 8 / span 5;
+      }
+
+      .service-card:nth-child(3) {
+        grid-column: 1 / span 12;
+      }
+
+      .service-card h3 {
+        font-family: var(--font-display);
+        font-size: 1.6rem;
+        line-height: 1;
+        letter-spacing: -0.05em;
+        text-transform: uppercase;
+      }
+
+      .service-card p {
+        color: var(--text-muted);
+      }
+
+      .contact-grid {
+        display: grid;
+        grid-template-columns: 1.1fr 0.9fr;
+        gap: var(--space-5);
+      }
+
+      .contact-card {
+        padding: var(--space-6);
+        border: 1px solid var(--border);
+        background: color-mix(in oklch, var(--bg-elevated) 96%, transparent);
+        display: grid;
+        gap: var(--space-4);
+      }
+
+      .contact-big {
+        font-family: var(--font-display);
+        font-size: clamp(1.8rem, 3vw, 2.8rem);
+        line-height: 0.95;
+        letter-spacing: -0.06em;
+        text-transform: uppercase;
+      }
+
+      .footer {
+        padding: var(--space-10) 0 var(--space-12);
+        border-top: 1px solid var(--border);
+        color: var(--text-subtle);
+      }
+
+      .footer .wrap {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--space-4);
+      }
+
+      .footer-links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-4);
+      }
+
+      .footer-links a:hover,
+      .footer-links a:focus-visible {
+        outline: none;
+        color: var(--text);
+      }
+
+      @supports (animation-timeline: view()) {
+        .reveal {
+          animation: rise linear both;
+          animation-timeline: view();
+          animation-range: entry 0% cover 32%;
+        }
+
+        @keyframes rise {
+          from {
+            opacity: 0;
+            transform: translateY(22px);
+          }
+
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      }
+
+      @media (max-width: 1040px) {
+        .hero-copy {
+          grid-column: 1 / span 12;
+        }
+
+        .hero-stage {
+          grid-column: 1 / span 12;
+          margin-top: var(--space-4);
+        }
+
+        .stack-entry-inner {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 860px) {
+        .section-header,
+        .contact-grid,
+        .split-panels,
+        .service-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .split-panel:first-child,
+        .split-panel:last-child,
+        .service-card:nth-child(1),
+        .service-card:nth-child(2),
+        .service-card:nth-child(3) {
+          grid-column: auto;
+          margin-top: 0;
+        }
+
+        .split-panel:last-child {
+          margin-top: 0;
+        }
+      }
+
+      @media (max-width: 760px) {
+        .site-nav a {
+          display: none;
+        }
+
+        .hero-stage-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .section-header {
+          gap: var(--space-4);
+        }
+
+        .hero-actions {
+          flex-direction: column;
+          align-items: stretch;
+        }
+
+        .button {
+          width: 100%;
+        }
+
+        .theme-toggle-label {
+          display: none;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+          scroll-behavior: auto !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="wrap">
+        <a class="brand" href="#top" aria-label="Arcana Labs home">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span class="brand-copy">
+            <strong>Arcana Labs</strong>
+            <span>Swiss / creative pass</span>
+          </span>
+        </a>
+
+        <nav class="site-nav" aria-label="Primary">
+          <a href="#products">Products</a>
+          <a href="#consulting">Consulting</a>
+          <a href="#contact">Contact</a>
+          <button class="theme-toggle" id="theme-toggle" type="button">
+            <span class="theme-toggle-label" id="theme-label">Light</span>
+            <span class="theme-toggle-track" aria-hidden="true">
+              <span class="theme-toggle-thumb"></span>
+            </span>
+          </button>
+        </nav>
+      </div>
+    </header>
+
+    <main id="top">
+      <section class="hero">
+        <div class="wrap hero-shell">
+          <div class="hero-copy reveal">
+            <span class="eyebrow">Arcana Labs — products and practice</span>
+            <h1>
+              Agent systems that stay
+              <span class="accent">legible under pressure.</span>
+            </h1>
+            <p class="lede">
+              Arcana Labs is the studio behind imp, mana, Wizard, and Familiar. I build open tools
+              and paid operator surfaces, and I work with a small number of teams building agent
+              products that need review, verification, and real human control.
+            </p>
+            <div class="hero-actions">
+              <a class="button button-primary" href="#products">Explore the stack</a>
+              <a class="button button-secondary" href="#consulting">Work with Arcana</a>
+            </div>
+            <div class="hero-points" aria-label="Arcana focus areas">
+              <span>Open source foundations</span>
+              <span>Local and team products</span>
+              <span>Select consulting work</span>
+            </div>
+          </div>
+
+          <aside class="hero-stage reveal" aria-label="Arcana summary">
+            <div class="hero-stage-card">
+              <section class="hero-stage-block">
+                <div class="block-label">Operating model</div>
+                <h3>Open primitives below. Maintained products above.</h3>
+                <p>
+                  The ecosystem starts with composable infrastructure, then climbs into more complete
+                  command surfaces for individuals and teams.
+                </p>
+              </section>
+
+              <div class="hero-stage-grid">
+                <section>
+                  <div class="block-label">Products</div>
+                  <h4>The stack</h4>
+                  <ul class="mini-ledger">
+                    <li><strong>imp</strong><span>Runtime</span></li>
+                    <li><strong>mana</strong><span>Substrate</span></li>
+                    <li><strong>Wizard</strong><span>Local app</span></li>
+                    <li><strong>Familiar</strong><span>Team platform</span></li>
+                  </ul>
+                </section>
+
+                <section>
+                  <div class="block-label">Consulting</div>
+                  <h4>The work</h4>
+                  <ul class="mini-ledger">
+                    <li><strong>Shape</strong><span>Product and scope</span></li>
+                    <li><strong>Architect</strong><span>Review and control</span></li>
+                    <li><strong>Build</strong><span>Prototype to launch</span></li>
+                  </ul>
+                </section>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="section" id="lanes">
+        <div class="wrap">
+          <div class="section-header reveal">
+            <div class="section-index">01</div>
+            <div class="section-heading">
+              <div class="section-kicker">Products and practice</div>
+              <h2>Two lanes, both visible from the front door.</h2>
+              <p class="section-copy">
+                Arcana should read as both a product company and a strong technical studio. This pass
+                makes that balance more explicit without flattening either side into generic cards.
+              </p>
+            </div>
+          </div>
+
+          <div class="split-panels">
+            <article class="split-panel reveal" data-mark="01">
+              <div class="rail-label">Products</div>
+              <h3>Use the system directly.</h3>
+              <p>
+                The product side is for developers and teams who want runtimes, orchestration, and
+                better command surfaces for working with agents day to day.
+              </p>
+              <ul>
+                <li>
+                  <strong>Open foundations</strong>
+                  imp and mana stay free, composable, and useful on their own.
+                </li>
+                <li>
+                  <strong>Convenience on top</strong>
+                  Wizard and Familiar package the workflow into something easier to adopt and live in.
+                </li>
+                <li>
+                  <strong>Trust as part of the product</strong>
+                  Review, verification, and durable work state are part of the value proposition.
+                </li>
+              </ul>
+            </article>
+
+            <article class="split-panel reveal" data-mark="02">
+              <div class="rail-label">Consulting</div>
+              <h3>Bring Arcana in for the hard parts.</h3>
+              <p>
+                The consulting side is for teams building agent products, internal workflow systems,
+                or developer tools that need more than a model wrapper and a slick demo.
+              </p>
+              <ul>
+                <li>
+                  <strong>Product shaping</strong>
+                  Clarify what should be automated, supervised, sold, and measured.
+                </li>
+                <li>
+                  <strong>System architecture</strong>
+                  Design control surfaces, failure handling, approvals, and review paths.
+                </li>
+                <li>
+                  <strong>Implementation</strong>
+                  Go from rough prototype to something that survives real users and real teams.
+                </li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="products">
+        <div class="wrap">
+          <div class="section-header reveal">
+            <div class="section-index">02</div>
+            <div class="section-heading">
+              <div class="section-kicker">The stack</div>
+              <h2>A product ledger instead of a feature grid.</h2>
+              <p class="section-copy">
+                The earlier version was too polite. This one turns the ecosystem into a sharper,
+                more memorable systems map while staying clean and readable.
+              </p>
+            </div>
+          </div>
+
+          <div class="stack-board">
+            <article class="stack-entry reveal">
+              <div class="stack-entry-inner">
+                <div class="stack-kind">Runtime</div>
+                <div class="stack-main">
+                  <h3>imp</h3>
+                  <p>
+                    The worker runtime for sessions, tools, approvals, memory, branching, compaction,
+                    and the execution loop underneath the rest of the system.
+                  </p>
+                  <div class="stack-tags">
+                    <span class="tag">CLI + TUI</span>
+                    <span class="tag">Tool runtime</span>
+                    <span class="tag">Extensions</span>
+                  </div>
+                </div>
+                <div class="stack-status">Open source</div>
+              </div>
+            </article>
+
+            <article class="stack-entry reveal">
+              <div class="stack-entry-inner">
+                <div class="stack-kind">Substrate</div>
+                <div class="stack-main">
+                  <h3>mana</h3>
+                  <p>
+                    The verified work graph: units, dependencies, facts, review, history, and the
+                    explicit gates that make autonomous work inspectable instead of magical.
+                  </p>
+                  <div class="stack-tags">
+                    <span class="tag">Work graph</span>
+                    <span class="tag">Verification</span>
+                    <span class="tag">Review</span>
+                  </div>
+                </div>
+                <div class="stack-status">Open source</div>
+              </div>
+            </article>
+
+            <article class="stack-entry reveal">
+              <div class="stack-entry-inner">
+                <div class="stack-kind">Local command center</div>
+                <div class="stack-main">
+                  <h3>Wizard</h3>
+                  <p>
+                    The local product for supervising runs, reviewing diffs, understanding blockers,
+                    and keeping multiple agents under control without drowning in terminals.
+                  </p>
+                  <div class="stack-tags">
+                    <span class="tag">Desktop app</span>
+                    <span class="tag">Review cockpit</span>
+                    <span class="tag">Focus rooms</span>
+                  </div>
+                </div>
+                <div class="stack-status">In development</div>
+              </div>
+            </article>
+
+            <article class="stack-entry reveal">
+              <div class="stack-entry-inner">
+                <div class="stack-kind">Team platform</div>
+                <div class="stack-main">
+                  <h3>Familiar</h3>
+                  <p>
+                    The hosted layer for teams: dispatch, approvals, isolated execution, budgets,
+                    audit trails, and the operational side of working with agents across a company.
+                  </p>
+                  <div class="stack-tags">
+                    <span class="tag">GitHub + Slack</span>
+                    <span class="tag">Policies</span>
+                    <span class="tag">Team ops</span>
+                  </div>
+                </div>
+                <div class="stack-status">Planned platform</div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="consulting">
+        <div class="wrap">
+          <div class="section-header reveal">
+            <div class="section-index">03</div>
+            <div class="section-heading">
+              <div class="section-kicker">Consulting</div>
+              <h2>Specific help for teams building agent products.</h2>
+              <p class="section-copy">
+                This section is intentionally less generic and a bit more architectural. It should
+                feel like real work, not a vague services menu.
+              </p>
+            </div>
+          </div>
+
+          <div class="service-grid">
+            <article class="service-card reveal">
+              <div class="block-label">01 — Product shaping</div>
+              <h3>Find the real operator and the real wedge.</h3>
+              <p>
+                Clarify which part of the workflow deserves to become a product, where supervision is
+                required, and what needs to be visible for people to trust the system.
+              </p>
+            </article>
+
+            <article class="service-card reveal">
+              <div class="block-label">02 — System design</div>
+              <h3>Build the machinery around the model.</h3>
+              <p>
+                Review flows, approvals, failure handling, permissions, budgets, and operator tools
+                matter as much as generation itself.
+              </p>
+            </article>
+
+            <article class="service-card reveal">
+              <div class="block-label">03 — Delivery</div>
+              <h3>Turn the prototype into something people can live with.</h3>
+              <p>
+                Sharpen the UX, strengthen the architecture, and harden the workflow until it can
+                survive real users instead of collapsing after the first polished demo.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="contact">
+        <div class="wrap contact-grid">
+          <article class="contact-card reveal">
+            <div class="section-kicker">Contact</div>
+            <h3>Arcana Labs is available for select consulting and design partner work.</h3>
+            <p>
+              If you are building agent products, developer tools, or internal systems and want help
+              shaping both the product and the machinery around it, this is the lane.
+            </p>
+            <div class="contact-big">hello@arcanalabs.org</div>
+            <a class="button button-primary" href="mailto:hello@arcanalabs.org">Start a conversation</a>
+          </article>
+
+          <article class="contact-card reveal">
+            <div class="section-kicker">What changed</div>
+            <p>
+              I kept the Swiss spine, but made it bolder: stronger typography, more asymmetry, a
+              layered hero, a less conventional products section, and a more obvious point of view.
+              If this still misses, the next move is probably choosing whether you want Arcana to
+              feel more like a studio, a product company, or a design-forward lab.
+            </p>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="wrap">
+        <div>Arcana Labs — swiss creative pass</div>
+        <div class="footer-links">
+          <a href="#products">Products</a>
+          <a href="#consulting">Consulting</a>
+          <a href="#contact">Contact</a>
+        </div>
+      </div>
+    </footer>
+
+    <script>
+      const root = document.documentElement;
+      const toggleButton = document.getElementById("theme-toggle");
+      const themeLabel = document.getElementById("theme-label");
+      const storageKey = "arcana-theme-swiss-creative";
+
+      const applyTheme = (theme, persist = true) => {
+        root.dataset.theme = theme;
+        themeLabel.textContent = theme === "dark" ? "Dark" : "Light";
+        toggleButton.setAttribute(
+          "aria-label",
+          theme === "dark" ? "Switch to light mode" : "Switch to dark mode"
+        );
+
+        if (persist) {
+          localStorage.setItem(storageKey, theme);
+        }
+      };
+
+      const storedTheme = localStorage.getItem(storageKey);
+      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      applyTheme(storedTheme || (prefersDark ? "dark" : "light"), false);
+
+      toggleButton.addEventListener("click", () => {
+        const nextTheme = root.dataset.theme === "dark" ? "light" : "dark";
+        applyTheme(nextTheme);
+      });
+    </script>
+  </body>
+</html>

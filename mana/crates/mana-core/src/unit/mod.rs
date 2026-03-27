@@ -43,7 +43,7 @@ use std::path::Path;
 
 use anyhow::Result;
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::util::{atomic_write, validate_unit_id};
 
@@ -66,6 +66,19 @@ pub fn validate_priority(priority: u8) -> Result<()> {
 }
 
 // ---------------------------------------------------------------------------
+// Unit Kind
+// ---------------------------------------------------------------------------
+
+/// Explicit schema kind for a unit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UnitKind {
+    Epic,
+    Job,
+    Fact,
+}
+
+// ---------------------------------------------------------------------------
 // Unit
 // ---------------------------------------------------------------------------
 
@@ -78,7 +91,7 @@ pub fn validate_priority(priority: u8) -> Result<()> {
 /// Most callers should construct units via [`Unit::try_new`] and mutate
 /// them through the high-level API functions in [`crate::api`] rather than
 /// building them directly.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Unit {
     pub id: String,
     pub title: String,
@@ -122,10 +135,15 @@ pub struct Unit {
     /// Records that the verify command was proven to fail before creation.
     #[serde(default, skip_serializing_if = "is_false")]
     pub fail_first: bool,
-    /// Git commit SHA recorded when verify was proven to fail at claim time.
-    /// Proves the test was meaningful at the point work began.
+    /// Git commit SHA recorded when work began for the current attempt.
+    /// Used for diff/review baselines and to detect no-op closes when a unit's
+    /// verify command already passed before work started.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub checkpoint: Option<String>,
+    /// SHA-256 hash of the verify command at claim time.
+    /// Used to detect if the judge was changed after work began.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub verify_hash: Option<String>,
     /// How many times the verify command has been run.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub attempts: u32,
@@ -183,6 +201,9 @@ pub struct Unit {
     pub verify_timeout: Option<u64>,
 
     // -- Memory system fields --
+    /// Explicit schema kind for public mana vocabulary.
+    pub kind: UnitKind,
+
     /// Unit type: 'task' (default) or 'fact' (verified knowledge).
     #[serde(
         default = "default_unit_type",
@@ -254,6 +275,194 @@ fn is_default_unit_type(v: &str) -> bool {
     v == "task"
 }
 
+fn default_unit_kind() -> UnitKind {
+    UnitKind::Epic
+}
+
+fn infer_unit_kind(kind: Option<UnitKind>, unit_type: &str, verify: Option<&str>) -> UnitKind {
+    kind.unwrap_or_else(|| {
+        if unit_type == "fact" {
+            UnitKind::Fact
+        } else if verify.is_some_and(|command| !command.trim().is_empty()) {
+            UnitKind::Job
+        } else {
+            UnitKind::Epic
+        }
+    })
+}
+
+#[derive(Debug, Deserialize)]
+struct UnitWire {
+    id: String,
+    title: String,
+    #[serde(default)]
+    slug: Option<String>,
+    status: Status,
+    #[serde(default = "default_priority")]
+    priority: u8,
+    created_at: DateTime<Utc>,
+    updated_at: DateTime<Utc>,
+
+    #[serde(default)]
+    description: Option<String>,
+    #[serde(default)]
+    acceptance: Option<String>,
+    #[serde(default)]
+    notes: Option<String>,
+    #[serde(default)]
+    design: Option<String>,
+
+    #[serde(default)]
+    labels: Vec<String>,
+    #[serde(default)]
+    assignee: Option<String>,
+
+    #[serde(default)]
+    closed_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    close_reason: Option<String>,
+
+    #[serde(default)]
+    parent: Option<String>,
+    #[serde(default)]
+    dependencies: Vec<String>,
+
+    #[serde(default)]
+    verify: Option<String>,
+    #[serde(default)]
+    fail_first: bool,
+    #[serde(default)]
+    checkpoint: Option<String>,
+    #[serde(default)]
+    verify_hash: Option<String>,
+    #[serde(default)]
+    attempts: u32,
+    #[serde(default = "default_max_attempts")]
+    max_attempts: u32,
+    #[serde(default)]
+    claimed_by: Option<String>,
+    #[serde(default)]
+    claimed_at: Option<DateTime<Utc>>,
+
+    #[serde(default)]
+    is_archived: bool,
+
+    #[serde(default)]
+    produces: Vec<String>,
+
+    #[serde(default)]
+    requires: Vec<String>,
+
+    #[serde(default)]
+    on_fail: Option<OnFailAction>,
+
+    #[serde(default)]
+    on_close: Vec<OnCloseAction>,
+
+    #[serde(default)]
+    history: Vec<RunRecord>,
+
+    #[serde(default)]
+    outputs: Option<serde_json::Value>,
+
+    #[serde(default)]
+    max_loops: Option<u32>,
+
+    #[serde(default)]
+    verify_timeout: Option<u64>,
+
+    #[serde(default)]
+    kind: Option<UnitKind>,
+
+    #[serde(default = "default_unit_type")]
+    unit_type: String,
+
+    #[serde(default)]
+    last_verified: Option<DateTime<Utc>>,
+
+    #[serde(default)]
+    stale_after: Option<DateTime<Utc>>,
+
+    #[serde(default)]
+    paths: Vec<String>,
+
+    #[serde(default)]
+    attempt_log: Vec<AttemptRecord>,
+
+    #[serde(default)]
+    created_by: Option<String>,
+
+    #[serde(default)]
+    feature: bool,
+
+    #[serde(default)]
+    decisions: Vec<String>,
+    #[serde(default)]
+    model: Option<String>,
+}
+
+impl From<UnitWire> for Unit {
+    fn from(raw: UnitWire) -> Self {
+        let kind = infer_unit_kind(raw.kind, &raw.unit_type, raw.verify.as_deref());
+
+        Self {
+            id: raw.id,
+            title: raw.title,
+            slug: raw.slug,
+            status: raw.status,
+            priority: raw.priority,
+            created_at: raw.created_at,
+            updated_at: raw.updated_at,
+            description: raw.description,
+            acceptance: raw.acceptance,
+            notes: raw.notes,
+            design: raw.design,
+            labels: raw.labels,
+            assignee: raw.assignee,
+            closed_at: raw.closed_at,
+            close_reason: raw.close_reason,
+            parent: raw.parent,
+            dependencies: raw.dependencies,
+            verify: raw.verify,
+            fail_first: raw.fail_first,
+            checkpoint: raw.checkpoint,
+            verify_hash: raw.verify_hash,
+            attempts: raw.attempts,
+            max_attempts: raw.max_attempts,
+            claimed_by: raw.claimed_by,
+            claimed_at: raw.claimed_at,
+            is_archived: raw.is_archived,
+            produces: raw.produces,
+            requires: raw.requires,
+            on_fail: raw.on_fail,
+            on_close: raw.on_close,
+            history: raw.history,
+            outputs: raw.outputs,
+            max_loops: raw.max_loops,
+            verify_timeout: raw.verify_timeout,
+            kind,
+            unit_type: raw.unit_type,
+            last_verified: raw.last_verified,
+            stale_after: raw.stale_after,
+            paths: raw.paths,
+            attempt_log: raw.attempt_log,
+            created_by: raw.created_by,
+            feature: raw.feature,
+            decisions: raw.decisions,
+            model: raw.model,
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for Unit {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        UnitWire::deserialize(deserializer).map(Unit::from)
+    }
+}
+
 impl Unit {
     /// Create a new unit with sensible defaults.
     /// Returns an error if the ID is invalid.
@@ -283,6 +492,7 @@ impl Unit {
             verify: None,
             fail_first: false,
             checkpoint: None,
+            verify_hash: None,
             attempts: 0,
             max_attempts: 3,
             claimed_by: None,
@@ -297,6 +507,7 @@ impl Unit {
             outputs: None,
             max_loops: None,
             verify_timeout: None,
+            kind: default_unit_kind(),
             unit_type: "task".to_string(),
             last_verified: None,
             stale_after: None,
@@ -511,6 +722,7 @@ impl Unit {
             "on_fail" => self.on_fail = serde_json::from_str(json_value)?,
             "outputs" => self.outputs = serde_json::from_str(json_value)?,
             "max_loops" => self.max_loops = serde_json::from_str(json_value)?,
+            "kind" => self.kind = serde_json::from_str(json_value)?,
             "unit_type" => self.unit_type = serde_json::from_str(json_value)?,
             "last_verified" => self.last_verified = serde_json::from_str(json_value)?,
             "stale_after" => self.stale_after = serde_json::from_str(json_value)?,
@@ -547,6 +759,59 @@ mod tests {
     }
 
     #[test]
+    fn kind_round_trip_yaml() {
+        let mut unit = Unit::new("1", "Explicit kind");
+        unit.kind = UnitKind::Epic;
+        unit.verify = Some("cargo test unit::check".to_string());
+
+        let yaml = serde_yml::to_string(&unit).unwrap();
+        assert!(yaml.contains("kind: epic"));
+
+        let restored: Unit = serde_yml::from_str(&yaml).unwrap();
+
+        assert_eq!(restored.kind, UnitKind::Epic);
+        assert_eq!(restored.verify, unit.verify);
+    }
+
+    #[test]
+    fn kind_infers_from_legacy_fields() {
+        let fact_yaml = r#"
+id: "1"
+title: Legacy fact
+status: open
+priority: 2
+created_at: "2025-01-01T00:00:00Z"
+updated_at: "2025-01-01T00:00:00Z"
+unit_type: fact
+"#;
+        let fact: Unit = serde_yml::from_str(fact_yaml).unwrap();
+        assert_eq!(fact.kind, UnitKind::Fact);
+
+        let epic_yaml = r#"
+id: "2"
+title: Legacy epic
+status: open
+priority: 2
+created_at: "2025-01-01T00:00:00Z"
+updated_at: "2025-01-01T00:00:00Z"
+"#;
+        let epic: Unit = serde_yml::from_str(epic_yaml).unwrap();
+        assert_eq!(epic.kind, UnitKind::Epic);
+
+        let job_yaml = r#"
+id: "3"
+title: Legacy job
+status: open
+priority: 2
+created_at: "2025-01-01T00:00:00Z"
+updated_at: "2025-01-01T00:00:00Z"
+verify: cargo test
+"#;
+        let job: Unit = serde_yml::from_str(job_yaml).unwrap();
+        assert_eq!(job.kind, UnitKind::Job);
+    }
+
+    #[test]
     fn round_trip_full_unit() {
         let now = Utc::now();
         let unit = Unit {
@@ -567,9 +832,10 @@ mod tests {
             close_reason: Some("Done".to_string()),
             parent: Some("3.2".to_string()),
             dependencies: vec!["3.1".to_string()],
-            verify: Some("cargo test".to_string()),
+            verify: Some("cargo test unit::check".to_string()),
             fail_first: false,
             checkpoint: None,
+            verify_hash: None,
             attempts: 1,
             max_attempts: 5,
             claimed_by: Some("agent-7".to_string()),
@@ -594,6 +860,7 @@ mod tests {
             history: Vec::new(),
             outputs: Some(serde_json::json!({"key": "value"})),
             max_loops: None,
+            kind: UnitKind::Job,
             unit_type: "task".to_string(),
             last_verified: None,
             stale_after: None,
@@ -677,6 +944,7 @@ mod tests {
         let unit = Unit::new("1", "Defaults");
         assert_eq!(unit.status, Status::Open);
         assert_eq!(unit.priority, 2);
+        assert_eq!(unit.kind, UnitKind::Epic);
         assert!(unit.labels.is_empty());
         assert!(unit.dependencies.is_empty());
         assert!(unit.description.is_none());
@@ -695,6 +963,7 @@ updated_at: "2025-01-01T00:00:00Z"
         let unit: Unit = serde_yml::from_str(yaml).unwrap();
         assert_eq!(unit.id, "5");
         assert_eq!(unit.priority, 3);
+        assert_eq!(unit.kind, UnitKind::Epic);
         assert!(unit.description.is_none());
         assert!(unit.labels.is_empty());
     }

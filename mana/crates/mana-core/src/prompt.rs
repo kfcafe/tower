@@ -208,7 +208,7 @@ pub fn build_agent_prompt(unit: &Unit, options: &PromptOptions) -> Result<Prompt
 
 /// Load project rules from `.mana/RULES.md` (or configured path).
 fn load_rules(mana_dir: &Path) -> Option<String> {
-    let config = Config::load(mana_dir).ok()?;
+    let config = Config::load_with_extends(mana_dir).ok()?;
     let rules_path = config.rules_path(mana_dir);
     let content = std::fs::read_to_string(&rules_path).ok()?;
     let trimmed = content.trim();
@@ -1063,7 +1063,7 @@ mod tests {
     #[test]
     fn verify_gate_with_command() {
         let mut unit = Unit::new("1", "Test");
-        unit.verify = Some("cargo test".to_string());
+        unit.verify = Some("cargo test unit::check".to_string());
         let result = format_verify_gate(&unit);
         assert!(result.contains("cargo test"));
         assert!(result.contains("MUST exit 0"));
@@ -1105,7 +1105,7 @@ mod tests {
 
         let mut unit = Unit::new("1", "Simple Task");
         unit.description = Some("Just do the thing.".to_string());
-        unit.verify = Some("cargo test".to_string());
+        unit.verify = Some("cargo test unit::check".to_string());
         write_test_unit(&mana_dir, &unit);
 
         let options = PromptOptions {
@@ -1309,7 +1309,7 @@ mod tests {
         unit.parent = Some("1".to_string());
         unit.description = Some("Modify src/main.rs".to_string());
         unit.acceptance = Some("Tests pass".to_string());
-        unit.verify = Some("cargo test".to_string());
+        unit.verify = Some("cargo test unit::check".to_string());
         unit.attempts = 1;
         unit.notes = Some("Tried something".to_string());
         write_test_unit(&mana_dir, &unit);

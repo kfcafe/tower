@@ -271,7 +271,7 @@ mod tests {
         // Create child unit
         let mut child = Unit::new("2", "Child task");
         child.slug = Some("child-task".to_string());
-        child.verify = Some("cargo test".to_string());
+        child.verify = Some("cargo test unit::check".to_string());
         child.to_file(mana_dir.join("2-child-task.md")).unwrap();
 
         // Adopt

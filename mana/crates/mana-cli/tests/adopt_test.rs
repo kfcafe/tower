@@ -316,7 +316,7 @@ fn test_adopt_preserves_unit_fields() {
     unit.slug = Some("complex-unit".to_string());
     unit.description = Some("A detailed description".to_string());
     unit.acceptance = Some("All criteria met".to_string());
-    unit.verify = Some("cargo test".to_string());
+    unit.verify = Some("cargo test unit::check".to_string());
     unit.dependencies = vec![];
     unit.priority = 1;
     unit.to_file(mana_dir.join("101-complex-unit.md")).unwrap();
@@ -331,6 +331,6 @@ fn test_adopt_preserves_unit_fields() {
         Some("A detailed description".to_string())
     );
     assert_eq!(adopted.acceptance, Some("All criteria met".to_string()));
-    assert_eq!(adopted.verify, Some("cargo test".to_string()));
+    assert_eq!(adopted.verify, Some("cargo test unit::check".to_string()));
     assert_eq!(adopted.priority, 1);
 }
