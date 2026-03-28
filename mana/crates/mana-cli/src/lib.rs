@@ -26,5 +26,5 @@ pub(crate) mod pi_output;
 pub(crate) mod project;
 #[allow(dead_code)]
 pub mod spawner;
-pub(crate) mod stream;
+pub mod stream;
 pub(crate) mod timeout;

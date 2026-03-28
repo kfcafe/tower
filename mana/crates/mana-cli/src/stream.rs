@@ -1,3 +1,5 @@
+use std::sync::{Arc, Mutex, OnceLock};
+
 use serde::Serialize;
 
 /// JSON-line events emitted by `mana run --json-stream` for programmatic consumers.
@@ -136,9 +138,49 @@ pub struct FileOverlapInfo {
 
 /// Write a single JSON line to stdout for the given event.
 pub fn emit(event: &StreamEvent) {
+    if let Some(sink) = current_sink() {
+        sink(event.clone());
+        return;
+    }
+
     if let Ok(json) = serde_json::to_string(event) {
         println!("{json}");
     }
+}
+
+/// Install an in-process sink for stream events.
+///
+/// While a sink is installed, [`emit`] delivers cloned events to it instead of
+/// printing JSON lines to stdout. Dropping the returned guard restores the
+/// default stdout behavior.
+pub fn install_sink(sink: StreamSink) -> StreamSinkGuard {
+    let cell = stream_sink();
+    let mut guard = cell.lock().unwrap();
+    *guard = Some(sink);
+    StreamSinkGuard
+}
+
+/// Shared callback type for in-process stream consumers.
+pub type StreamSink = Arc<dyn Fn(StreamEvent) + Send + Sync>;
+
+/// RAII guard returned by [`install_sink`].
+pub struct StreamSinkGuard;
+
+impl Drop for StreamSinkGuard {
+    fn drop(&mut self) {
+        if let Ok(mut guard) = stream_sink().lock() {
+            *guard = None;
+        }
+    }
+}
+
+fn stream_sink() -> &'static Mutex<Option<StreamSink>> {
+    static STREAM_SINK: OnceLock<Mutex<Option<StreamSink>>> = OnceLock::new();
+    STREAM_SINK.get_or_init(|| Mutex::new(None))
+}
+
+fn current_sink() -> Option<StreamSink> {
+    stream_sink().lock().ok().and_then(|guard| guard.clone())
 }
 
 /// Convenience wrapper to emit an `Error` event.

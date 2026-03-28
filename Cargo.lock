@@ -1545,6 +1545,7 @@ dependencies = [
  "imp-llm",
  "jsonschema",
  "libc",
+ "mana-cli",
  "mana-core",
  "project-detect",
  "rayon",

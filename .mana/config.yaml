@@ -1,2 +1,6 @@
 project: tower
-next_id: 42
+next_id: 43
+auto_close_parent: true
+max_loops: 10
+max_concurrent: 4
+poll_interval: 30

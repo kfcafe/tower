@@ -28,10 +28,11 @@ use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use anyhow::Result;
+use serde::Serialize;
 
 use crate::commands::review::{cmd_review, ReviewArgs};
 use crate::config::Config;
@@ -933,6 +934,221 @@ fn print_batch_verify_result(result: &mana_core::ops::batch_verify::BatchVerifyR
 pub(super) fn format_duration(d: Duration) -> String {
     let secs = d.as_secs();
     format!("{}:{:02}", secs / 60, secs % 60)
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RunSummary {
+    pub total_units: usize,
+    pub total_rounds: usize,
+    pub total_closed: usize,
+    pub total_failed: usize,
+    pub total_abandoned: usize,
+    pub total_awaiting_verify: usize,
+    pub total_skipped: usize,
+    pub duration_secs: u64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RunUnitStatus {
+    pub id: String,
+    pub title: String,
+    pub status: String,
+    pub round: Option<usize>,
+    pub agent: Option<String>,
+    pub model: Option<String>,
+    pub duration_secs: Option<u64>,
+    pub tool_count: Option<usize>,
+    pub turns: Option<usize>,
+    pub failure_summary: Option<String>,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RunView {
+    pub summary: RunSummary,
+    pub units: Vec<RunUnitStatus>,
+    pub events: Vec<StreamEvent>,
+}
+
+/// Execute `mana run` programmatically and capture structured stream events.
+pub fn run_with_stream_capture(mana_dir: &Path, args: RunArgs) -> Result<RunView> {
+    run_with_stream_capture_and_sink(mana_dir, args, None)
+}
+
+/// Execute `mana run` programmatically, optionally forwarding live events to a sink.
+pub fn run_with_stream_capture_and_sink(
+    mana_dir: &Path,
+    args: RunArgs,
+    sink: Option<stream::StreamSink>,
+) -> Result<RunView> {
+    let events: Arc<Mutex<Vec<StreamEvent>>> = Arc::new(Mutex::new(Vec::new()));
+    let sink_events = Arc::clone(&events);
+    let forward = sink.clone();
+    let _guard = stream::install_sink(Arc::new(move |event| {
+        if let Ok(mut buf) = sink_events.lock() {
+            buf.push(event.clone());
+        }
+        if let Some(ref sink) = forward {
+            sink(event);
+        }
+    }));
+
+    cmd_run(
+        mana_dir,
+        RunArgs {
+            json_stream: true,
+            ..args
+        },
+    )?;
+
+    let events = events.lock().map(|buf| buf.clone()).unwrap_or_default();
+    Ok(build_run_view_from_events(events))
+}
+
+fn build_run_view_from_events(events: Vec<StreamEvent>) -> RunView {
+    use std::collections::HashMap;
+
+    let mut total_units = 0usize;
+    let mut total_rounds = 0usize;
+    let mut summary = RunSummary {
+        total_units: 0,
+        total_rounds: 0,
+        total_closed: 0,
+        total_failed: 0,
+        total_abandoned: 0,
+        total_awaiting_verify: 0,
+        total_skipped: 0,
+        duration_secs: 0,
+    };
+    let mut units: HashMap<String, RunUnitStatus> = HashMap::new();
+
+    for event in &events {
+        match event {
+            StreamEvent::RunStart {
+                total_units: tu,
+                total_rounds: tr,
+                units: infos,
+                ..
+            } => {
+                total_units = *tu;
+                total_rounds = *tr;
+                summary.total_units = *tu;
+                summary.total_rounds = *tr;
+                for info in infos {
+                    units
+                        .entry(info.id.clone())
+                        .or_insert_with(|| RunUnitStatus {
+                            id: info.id.clone(),
+                            title: info.title.clone(),
+                            status: "queued".to_string(),
+                            round: Some(info.round),
+                            agent: None,
+                            model: None,
+                            duration_secs: None,
+                            tool_count: None,
+                            turns: None,
+                            failure_summary: None,
+                            error: None,
+                        });
+                }
+            }
+            StreamEvent::UnitStart {
+                id, title, round, ..
+            } => {
+                let entry = units.entry(id.clone()).or_insert_with(|| RunUnitStatus {
+                    id: id.clone(),
+                    title: title.clone(),
+                    status: "queued".to_string(),
+                    round: Some(*round),
+                    agent: None,
+                    model: None,
+                    duration_secs: None,
+                    tool_count: None,
+                    turns: None,
+                    failure_summary: None,
+                    error: None,
+                });
+                entry.title = title.clone();
+                entry.round = Some(*round);
+                entry.status = "running".to_string();
+            }
+            StreamEvent::UnitDone {
+                id,
+                success,
+                duration_secs,
+                error,
+                tool_count,
+                turns,
+                failure_summary,
+                ..
+            } => {
+                let entry = units.entry(id.clone()).or_insert_with(|| RunUnitStatus {
+                    id: id.clone(),
+                    title: id.clone(),
+                    status: "queued".to_string(),
+                    round: None,
+                    agent: None,
+                    model: None,
+                    duration_secs: None,
+                    tool_count: None,
+                    turns: None,
+                    failure_summary: None,
+                    error: None,
+                });
+                entry.status = if *success { "done" } else { "failed" }.to_string();
+                entry.duration_secs = Some(*duration_secs);
+                entry.tool_count = *tool_count;
+                entry.turns = *turns;
+                entry.failure_summary = failure_summary.clone();
+                entry.error = error.clone();
+            }
+            StreamEvent::RunEnd {
+                total_closed,
+                total_failed,
+                total_abandoned,
+                total_awaiting_verify,
+                total_skipped,
+                duration_secs,
+                ..
+            } => {
+                summary.total_closed = *total_closed;
+                summary.total_failed = *total_failed;
+                summary.total_abandoned = *total_abandoned;
+                summary.total_awaiting_verify = *total_awaiting_verify;
+                summary.total_skipped = *total_skipped;
+                summary.duration_secs = *duration_secs;
+            }
+            StreamEvent::BatchVerify { passed, failed, .. } => {
+                for id in passed {
+                    if let Some(entry) = units.get_mut(id) {
+                        entry.status = "done".to_string();
+                    }
+                }
+                for id in failed {
+                    if let Some(entry) = units.get_mut(id) {
+                        entry.status = "failed".to_string();
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let mut unit_list: Vec<RunUnitStatus> = units.into_values().collect();
+    unit_list.sort_by(|a, b| crate::util::natural_cmp(&a.id, &b.id));
+
+    if summary.total_units == 0 {
+        summary.total_units = total_units.max(unit_list.len());
+    }
+    if summary.total_rounds == 0 {
+        summary.total_rounds = total_rounds;
+    }
+
+    RunView {
+        summary,
+        units: unit_list,
+        events,
+    }
 }
 
 /// Find the unit file path. Public wrapper for use in other commands.
