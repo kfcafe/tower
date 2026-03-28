@@ -23,7 +23,7 @@ use crate::util::title_to_slug;
 // ---------------------------------------------------------------------------
 
 /// What action was taken by `process_on_fail`.
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize)]
 pub enum OnFailActionTaken {
     /// Claim released for retry (attempt N / max M).
     Retry {
@@ -71,7 +71,7 @@ pub struct CloseOpts {
 }
 
 /// Structured warnings emitted during close lifecycle steps.
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize)]
 pub enum CloseWarning {
     /// The pre-close hook errored, but close was allowed to continue.
     PreCloseHookError { message: String },
@@ -86,7 +86,7 @@ pub enum CloseWarning {
 }
 
 /// Evidence collected at close time from the diff since claim checkpoint.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, serde::Serialize)]
 pub struct CloseEvidence {
     /// Files changed since checkpoint.
     pub changed_files: Vec<String>,
@@ -101,7 +101,7 @@ pub struct CloseEvidence {
 }
 
 /// Result of an auto-commit attempt after close.
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize)]
 pub struct AutoCommitResult {
     pub message: String,
     pub committed: bool,
@@ -109,7 +109,7 @@ pub struct AutoCommitResult {
 }
 
 /// Outcome of attempting to close a single unit.
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize)]
 pub enum CloseOutcome {
     /// The unit was closed and archived.
     Closed(CloseResult),
@@ -148,7 +148,7 @@ pub enum CloseOutcome {
 }
 
 /// Details of a successful close.
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize)]
 pub struct CloseResult {
     pub unit: Unit,
     pub archive_path: PathBuf,
@@ -161,7 +161,7 @@ pub struct CloseResult {
 }
 
 /// Result of one on_close action execution.
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize)]
 pub enum OnCloseActionResult {
     /// A `run` command was executed.
     RanCommand {
@@ -177,7 +177,7 @@ pub enum OnCloseActionResult {
 }
 
 /// Details of a verify failure during close.
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize)]
 pub struct VerifyFailureResult {
     pub unit: Unit,
     pub attempt_number: u32,

@@ -27,6 +27,7 @@ pub struct UpdateParams {
 }
 
 /// Result of updating a unit.
+#[derive(serde::Serialize)]
 pub struct UpdateResult {
     pub unit: Unit,
     pub path: PathBuf,

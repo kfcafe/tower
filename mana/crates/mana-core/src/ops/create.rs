@@ -37,6 +37,7 @@ pub struct CreateParams {
 }
 
 /// Result of creating a unit.
+#[derive(serde::Serialize)]
 pub struct CreateResult {
     pub unit: Unit,
     pub path: PathBuf,
