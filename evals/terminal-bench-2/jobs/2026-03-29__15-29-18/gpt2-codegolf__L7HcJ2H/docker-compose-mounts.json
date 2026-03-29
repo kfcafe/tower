@@ -1,0 +1,14 @@
+{
+  "services": {
+    "main": {
+      "volumes": [
+        {
+          "type": "bind",
+          "source": "/Users/asher/.config/imp/auth.json",
+          "target": "/tmp/imp-host-auth.json",
+          "read_only": true
+        }
+      ]
+    }
+  }
+}

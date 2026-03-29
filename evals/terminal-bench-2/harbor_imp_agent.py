@@ -84,6 +84,22 @@ class ImpAgent(BaseInstalledAgent):
         return False
 
     async def install(self, environment: BaseEnvironment) -> None:
+        install_env = {
+            key: value
+            for key in (
+                "IMP_VERSION",
+                "IMP_INSTALL_MODE",
+                "IMP_BINARY_URL",
+                "IMP_RELEASE_CHANNEL",
+                "IMP_MOUNTED_BINARY_PATH",
+                "IMP_GIT_URL",
+                "IMP_GIT_REF",
+                "IMP_SOURCE_PATH",
+                "IMP_TOWER_ROOT_PATH",
+            )
+            if (value := os.environ.get(key))
+        }
+
         await self.exec_as_root(
             environment,
             command=(
@@ -109,7 +125,7 @@ class ImpAgent(BaseInstalledAgent):
             if self._should_install_from_source()
             else self._build_install_command(version)
         )
-        await self.exec_as_agent(environment, command=install_script)
+        await self.exec_as_agent(environment, command=install_script, env=install_env)
 
     @staticmethod
     def _container_mounted_binary_path() -> str | None:

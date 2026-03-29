@@ -1,0 +1,29 @@
+Traceback (most recent call last):
+  File "/Users/asher/.local/share/uv/tools/harbor/lib/python3.13/site-packages/harbor/trial/trial.py", line 521, in run
+    await self._execute_agent()
+  File "/Users/asher/.local/share/uv/tools/harbor/lib/python3.13/site-packages/harbor/trial/trial.py", line 268, in _execute_agent
+    await asyncio.wait_for(
+    ...<6 lines>...
+    )
+  File "/Users/asher/.local/share/uv/python/cpython-3.13.12-macos-aarch64-none/lib/python3.13/asyncio/tasks.py", line 507, in wait_for
+    return await fut
+           ^^^^^^^^^
+  File "/Users/asher/.local/share/uv/tools/harbor/lib/python3.13/site-packages/harbor/agents/installed/base.py", line 41, in wrapper
+    return await fn(self, instruction, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<string>", line 379, in run
+  File "/Users/asher/.local/share/uv/tools/harbor/lib/python3.13/site-packages/harbor/agents/installed/base.py", line 358, in exec_as_agent
+    return await self._exec(
+           ^^^^^^^^^^^^^^^^^
+        environment, command, env=env, cwd=cwd, timeout_sec=timeout_sec
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/asher/.local/share/uv/tools/harbor/lib/python3.13/site-packages/harbor/agents/installed/base.py", line 321, in _exec
+    raise NonZeroAgentExitCodeError(
+    ...<3 lines>...
+    )
+harbor.agents.installed.base.NonZeroAgentExitCodeError: Command failed (exit 1): export PATH="$HOME/.local/bin:$PATH"; printf '%s\n' '{"type": "prompt", "content": "I have downloaded the gpt-2 weights stored as a TF .ckpt. Write me a dependency-free C file that samples from the model with arg-max sampling. Call your program /app/gpt2.c, I will compile with gcc -O3 -lm. It should read the .ckpt and the .bpe file. Your c program must be <5000 bytes. I will run it /app/a.out gpt2-124M.ckpt vocab.bpe \"[input string here]\" and you should continue the output under whatever GPT-2 would print for the next 20 tokens.\n"}' | imp --no-session --mode json --model gpt-5.4 2>&1 | tee /logs/agent/imp-jsonl.txt
+stdout: Error: Unknown model: gpt-5.4
+
+stderr: None
