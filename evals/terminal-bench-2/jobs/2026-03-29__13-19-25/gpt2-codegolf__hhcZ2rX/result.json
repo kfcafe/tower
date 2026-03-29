@@ -1,0 +1,93 @@
+{
+    "id": "4beb4684-67ef-42f6-a68c-978a1143486b",
+    "task_name": "gpt2-codegolf",
+    "trial_name": "gpt2-codegolf__hhcZ2rX",
+    "trial_uri": "file:///Users/asher/tower/evals/terminal-bench-2/jobs/2026-03-29__13-19-25/gpt2-codegolf__hhcZ2rX",
+    "task_id": {
+        "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+        "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c",
+        "path": "gpt2-codegolf"
+    },
+    "source": "terminal-bench",
+    "task_checksum": "c3dfea370953fe9b6cb53d368f1f242af2833cf1af623849bdaee8fe026b1cf1",
+    "config": {
+        "task": {
+            "path": "gpt2-codegolf",
+            "git_url": "https://github.com/laude-institute/terminal-bench-2.git",
+            "git_commit_id": "69671fbaac6d67a7ef0dfec016cc38a64ef7a77c",
+            "overwrite": false,
+            "download_dir": null,
+            "source": "terminal-bench"
+        },
+        "trial_name": "gpt2-codegolf__hhcZ2rX",
+        "trials_dir": "/Users/asher/tower/evals/terminal-bench-2/jobs/2026-03-29__13-19-25",
+        "timeout_multiplier": 1.0,
+        "agent_timeout_multiplier": null,
+        "verifier_timeout_multiplier": null,
+        "agent_setup_timeout_multiplier": null,
+        "environment_build_timeout_multiplier": null,
+        "agent": {
+            "name": null,
+            "import_path": "evals.terminal_bench_2.harbor_imp_agent:ImpAgent",
+            "model_name": "gpt-5.4",
+            "override_timeout_sec": null,
+            "override_setup_timeout_sec": null,
+            "max_timeout_sec": null,
+            "kwargs": {},
+            "env": {}
+        },
+        "environment": {
+            "type": "docker",
+            "import_path": null,
+            "force_build": false,
+            "delete": true,
+            "override_cpus": null,
+            "override_memory_mb": null,
+            "override_storage_mb": null,
+            "override_gpus": null,
+            "suppress_override_warnings": false,
+            "mounts_json": [
+                {
+                    "type": "bind",
+                    "source": "/Users/asher/.config/imp/auth.json",
+                    "target": "/tmp/imp-host-auth.json",
+                    "read_only": true
+                }
+            ],
+            "env": {},
+            "kwargs": {}
+        },
+        "verifier": {
+            "override_timeout_sec": null,
+            "max_timeout_sec": null,
+            "disable": false
+        },
+        "artifacts": [],
+        "job_id": "33024810-6c0c-40ce-ad4c-d77fdc6a7cb3"
+    },
+    "agent_info": {
+        "name": "imp",
+        "version": "unknown",
+        "model_info": null
+    },
+    "agent_result": null,
+    "verifier_result": null,
+    "exception_info": {
+        "exception_type": "RuntimeError",
+        "exception_message": "Agent install failed: 'ImpAgent' object has no attribute '_build_install_command'",
+        "exception_traceback": "Traceback (most recent call last):\n  File \"/Users/asher/.local/share/uv/tools/harbor/lib/python3.13/site-packages/harbor/agents/installed/base.py\", line 384, in setup\n    await self.install(environment)\n  File \"<string>\", line 107, in install\nAttributeError: 'ImpAgent' object has no attribute '_build_install_command'. Did you mean: '_build_source_install_command'?\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/Users/asher/.local/share/uv/tools/harbor/lib/python3.13/site-packages/harbor/trial/trial.py\", line 516, in run\n    await self._setup_agent()\n  File \"/Users/asher/.local/share/uv/tools/harbor/lib/python3.13/site-packages/harbor/trial/trial.py\", line 249, in _setup_agent\n    await asyncio.wait_for(\n    ...<2 lines>...\n    )\n  File \"/Users/asher/.local/share/uv/python/cpython-3.13.12-macos-aarch64-none/lib/python3.13/asyncio/tasks.py\", line 507, in wait_for\n    return await fut\n           ^^^^^^^^^\n  File \"/Users/asher/.local/share/uv/tools/harbor/lib/python3.13/site-packages/harbor/agents/installed/base.py\", line 388, in setup\n    raise RuntimeError(f\"Agent install failed: {exc}\") from exc\nRuntimeError: Agent install failed: 'ImpAgent' object has no attribute '_build_install_command'\n",
+        "occurred_at": "2026-03-29T13:21:57.464192"
+    },
+    "started_at": "2026-03-29T20:19:29.075937Z",
+    "finished_at": "2026-03-29T20:22:08.383455Z",
+    "environment_setup": {
+        "started_at": "2026-03-29T20:19:29.077641Z",
+        "finished_at": "2026-03-29T20:20:56.773655Z"
+    },
+    "agent_setup": {
+        "started_at": "2026-03-29T20:20:56.773951Z",
+        "finished_at": "2026-03-29T20:21:57.454691Z"
+    },
+    "agent_execution": null,
+    "verifier": null
+}

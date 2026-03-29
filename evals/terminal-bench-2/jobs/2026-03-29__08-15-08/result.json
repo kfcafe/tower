@@ -1,0 +1,29 @@
+{
+    "id": "9e6514b6-6f29-448f-beb3-4a279a526e0d",
+    "started_at": "2026-03-29T08:15:10.847602",
+    "finished_at": "2026-03-29T08:17:56.492200",
+    "n_total_trials": 1,
+    "stats": {
+        "n_trials": 1,
+        "n_errors": 0,
+        "evals": {
+            "imp__claude-opus-4-6__terminal-bench": {
+                "n_trials": 1,
+                "n_errors": 0,
+                "metrics": [
+                    {
+                        "mean": 0.0
+                    }
+                ],
+                "reward_stats": {
+                    "reward": {
+                        "0.0": [
+                            "gpt2-codegolf__z9FQYmU"
+                        ]
+                    }
+                },
+                "exception_stats": {}
+            }
+        }
+    }
+}

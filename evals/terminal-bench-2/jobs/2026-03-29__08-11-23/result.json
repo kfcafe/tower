@@ -1,0 +1,33 @@
+{
+    "id": "b5ac3292-5349-4584-b859-7499884416fb",
+    "started_at": "2026-03-29T08:11:25.751764",
+    "finished_at": "2026-03-29T08:14:07.014431",
+    "n_total_trials": 1,
+    "stats": {
+        "n_trials": 1,
+        "n_errors": 1,
+        "evals": {
+            "imp__claude-opus-4-6__terminal-bench": {
+                "n_trials": 1,
+                "n_errors": 1,
+                "metrics": [
+                    {
+                        "mean": 0.0
+                    }
+                ],
+                "reward_stats": {
+                    "reward": {
+                        "0.0": [
+                            "gpt2-codegolf__SwoNVMc"
+                        ]
+                    }
+                },
+                "exception_stats": {
+                    "NonZeroAgentExitCodeError": [
+                        "gpt2-codegolf__SwoNVMc"
+                    ]
+                }
+            }
+        }
+    }
+}

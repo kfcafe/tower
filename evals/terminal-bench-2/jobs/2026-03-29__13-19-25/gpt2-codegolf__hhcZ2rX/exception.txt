@@ -1,0 +1,21 @@
+Traceback (most recent call last):
+  File "/Users/asher/.local/share/uv/tools/harbor/lib/python3.13/site-packages/harbor/agents/installed/base.py", line 384, in setup
+    await self.install(environment)
+  File "<string>", line 107, in install
+AttributeError: 'ImpAgent' object has no attribute '_build_install_command'. Did you mean: '_build_source_install_command'?
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/asher/.local/share/uv/tools/harbor/lib/python3.13/site-packages/harbor/trial/trial.py", line 516, in run
+    await self._setup_agent()
+  File "/Users/asher/.local/share/uv/tools/harbor/lib/python3.13/site-packages/harbor/trial/trial.py", line 249, in _setup_agent
+    await asyncio.wait_for(
+    ...<2 lines>...
+    )
+  File "/Users/asher/.local/share/uv/python/cpython-3.13.12-macos-aarch64-none/lib/python3.13/asyncio/tasks.py", line 507, in wait_for
+    return await fut
+           ^^^^^^^^^
+  File "/Users/asher/.local/share/uv/tools/harbor/lib/python3.13/site-packages/harbor/agents/installed/base.py", line 388, in setup
+    raise RuntimeError(f"Agent install failed: {exc}") from exc
+RuntimeError: Agent install failed: 'ImpAgent' object has no attribute '_build_install_command'

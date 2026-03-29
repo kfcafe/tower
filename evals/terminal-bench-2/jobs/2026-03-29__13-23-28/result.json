@@ -1,0 +1,33 @@
+{
+    "id": "60c8774d-94e1-4c08-8ad7-bf7250309f24",
+    "started_at": "2026-03-29T13:23:30.627196",
+    "finished_at": "2026-03-29T13:26:52.779013",
+    "n_total_trials": 1,
+    "stats": {
+        "n_trials": 1,
+        "n_errors": 1,
+        "evals": {
+            "imp__terminal-bench": {
+                "n_trials": 1,
+                "n_errors": 1,
+                "metrics": [
+                    {
+                        "mean": 0.0
+                    }
+                ],
+                "reward_stats": {
+                    "reward": {
+                        "0.0": [
+                            "gpt2-codegolf__WuvaT4d"
+                        ]
+                    }
+                },
+                "exception_stats": {
+                    "NonZeroAgentExitCodeError": [
+                        "gpt2-codegolf__WuvaT4d"
+                    ]
+                }
+            }
+        }
+    }
+}

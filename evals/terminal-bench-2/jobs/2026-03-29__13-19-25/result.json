@@ -1,0 +1,27 @@
+{
+    "id": "33024810-6c0c-40ce-ad4c-d77fdc6a7cb3",
+    "started_at": "2026-03-29T13:19:27.752532",
+    "finished_at": "2026-03-29T13:22:08.389225",
+    "n_total_trials": 1,
+    "stats": {
+        "n_trials": 1,
+        "n_errors": 1,
+        "evals": {
+            "imp__terminal-bench": {
+                "n_trials": 0,
+                "n_errors": 1,
+                "metrics": [
+                    {
+                        "mean": 0.0
+                    }
+                ],
+                "reward_stats": {},
+                "exception_stats": {
+                    "RuntimeError": [
+                        "gpt2-codegolf__hhcZ2rX"
+                    ]
+                }
+            }
+        }
+    }
+}
