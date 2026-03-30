@@ -252,6 +252,30 @@ fn is_zero_u64(v: &u64) -> bool {
     *v == 0
 }
 
+fn inherit_option<T: Clone>(current: &mut Option<T>, inherited: &Option<T>) {
+    if current.is_none() {
+        *current = inherited.clone();
+    }
+}
+
+fn inherit_value_if_default<T: Copy + PartialEq>(current: &mut T, default: T, inherited: T) {
+    if *current == default {
+        *current = inherited;
+    }
+}
+
+fn inherit_sparse_value_if_default<T: Copy + PartialEq>(
+    current: &mut T,
+    default: T,
+    inherited: Option<T>,
+) {
+    if *current == default {
+        if let Some(inherited) = inherited {
+            *current = inherited;
+        }
+    }
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -338,72 +362,7 @@ impl Config {
         // Merge: closest parent first (highest priority among parents).
         // Only override local values that are still at their defaults.
         for parent in &parents {
-            if config.run.is_none() {
-                config.run = parent.run.clone();
-            }
-            if config.plan.is_none() {
-                config.plan = parent.plan.clone();
-            }
-            if config.max_loops == default_max_loops() {
-                config.max_loops = parent.max_loops;
-            }
-            if config.max_concurrent == default_max_concurrent() {
-                config.max_concurrent = parent.max_concurrent;
-            }
-            if config.poll_interval == default_poll_interval() {
-                config.poll_interval = parent.poll_interval;
-            }
-            if config.auto_close_parent == default_auto_close_parent() {
-                config.auto_close_parent = parent.auto_close_parent;
-            }
-            if config.rules_file.is_none() {
-                config.rules_file = parent.rules_file.clone();
-            }
-            if !config.file_locking {
-                config.file_locking = parent.file_locking;
-            }
-            if !config.worktree {
-                config.worktree = parent.worktree;
-            }
-            if config.on_close.is_none() {
-                config.on_close = parent.on_close.clone();
-            }
-            if config.on_fail.is_none() {
-                config.on_fail = parent.on_fail.clone();
-            }
-            if config.verify_timeout.is_none() {
-                config.verify_timeout = parent.verify_timeout;
-            }
-            if config.review.is_none() {
-                config.review = parent.review.clone();
-            }
-            if config.user.is_none() {
-                config.user = parent.user.clone();
-            }
-            if config.user_email.is_none() {
-                config.user_email = parent.user_email.clone();
-            }
-            if !config.auto_commit {
-                config.auto_commit = parent.auto_commit;
-            }
-            if config.commit_template.is_none() {
-                config.commit_template = parent.commit_template.clone();
-            }
-            if config.research.is_none() {
-                config.research = parent.research.clone();
-            }
-            if config.run_model.is_none() {
-                config.run_model = parent.run_model.clone();
-            }
-            if config.plan_model.is_none() {
-                config.plan_model = parent.plan_model.clone();
-            }
-            if config.review_model.is_none() {
-                config.review_model = parent.review_model.clone();
-            }
-            if config.research_model.is_none() {
-                config.research_model = parent.research_model.clone();
-            }
+            config.apply_inherited_defaults_from(parent);
             // Never inherit: project, next_id, extends
         }
 
@@ -412,6 +371,46 @@ impl Config {
         }
 
         Ok(config)
+    }
+
+    fn apply_inherited_defaults_from(&mut self, defaults: &Config) {
+        inherit_option(&mut self.run, &defaults.run);
+        inherit_option(&mut self.plan, &defaults.plan);
+        inherit_value_if_default(&mut self.max_loops, default_max_loops(), defaults.max_loops);
+        inherit_value_if_default(
+            &mut self.max_concurrent,
+            default_max_concurrent(),
+            defaults.max_concurrent,
+        );
+        inherit_value_if_default(
+            &mut self.poll_interval,
+            default_poll_interval(),
+            defaults.poll_interval,
+        );
+        inherit_value_if_default(
+            &mut self.auto_close_parent,
+            default_auto_close_parent(),
+            defaults.auto_close_parent,
+        );
+        inherit_option(&mut self.rules_file, &defaults.rules_file);
+        inherit_value_if_default(&mut self.file_locking, false, defaults.file_locking);
+        inherit_value_if_default(&mut self.worktree, false, defaults.worktree);
+        inherit_option(&mut self.on_close, &defaults.on_close);
+        inherit_option(&mut self.on_fail, &defaults.on_fail);
+        inherit_option(&mut self.verify_timeout, &defaults.verify_timeout);
+        inherit_option(&mut self.review, &defaults.review);
+        inherit_option(&mut self.user, &defaults.user);
+        inherit_option(&mut self.user_email, &defaults.user_email);
+        inherit_value_if_default(&mut self.auto_commit, false, defaults.auto_commit);
+        inherit_option(&mut self.commit_template, &defaults.commit_template);
+        inherit_option(&mut self.research, &defaults.research);
+        inherit_option(&mut self.run_model, &defaults.run_model);
+        inherit_option(&mut self.plan_model, &defaults.plan_model);
+        inherit_option(&mut self.review_model, &defaults.review_model);
+        inherit_option(&mut self.research_model, &defaults.research_model);
+        inherit_value_if_default(&mut self.batch_verify, false, defaults.batch_verify);
+        inherit_value_if_default(&mut self.memory_reserve_mb, 0, defaults.memory_reserve_mb);
+        inherit_option(&mut self.notify, &defaults.notify);
     }
 
     /// Resolve an extends path to an absolute path.
@@ -589,99 +588,47 @@ impl GlobalConfig {
     }
 
     fn apply_defaults_to_config(&self, config: &mut Config) {
-        if config.run.is_none() {
-            config.run = self.run.clone();
-        }
-        if config.plan.is_none() {
-            config.plan = self.plan.clone();
-        }
-        if config.max_loops == default_max_loops() {
-            if let Some(max_loops) = self.max_loops {
-                config.max_loops = max_loops;
-            }
-        }
-        if config.max_concurrent == default_max_concurrent() {
-            if let Some(max_concurrent) = self.max_concurrent {
-                config.max_concurrent = max_concurrent;
-            }
-        }
-        if config.poll_interval == default_poll_interval() {
-            if let Some(poll_interval) = self.poll_interval {
-                config.poll_interval = poll_interval;
-            }
-        }
-        if config.auto_close_parent == default_auto_close_parent() {
-            if let Some(auto_close_parent) = self.auto_close_parent {
-                config.auto_close_parent = auto_close_parent;
-            }
-        }
-        if config.rules_file.is_none() {
-            config.rules_file = self.rules_file.clone();
-        }
-        if !config.file_locking {
-            if let Some(file_locking) = self.file_locking {
-                config.file_locking = file_locking;
-            }
-        }
-        if !config.worktree {
-            if let Some(worktree) = self.worktree {
-                config.worktree = worktree;
-            }
-        }
-        if config.on_close.is_none() {
-            config.on_close = self.on_close.clone();
-        }
-        if config.on_fail.is_none() {
-            config.on_fail = self.on_fail.clone();
-        }
-        if config.verify_timeout.is_none() {
-            config.verify_timeout = self.verify_timeout;
-        }
-        if config.review.is_none() {
-            config.review = self.review.clone();
-        }
-        if config.user.is_none() {
-            config.user = self.user.clone();
-        }
-        if config.user_email.is_none() {
-            config.user_email = self.user_email.clone();
-        }
-        if !config.auto_commit {
-            if let Some(auto_commit) = self.auto_commit {
-                config.auto_commit = auto_commit;
-            }
-        }
-        if config.commit_template.is_none() {
-            config.commit_template = self.commit_template.clone();
-        }
-        if config.research.is_none() {
-            config.research = self.research.clone();
-        }
-        if config.run_model.is_none() {
-            config.run_model = self.run_model.clone();
-        }
-        if config.plan_model.is_none() {
-            config.plan_model = self.plan_model.clone();
-        }
-        if config.review_model.is_none() {
-            config.review_model = self.review_model.clone();
-        }
-        if config.research_model.is_none() {
-            config.research_model = self.research_model.clone();
-        }
-        if !config.batch_verify {
-            if let Some(batch_verify) = self.batch_verify {
-                config.batch_verify = batch_verify;
-            }
-        }
-        if config.memory_reserve_mb == 0 {
-            if let Some(memory_reserve_mb) = self.memory_reserve_mb {
-                config.memory_reserve_mb = memory_reserve_mb;
-            }
-        }
-        if config.notify.is_none() {
-            config.notify = self.notify.clone();
-        }
+        inherit_option(&mut config.run, &self.run);
+        inherit_option(&mut config.plan, &self.plan);
+        inherit_sparse_value_if_default(&mut config.max_loops, default_max_loops(), self.max_loops);
+        inherit_sparse_value_if_default(
+            &mut config.max_concurrent,
+            default_max_concurrent(),
+            self.max_concurrent,
+        );
+        inherit_sparse_value_if_default(
+            &mut config.poll_interval,
+            default_poll_interval(),
+            self.poll_interval,
+        );
+        inherit_sparse_value_if_default(
+            &mut config.auto_close_parent,
+            default_auto_close_parent(),
+            self.auto_close_parent,
+        );
+        inherit_option(&mut config.rules_file, &self.rules_file);
+        inherit_sparse_value_if_default(&mut config.file_locking, false, self.file_locking);
+        inherit_sparse_value_if_default(&mut config.worktree, false, self.worktree);
+        inherit_option(&mut config.on_close, &self.on_close);
+        inherit_option(&mut config.on_fail, &self.on_fail);
+        inherit_option(&mut config.verify_timeout, &self.verify_timeout);
+        inherit_option(&mut config.review, &self.review);
+        inherit_option(&mut config.user, &self.user);
+        inherit_option(&mut config.user_email, &self.user_email);
+        inherit_sparse_value_if_default(&mut config.auto_commit, false, self.auto_commit);
+        inherit_option(&mut config.commit_template, &self.commit_template);
+        inherit_option(&mut config.research, &self.research);
+        inherit_option(&mut config.run_model, &self.run_model);
+        inherit_option(&mut config.plan_model, &self.plan_model);
+        inherit_option(&mut config.review_model, &self.review_model);
+        inherit_option(&mut config.research_model, &self.research_model);
+        inherit_sparse_value_if_default(&mut config.batch_verify, false, self.batch_verify);
+        inherit_sparse_value_if_default(
+            &mut config.memory_reserve_mb,
+            0,
+            self.memory_reserve_mb,
+        );
+        inherit_option(&mut config.notify, &self.notify);
     }
 }
 
@@ -1712,7 +1659,7 @@ mod tests {
             fs::create_dir_all(&global_dir).unwrap();
             fs::write(
                 global_dir.join("config.yaml"),
-                "run: \"imp run {id} && mana close {id}\"\nrun_model: gpt-5.4\nmax_concurrent: 12\n",
+                "run: \"imp run {id} && mana close {id}\"\nrun_model: gpt-5.4\nmax_concurrent: 12\nbatch_verify: true\nmemory_reserve_mb: 2048\nnotify:\n  on_fail: \"echo fail\"\n",
             )
             .unwrap();
 
@@ -1728,7 +1675,44 @@ mod tests {
             );
             assert_eq!(config.run_model.as_deref(), Some("gpt-5.4"));
             assert_eq!(config.max_concurrent, 12);
+            assert!(config.batch_verify);
+            assert_eq!(config.memory_reserve_mb, 2048);
+            assert_eq!(
+                config.notify,
+                Some(NotifyConfig {
+                    on_close: None,
+                    on_fail: Some("echo fail".to_string()),
+                    on_scheduled_complete: None,
+                })
+            );
         });
+    }
+
+    #[test]
+    fn load_with_extends_inherits_defaults_from_extended_config() {
+        let dir = tempfile::tempdir().unwrap();
+        let mana_dir = dir.path().join(".mana");
+        fs::create_dir_all(&mana_dir).unwrap();
+
+        let parent_path = dir.path().join("shared.yaml");
+        write_yaml(
+            &parent_path,
+            "project: shared\nnext_id: 999\nbatch_verify: true\nmemory_reserve_mb: 1024\nnotify:\n  on_close: \"echo closed\"\n",
+        );
+
+        write_local_config(&mana_dir, &["shared.yaml"], "");
+
+        let config = Config::load_with_extends(&mana_dir).unwrap();
+        assert!(config.batch_verify);
+        assert_eq!(config.memory_reserve_mb, 1024);
+        assert_eq!(
+            config.notify,
+            Some(NotifyConfig {
+                on_close: Some("echo closed".to_string()),
+                on_fail: None,
+                on_scheduled_complete: None,
+            })
+        );
     }
 
     #[test]
