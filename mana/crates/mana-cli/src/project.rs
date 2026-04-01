@@ -4,8 +4,8 @@ use project_detect::{NodePM, ProjectKind};
 
 /// Suggest a verify command based on detected project type.
 ///
-/// Delegates detection to `project-detect` (29 ecosystems) and maps
-/// each kind to a sensible default test/check command.
+/// Delegates detection to `project-detect` and maps each kind to a
+/// sensible default test/check command.
 pub fn suggest_verify_command(project_dir: &Path) -> Option<&'static str> {
     let kind = project_detect::detect(project_dir)?;
     Some(match kind {
@@ -54,6 +54,9 @@ pub fn suggest_verify_command(project_dir: &Path) -> Option<&'static str> {
         ProjectKind::Meson => "meson test -C builddir",
         ProjectKind::CMake => "ctest --test-dir build",
         ProjectKind::Make => "make test",
+        // Catch-all for variants added in newer project-detect versions
+        #[allow(unreachable_patterns)]
+        _ => return None,
     })
 }
 
