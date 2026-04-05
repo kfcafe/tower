@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -302,6 +302,7 @@ pub(super) fn run_wave(
             cfg.timeout_minutes,
             cfg.idle_timeout_minutes,
             cfg.run_model.as_deref(),
+            cfg.json_stream,
         ),
         SpawnMode::Direct => run_wave_direct(
             mana_dir,
@@ -326,6 +327,7 @@ fn run_wave_template(
     timeout_minutes: u32,
     idle_timeout_minutes: u32,
     config_run_model: Option<&str>,
+    json_stream: bool,
 ) -> Result<Vec<AgentResult>> {
     let total_timeout = Duration::from_secs(timeout_minutes as u64 * 60);
     let _idle_timeout = Duration::from_secs(idle_timeout_minutes as u64 * 60);
@@ -372,7 +374,20 @@ fn run_wave_template(
             let effective_model = sb.model.as_deref().or(config_run_model);
             let cmd =
                 crate::spawner::substitute_template_with_model(template, &sb.id, effective_model);
-            match Command::new("sh").args(["-c", &cmd]).spawn() {
+            let mut command = Command::new("sh");
+            command.args(["-c", &cmd]);
+
+            // When mana is acting as a machine-readable stream producer
+            // (for the native imp mana tool, wizard, or any other embedded
+            // consumer), child template commands must not inherit the current
+            // terminal stdout/stderr. Inheriting stdio lets nested agent
+            // processes dump raw text/JSON directly into the parent TUI.
+            if json_stream {
+                command.stdout(Stdio::null());
+                command.stderr(Stdio::null());
+            }
+
+            match command.spawn() {
                 Ok(child) => {
                     let now = Instant::now();
                     children.push((sb.clone(), child, now, now));
@@ -735,7 +750,7 @@ mod tests {
             model: None,
         }];
 
-        let results = run_wave_template(&units, "echo {id}", None, 4, 30, 5, None).unwrap();
+        let results = run_wave_template(&units, "echo {id}", None, 4, 30, 5, None, false).unwrap();
         assert_eq!(results.len(), 1);
         assert!(results[0].success);
         assert_eq!(results[0].id, "1");
@@ -756,7 +771,7 @@ mod tests {
             model: None,
         }];
 
-        let results = run_wave_template(&units, "echo {id}", None, 4, 30, 5, None).unwrap();
+        let results = run_wave_template(&units, "echo {id}", None, 4, 30, 5, None, false).unwrap();
         assert_eq!(results.len(), 1);
         assert!(results[0].success);
         assert_eq!(results[0].id, "1");
@@ -777,7 +792,7 @@ mod tests {
             model: None,
         }];
 
-        let results = run_wave_template(&units, "false", None, 4, 30, 5, None).unwrap();
+        let results = run_wave_template(&units, "false", None, 4, 30, 5, None, false).unwrap();
         assert_eq!(results.len(), 1);
         assert!(!results[0].success);
         assert!(results[0].error.is_some());
