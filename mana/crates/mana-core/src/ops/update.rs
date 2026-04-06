@@ -5,7 +5,7 @@ use chrono::Utc;
 
 use crate::discovery::find_unit_file;
 use crate::hooks::{execute_hook, HookEvent};
-use crate::index::Index;
+use crate::index::{Index, LockedIndex};
 use crate::unit::{validate_priority, Unit};
 use crate::util::parse_status;
 
@@ -125,8 +125,9 @@ pub fn update(mana_dir: &Path, id: &str, params: UpdateParams) -> Result<UpdateR
     unit.to_file(&unit_path)
         .with_context(|| format!("Failed to save unit: {}", id))?;
 
-    let index = Index::build(mana_dir)?;
-    index.save(mana_dir)?;
+    let mut locked = LockedIndex::acquire(mana_dir)?;
+    locked.index = Index::build(mana_dir)?;
+    locked.save_and_release()?;
 
     if let Err(e) = execute_hook(HookEvent::PostUpdate, &unit, project_root, None) {
         eprintln!("Warning: post-update hook failed: {}", e);

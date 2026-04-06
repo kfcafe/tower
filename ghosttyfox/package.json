@@ -1,0 +1,19 @@
+{
+  "name": "ghosttyfox",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Run a real terminal in a Firefox tab, powered by Ghostty's WASM terminal engine",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/bundle.js",
+    "dev": "bash scripts/dev.sh",
+    "install-host": "bash scripts/install.sh"
+  },
+  "dependencies": {
+    "ghostty-web": "^0.3.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "web-ext": "^8.4.0"
+  }
+}

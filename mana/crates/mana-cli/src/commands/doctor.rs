@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::Path;
 
@@ -34,6 +34,9 @@ enum Issue {
         parent_id: String,
     },
     StaleIndexEntry {
+        id: String,
+    },
+    MissingIndexEntry {
         id: String,
     },
     Cycle {
@@ -92,6 +95,9 @@ impl Issue {
             Issue::StaleIndexEntry { id } => {
                 format!("[!] Index has entry for '{}' but no source file exists", id)
             }
+            Issue::MissingIndexEntry { id } => {
+                format!("[!] Unit file exists for '{}' but missing from index", id)
+            }
             Issue::Cycle { path } => {
                 format!("[!] Dependency cycle detected: {}", path.join(" -> "))
             }
@@ -102,7 +108,10 @@ impl Issue {
     }
 
     fn is_fixable(&self) -> bool {
-        matches!(self, Issue::StaleIndex | Issue::StaleIndexEntry { .. })
+        matches!(
+            self,
+            Issue::StaleIndex | Issue::StaleIndexEntry { .. } | Issue::MissingIndexEntry { .. }
+        )
     }
 }
 
@@ -281,6 +290,14 @@ fn collect_issues(mana_dir: &Path, fix: bool) -> Result<Vec<Issue>> {
         }
     }
 
+    // Check 7b: Unit files that exist on disk but aren't in the index
+    let indexed_ids: HashSet<String> = index.units.iter().map(|e| e.id.clone()).collect();
+    for id in &existing_ids {
+        if !indexed_ids.contains(id) {
+            issues.push(Issue::MissingIndexEntry { id: id.clone() });
+        }
+    }
+
     // Check 8: Cycles
     let cycles = graph::find_all_cycles(&index)?;
     for cycle in cycles {
@@ -325,26 +342,42 @@ pub fn cmd_doctor(mana_dir: &Path, fix: bool) -> Result<()> {
 
         for issue in &issues {
             match issue {
-                Issue::StaleIndex | Issue::StaleIndexEntry { .. } => {
-                    // Rebuild index handles both of these
+                Issue::StaleIndex | Issue::StaleIndexEntry { .. } | Issue::MissingIndexEntry { .. } => {
+                    // Rebuild index handles all of these
                     // We'll do one rebuild at the end
                 }
                 _ => {}
             }
         }
 
-        // Rebuild index to fix stale issues
-        if issues
+        let has_missing_index_entries = issues
             .iter()
-            .any(|i| matches!(i, Issue::StaleIndex | Issue::StaleIndexEntry { .. }))
-        {
+            .any(|i| matches!(i, Issue::MissingIndexEntry { .. }));
+
+        if issues.iter().any(|i| {
+            matches!(
+                i,
+                Issue::StaleIndex | Issue::StaleIndexEntry { .. } | Issue::MissingIndexEntry { .. }
+            )
+        }) {
             match Index::build(mana_dir) {
                 Ok(idx) => {
                     idx.save(mana_dir)?;
-                    println!("✓ Rebuilt index");
+                    if has_missing_index_entries {
+                        println!("✓ Rebuilt index to include missing entries");
+                    } else {
+                        println!("✓ Rebuilt index");
+                    }
                     fixed_count += issues
                         .iter()
-                        .filter(|i| matches!(i, Issue::StaleIndex | Issue::StaleIndexEntry { .. }))
+                        .filter(|i| {
+                            matches!(
+                                i,
+                                Issue::StaleIndex
+                                    | Issue::StaleIndexEntry { .. }
+                                    | Issue::MissingIndexEntry { .. }
+                            )
+                        })
                         .count();
                 }
                 Err(e) => {
@@ -583,6 +616,50 @@ mod tests {
         // Doctor should succeed and detect the stale entry
         let result = cmd_doctor(&mana_dir, false);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn doctor_detects_missing_index_entries() {
+        let dir = TempDir::new().unwrap();
+        let mana_dir = dir.path().join(".mana");
+        fs::create_dir(&mana_dir).unwrap();
+
+        let unit = Unit::new("1", "Task one");
+        unit.to_file(mana_dir.join("1-task-one.md")).unwrap();
+
+        // Save an index that is missing the on-disk unit entry.
+        Index { units: Vec::new() }.save(&mana_dir).unwrap();
+
+        let issues = collect_issues(&mana_dir, false).unwrap();
+        assert!(issues.iter().any(|issue| matches!(
+            issue,
+            Issue::MissingIndexEntry { id } if id == "1"
+        )));
+    }
+
+    #[test]
+    fn doctor_fix_rebuilds_index_for_missing_entries() {
+        let dir = TempDir::new().unwrap();
+        let mana_dir = dir.path().join(".mana");
+        fs::create_dir(&mana_dir).unwrap();
+
+        let unit = Unit::new("1", "Task one");
+        unit.to_file(mana_dir.join("1-task-one.md")).unwrap();
+
+        // Save an index that is fresh by timestamp but missing the unit entry.
+        Index { units: Vec::new() }.save(&mana_dir).unwrap();
+
+        let issues = collect_issues(&mana_dir, false).unwrap();
+        assert!(issues.iter().any(|issue| matches!(
+            issue,
+            Issue::MissingIndexEntry { id } if id == "1"
+        )));
+
+        let result = cmd_doctor(&mana_dir, true);
+        assert!(result.is_ok());
+
+        let rebuilt = Index::load(&mana_dir).unwrap();
+        assert!(rebuilt.units.iter().any(|entry| entry.id == "1"));
     }
 
     #[test]

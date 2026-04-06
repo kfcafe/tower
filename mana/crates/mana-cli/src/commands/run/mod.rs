@@ -936,7 +936,7 @@ pub(super) fn format_duration(d: Duration) -> String {
     format!("{}:{:02}", secs / 60, secs % 60)
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
 pub struct RunSummary {
     pub total_units: usize,
     pub total_rounds: usize,
@@ -948,7 +948,7 @@ pub struct RunSummary {
     pub duration_secs: u64,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
 pub struct RunUnitStatus {
     pub id: String,
     pub title: String,

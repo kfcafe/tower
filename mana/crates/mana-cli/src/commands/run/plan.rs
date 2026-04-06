@@ -104,6 +104,10 @@ pub(super) fn plan_dispatch(
         })
         .collect();
 
+    // Exclude units that have open descendant units — they're parent/feature
+    // containers and shouldn't be dispatched while children are still pending.
+    candidate_entries.retain(|entry| !has_open_descendants(&index, &entry.id));
+
     // Filter by ID if provided
     if let Some(filter_id) = filter_id {
         let target_has_open_descendants = index.units.iter().any(|entry| {
@@ -335,6 +339,34 @@ mod tests {
             format!("project: test\nnext_id: 1\n{}", run_line),
         )
         .unwrap();
+    }
+
+    #[test]
+    fn plan_dispatch_excludes_parents_with_open_children_from_ready_set() {
+        let (_dir, mana_dir) = make_mana_dir();
+        write_config(&mana_dir, Some("echo {id}"));
+
+        let mut parent = crate::unit::Unit::new("1", "Parent");
+        parent.verify = Some("echo ok".to_string());
+        parent.paths = vec!["src/parent.rs".to_string()];
+        parent.to_file(mana_dir.join("1-parent.md")).unwrap();
+
+        let mut child = crate::unit::Unit::new("1.1", "Child");
+        child.parent = Some("1".to_string());
+        child.verify = Some("echo ok".to_string());
+        child.paths = vec!["src/child.rs".to_string()];
+        child.to_file(mana_dir.join("1.1-child.md")).unwrap();
+
+        let config = Config::load_with_extends(&mana_dir).unwrap();
+        let plan = plan_dispatch(&mana_dir, &config, None, false).unwrap();
+
+        assert_eq!(plan.waves.len(), 1);
+        let dispatched_ids: Vec<&str> = plan.waves[0]
+            .units
+            .iter()
+            .map(|unit| unit.id.as_str())
+            .collect();
+        assert_eq!(dispatched_ids, vec!["1.1"]);
     }
 
     #[test]

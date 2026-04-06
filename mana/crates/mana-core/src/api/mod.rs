@@ -343,6 +343,13 @@ fn build_tree_node(id: &str, index: &Index) -> Result<TreeNode> {
     })
 }
 
+fn has_open_children(entry: &IndexEntry, index: &Index) -> bool {
+    index
+        .units
+        .iter()
+        .any(|e| e.parent.as_deref() == Some(entry.id.as_str()) && e.status != Status::Closed)
+}
+
 /// Get a categorized project status summary.
 ///
 /// Returns units grouped into: features, in-progress (claimed), ready to run,
@@ -425,6 +432,7 @@ pub fn ready_units(index: &Index) -> Vec<&IndexEntry> {
                 && e.dependencies
                     .iter()
                     .all(|dep| closed_ids.contains(dep.as_str()))
+                && !has_open_children(e, index)
         })
         .collect()
 }

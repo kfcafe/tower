@@ -11,7 +11,7 @@ use crate::graph;
 use crate::hooks::{
     current_git_branch, execute_config_hook, execute_hook, is_trusted, HookEvent, HookVars,
 };
-use crate::index::{ArchiveIndex, Index, IndexEntry};
+use crate::index::{ArchiveIndex, Index, IndexEntry, LockedIndex};
 use crate::ops::verify::run_verify_command;
 use crate::unit::{
     AttemptOutcome, OnCloseAction, OnFailAction, RunRecord, RunResult, Status, Unit,
@@ -551,6 +551,11 @@ pub fn close(mana_dir: &Path, id: &str, opts: CloseOpts) -> Result<CloseOutcome>
 
     // 6. Archive
     let archive_path = archive_unit(mana_dir, &mut unit, &unit_path)?;
+
+    // 6b. Rebuild index immediately after archive so stale entries don't linger.
+    // Without this, readers between archive (file rename) and the later rebuild
+    // would see a stale index referencing a now-moved file.
+    rebuild_index(mana_dir)?;
 
     // 7. Post-close cascade
     let post_close =
@@ -1350,9 +1355,11 @@ fn auto_commit_on_close(
 /// Rebuild the index.
 fn rebuild_index(mana_dir: &Path) -> Result<()> {
     if mana_dir.exists() {
-        let index = Index::build(mana_dir).with_context(|| "Failed to rebuild index")?;
-        index
-            .save(mana_dir)
+        let mut locked = LockedIndex::acquire(mana_dir)
+            .with_context(|| "Failed to acquire locked index")?;
+        locked.index = Index::build(mana_dir).with_context(|| "Failed to rebuild index")?;
+        locked
+            .save_and_release()
             .with_context(|| "Failed to save index")?;
     }
     Ok(())
