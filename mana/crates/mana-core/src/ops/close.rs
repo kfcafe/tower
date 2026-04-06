@@ -1372,6 +1372,25 @@ mod tests {
     use std::fs;
     use tempfile::TempDir;
 
+    fn with_temp_home<T>(f: impl FnOnce() -> T) -> T {
+        use std::sync::{Mutex, OnceLock};
+
+        static HOME_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        let guard = HOME_LOCK.get_or_init(|| Mutex::new(())).lock().unwrap();
+
+        let home = tempfile::tempdir().unwrap();
+        let old_home = std::env::var_os("HOME");
+        std::env::set_var("HOME", home.path());
+        let result = f();
+        if let Some(old_home) = old_home {
+            std::env::set_var("HOME", old_home);
+        } else {
+            std::env::remove_var("HOME");
+        }
+        drop(guard);
+        result
+    }
+
     fn setup_mana_dir() -> (TempDir, PathBuf) {
         let dir = TempDir::new().unwrap();
         let mana_dir = dir.path().join(".mana");
@@ -2052,59 +2071,61 @@ mod tests {
 
     #[test]
     fn close_auto_commit_uses_default_template_and_includes_index_updates() {
-        let config = Config {
-            project: "test".to_string(),
-            next_id: 100,
-            auto_commit: true,
-            ..Config::default()
-        };
-        let (_dir, mana_dir) = setup_git_mana_dir_with_config(config);
-        let project_root = mana_dir.parent().unwrap();
+        with_temp_home(|| {
+            let config = Config {
+                project: "test".to_string(),
+                next_id: 100,
+                auto_commit: true,
+                ..Config::default()
+            };
+            let (_dir, mana_dir) = setup_git_mana_dir_with_config(config);
+            let project_root = mana_dir.parent().unwrap();
 
-        let parent = Unit::new("1", "Parent");
-        write_unit(&mana_dir, &parent);
+            let parent = Unit::new("1", "Parent");
+            write_unit(&mana_dir, &parent);
 
-        let mut child = Unit::new("1.1", "Child");
-        child.parent = Some("1".to_string());
-        write_unit(&mana_dir, &child);
+            let mut child = Unit::new("1.1", "Child");
+            child.parent = Some("1".to_string());
+            write_unit(&mana_dir, &child);
 
-        let result = close(
-            &mana_dir,
-            "1.1",
-            CloseOpts {
-                reason: None,
-                force: false,
-                defer_verify: false,
-            },
-        )
-        .unwrap();
+            let result = close(
+                &mana_dir,
+                "1.1",
+                CloseOpts {
+                    reason: None,
+                    force: false,
+                    defer_verify: false,
+                },
+            )
+            .unwrap();
 
-        let close_result = match result {
-            CloseOutcome::Closed(result) => result,
-            other => panic!("Expected Closed outcome, got {:?}", other),
-        };
-        let auto_commit = close_result
-            .auto_commit_result
-            .expect("auto-commit result should be present when enabled");
-        assert!(auto_commit.committed);
-        assert_eq!(
-            auto_commit.message,
-            DEFAULT_COMMIT_TEMPLATE
-                .replace("{id}", "1.1")
-                .replace("{title}", "Child")
-        );
-        assert_eq!(close_result.auto_closed_parents, vec!["1".to_string()]);
+            let close_result = match result {
+                CloseOutcome::Closed(result) => result,
+                other => panic!("Expected Closed outcome, got {:?}", other),
+            };
+            let auto_commit = close_result
+                .auto_commit_result
+                .expect("auto-commit result should be present when enabled");
+            assert!(auto_commit.committed);
+            assert_eq!(
+                auto_commit.message,
+                DEFAULT_COMMIT_TEMPLATE
+                    .replace("{id}", "1.1")
+                    .replace("{title}", "Child")
+            );
+            assert_eq!(close_result.auto_closed_parents, vec!["1".to_string()]);
 
-        let head_subject = git_stdout(project_root, &["log", "-1", "--pretty=%s"]);
-        assert_eq!(head_subject.trim(), "feat(unit-1.1): Child");
+            let head_subject = git_stdout(project_root, &["log", "-1", "--pretty=%s"]);
+            assert_eq!(head_subject.trim(), "feat(unit-1.1): Child");
 
-        let changed_files = git_stdout(project_root, &["show", "--name-only", "--format=", "HEAD"]);
-        assert!(
-            changed_files.contains(".mana/index.yaml"),
-            "{changed_files}"
-        );
-        assert!(changed_files.contains("1-parent.md"), "{changed_files}");
-        assert!(changed_files.contains("1.1-child.md"), "{changed_files}");
+            let changed_files = git_stdout(project_root, &["show", "--name-only", "--format=", "HEAD"]);
+            assert!(
+                changed_files.contains(".mana/index.yaml"),
+                "{changed_files}"
+            );
+            assert!(changed_files.contains("1-parent.md"), "{changed_files}");
+            assert!(changed_files.contains("1.1-child.md"), "{changed_files}");
+        });
     }
 
     // =====================================================================

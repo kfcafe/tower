@@ -2,13 +2,16 @@
 id: '43'
 title: Fix mana orchestration desync bugs
 slug: fix-mana-orchestration-desync-bugs
-status: open
+status: closed
 priority: 2
 created_at: '2026-04-06T13:50:09.795502Z'
-updated_at: '2026-04-06T13:50:09.795502Z'
+updated_at: '2026-04-06T14:34:19.132800Z'
 labels:
 - feature
 - bug
+closed_at: '2026-04-06T14:34:19.132800Z'
+close_reason: 'Auto-closed: all children completed'
+is_archived: true
 kind: epic
 ---
 
